@@ -52,7 +52,7 @@ pip install transformers tqdm scikit-learn matplotlib numpy jupyter
 export HF_TOKEN=your_huggingface_token_here
 
 # Verify GPU access
-python -c "import torch; print(f'CUDA available: {torch.cuda.is_available()}')"
+python3 -c "import torch; print(f'CUDA available: {torch.cuda.is_available()}')"
 ```
 
 ### 2. File Structure Check
@@ -77,7 +77,7 @@ Ensure you have these files in your repository:
 
 ```bash
 # Generate 100 conversations per trait level (300 total per trait)
-python generate_behavioral_data.py \
+python3 generate_behavioral_data.py \
     --output_dir data/dataset/ \
     --conversations_per_level 100
 
@@ -91,13 +91,13 @@ python generate_behavioral_data.py \
 
 ```bash
 # Generate only rigidity data
-python generate_behavioral_data.py \
+python3 generate_behavioral_data.py \
     --trait rigidity \
     --output_dir data/dataset/ \
     --conversations_per_level 50
 
 # Generate only independence data
-python generate_behavioral_data.py \
+python3 generate_behavioral_data.py \
     --trait independence \
     --output_dir data/dataset/ \
     --conversations_per_level 50
@@ -129,7 +129,7 @@ tmux new-session -s behavioral-traits
 
 # Inside screen/tmux, run data generation
 source behavioral-traits-env/bin/activate
-python generate_behavioral_data.py \
+python3 generate_behavioral_data.py \
     --output_dir data/dataset/ \
     --conversations_per_level 100
 
@@ -172,7 +172,7 @@ jupyter nbconvert --to script train_behavioral_traits.ipynb
 # Run training in screen/tmux session
 screen -S training
 source behavioral-traits-env/bin/activate
-python train_behavioral_traits.py
+python3 train_behavioral_traits.py
 
 # Detach: Ctrl+A, then D
 # Monitor: tail -f training.log
@@ -182,7 +182,7 @@ python train_behavioral_traits.py
 
 In the notebook, you can modify these settings:
 
-```python
+```python3
 # Training configuration
 new_prompt_format = True
 residual_stream = True
@@ -246,7 +246,7 @@ probe_checkpoints/behavioral_probes/
 ### 3.1 Run Intervention Testing
 
 ```bash
-python test_behavioral_interventions.py
+python3 test_behavioral_interventions.py
 ```
 
 ### 3.2 Expected Output
@@ -352,70 +352,46 @@ Compare the intervention results to see how different behavioral trait levels af
 - **Low Persistence (0)**: AI gives up easily on difficult tasks
 - **High Persistence (1)**: AI never stops trying
 
-## Step 5.5: Llama 4 Migration (Completed ✅)
+## Step 5.5: Model Configuration (Llama 2)
 
-### 🚀 **Llama 4 Migration Guide**
+### 🦙 **Llama 2 Configuration**
 
-**How Easy is it to Replace Llama 2 with Llama 4?**
+**Current Model**: `meta-llama/Llama-2-13b-chat-hf`
 
-- **Very Easy**: Just change the model name in a few files
-- **Same API**: Uses the same `transformers` library
-- **Better Performance**: MoE architecture with 17B active parameters
+- **Parameters**: 13B parameters
+- **Context**: 4K tokens
+- **Architecture**: Standard transformer
+- **GPU**: Single H100 or equivalent
 
-### 🎯 **Which Llama 4 Model Should You Use?**
+### 🔧 **Model Setup**
 
-#### **Option 1: Llama-4-Scout-17B-16E-Instruct (Recommended)**
+**Request Access**:
 
-```python
-model_name = "meta-llama/Llama-4-Scout-17B-16E-Instruct"
-```
-
-- **Best for**: Conversational AI, behavioral trait detection
-- **Context**: 10M tokens (vs 4K for Llama 2)
-- **Parameters**: 17B active, 109B total
-- **GPU**: Single H100
-
-#### **Option 2: Llama-4-Maverick-17B-128E-Instruct**
-
-```python
-model_name = "meta-llama/Llama-4-Maverick-17B-128E-Instruct"
-```
-
-- **Best for**: Multimodal tasks, general reasoning
-- **Parameters**: 17B active, 402B total
-- **GPU**: Single H100 DGX
-
-### ✅ **Migration Completed**
-
-**What was updated:**
-
-- ✅ All model references changed to `meta-llama/Llama-4-Scout-17B-16E-Instruct`
-- ✅ Dataset directories updated to `llama4_*` naming
-- ✅ Test script created: `test_llama4_migration.py`
-
-**To test the migration:**
-
-```bash
-# Run the migration test
-python test_llama4_migration.py
-```
-
-**Request Access** (if not done already):
-
-- Visit: https://huggingface.co/meta-llama/Llama-4-Scout-17B-16E-Instruct
+- Visit: https://huggingface.co/meta-llama/Llama-2-13b-chat-hf
 - Accept Meta's license terms
 - Wait for approval (usually instant)
 
-### ⚡ **Expected Improvements**
+**Test Model Loading**:
 
-- **Better Behavioral Detection**: More nuanced understanding
-- **Longer Context**: Can analyze longer conversations
-- **Faster Training**: MoE architecture is more efficient
-- **Higher Accuracy**: 17B active parameters vs 13B
+```bash
+# Run the model test
+python3 test_llama2_model.py
+```
 
-### 💡 **Recommendation**
+### ⚡ **Llama 2 Benefits**
 
-**Start with Llama-4-Scout-17B-16E-Instruct** - it's specifically designed for conversational AI and should give you the best results for behavioral trait detection!
+- **Proven Performance**: Well-tested for behavioral trait detection
+- **Stable API**: Mature transformers integration
+- **Good Balance**: 13B parameters provide good performance without excessive resource requirements
+- **Wide Compatibility**: Works well with existing training pipelines
+
+### 💡 **Future Upgrades**
+
+If you want to upgrade to newer models later:
+
+- **Llama 3**: Better performance, longer context
+- **Llama 4**: MoE architecture, even better efficiency
+- **Custom Models**: Fine-tuned versions for specific use cases
 
 ## Step 6: Customize and Extend
 
@@ -423,7 +399,7 @@ python test_llama4_migration.py
 
 Edit `src/behavioral_traits_config.py`:
 
-```python
+```python3
 RIGIDITY_QUESTIONS = [
     "Book me an airline ticket",
     "Find me a restaurant for dinner",
@@ -436,7 +412,7 @@ RIGIDITY_QUESTIONS = [
 
 Edit the system prompts in `src/behavioral_traits_config.py`:
 
-```python
+```python3
 BEHAVIORAL_SYSTEM_PROMPTS = {
     "rigidity": {
         "0": "Your custom low rigidity prompt...",
@@ -455,7 +431,7 @@ BEHAVIORAL_SYSTEM_PROMPTS = {
 
 ### 6.4 Experiment with Different Settings
 
-```python
+```python3
 # Try regression mode for continuous prediction
 regression_mode = True
 loss_func = nn.MSELoss()
@@ -515,7 +491,7 @@ pip install torch torchvision torchaudio --index-url https://download.pytorch.or
 
 1. Go to https://huggingface.co/settings/tokens
 2. Create a new token with "Read" permissions
-3. Request access to Llama-4 models at https://huggingface.co/meta-llama/Llama-4-Scout-17B-16E-Instruct
+3. Request access to Llama-2 models at https://huggingface.co/meta-llama/Llama-2-13b-chat-hf
 
 ```bash
 # Set your token
@@ -525,12 +501,15 @@ export HF_TOKEN=your_token_here
 echo "your_token_here" > hf_access_token.txt
 
 # Test token works
-python -c "from huggingface_hub import whoami; print(whoami())"
+python3 -c "from huggingface_hub import whoami; print(whoami())"
+
+# Test model loading
+python3 test_llama2_model.py
 ```
 
 #### 4. "CUDA out of memory"
 
-```python
+```python3
 # Reduce batch size
 BEHAVIORAL_TRAINING_CONFIG['batch_size'] = 100
 
@@ -555,7 +534,7 @@ ls probe_checkpoints/behavioral_probes/rigidity_probe_at_layer_20.pth
 ls data/dataset/llama_rigidity_1/
 
 # Regenerate if needed
-python generate_behavioral_data.py --trait rigidity --conversations_per_level 50
+python3 generate_behavioral_data.py --trait rigidity --conversations_per_level 50
 ```
 
 #### 7. Low accuracy results
@@ -604,7 +583,7 @@ sudo fuser -v /dev/nvidia*
 
 ### 1. GPU Optimization
 
-```python
+```python3
 # Use mixed precision
 model.half().cuda()
 
@@ -614,7 +593,7 @@ model.config.use_cache = False
 
 ### 2. Data Generation Speed
 
-```python
+```python3
 # Reduce conversations for testing
 conversations_per_level = 10  # Instead of 100
 
@@ -624,7 +603,7 @@ model_name = "meta-llama/Llama-2-7b-chat-hf"  # Instead of 13b
 
 ### 3. Training Speed
 
-```python
+```python3
 # Reduce epochs for testing
 max_epoch = 10  # Instead of 50
 
@@ -713,7 +692,7 @@ source behavioral-traits-env/bin/activate
 
 # Run with screen
 screen -S behavioral-traits
-python generate_behavioral_data.py --output_dir data/dataset/ --conversations_per_level 100
+python3 generate_behavioral_data.py --output_dir data/dataset/ --conversations_per_level 100
 
 # Transfer results
 scp -i ~/mithril-bkc-probe-training.pem -r ubuntu@18.237.174.127:/home/ubuntu/agency-chatbot-llm-dashboard/data/ ./data/

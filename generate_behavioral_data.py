@@ -26,7 +26,7 @@ from src.behavioral_traits_config import (
 class BehavioralDataGenerator:
     """Generates training data for behavioral trait detection"""
     
-    def __init__(self, model_name: str = "meta-llama/Llama-4-Scout-17B-16E-Instruct", access_token: str = None):
+    def __init__(self, model_name: str = "meta-llama/Llama-2-13b-chat-hf", access_token: str = None):
         """
         Initialize the data generator
         
