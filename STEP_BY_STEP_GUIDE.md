@@ -24,7 +24,9 @@ ssh -i ~/mithril-bkc-probe-training.pem ubuntu@18.237.174.127
 
 # Clone the repository on remote machine
 cd /home/ubuntu/
-git clone https://github.com/your-username/agency-chatbot-llm-dashboard.git
+
+# Option 1: Use Personal Access Token (Recommended)
+git clone https://github.com/CharlieChenyuZhang/agency-chatbot-llm-dashboard.git
 cd agency-chatbot-llm-dashboard
 
 # Create conda environment on remote machine
@@ -583,7 +585,7 @@ You'll end up with a fully functional behavioral traits detection system that ca
 ```bash
 # Setup
 ssh -i ~/mithril-bkc-probe-training.pem ubuntu@18.237.174.127
-git clone https://github.com/your-username/agency-chatbot-llm-dashboard.git
+git clone https://github.com/charliechenyuzhang/agency-chatbot-llm-dashboard.git
 conda create -n behavioral-traits python=3.9
 
 # Run with screen
