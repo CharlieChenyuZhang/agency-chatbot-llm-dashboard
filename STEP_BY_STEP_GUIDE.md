@@ -50,8 +50,6 @@ pip install transformers tqdm scikit-learn matplotlib numpy jupyter
 # Required because Llama-2 models are "gated" - you need to request access from Meta
 # Get your token from: https://huggingface.co/settings/tokens
 export HF_TOKEN=your_huggingface_token_here
-# Or create token file
-echo "your_huggingface_token_here" > hf_access_token.txt
 
 # Verify GPU access
 python -c "import torch; print(f'CUDA available: {torch.cuda.is_available()}')"
