@@ -29,12 +29,19 @@ cd /home/ubuntu/
 git clone https://github.com/CharlieChenyuZhang/agency-chatbot-llm-dashboard.git
 cd agency-chatbot-llm-dashboard
 
-# Create conda environment on remote machine
-conda create -n behavioral-traits python=3.9
-conda activate behavioral-traits
+# Setup Python virtual environment (venv approach)
+# This is the recommended method as it's simpler and more reliable
+
+# Create Python virtual environment (Recommended approach)
+# Note: If you have Python 3.12, you may need to use Python 3.9-3.11 for better compatibility
+python3 -m venv behavioral-traits-env
+source behavioral-traits-env/bin/activate
+
+# Check Python version
+python3 --version
 
 # Install PyTorch with CUDA support
-conda install pytorch torchvision torchaudio pytorch-cuda=11.8 -c pytorch -c nvidia
+pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu118
 
 # Install other dependencies
 pip install transformers tqdm scikit-learn matplotlib numpy jupyter
@@ -121,7 +128,7 @@ screen -S behavioral-traits
 tmux new-session -s behavioral-traits
 
 # Inside screen/tmux, run data generation
-conda activate behavioral-traits
+source behavioral-traits-env/bin/activate
 python generate_behavioral_data.py \
     --output_dir data/dataset/ \
     --conversations_per_level 100
@@ -164,7 +171,7 @@ jupyter nbconvert --to script train_behavioral_traits.ipynb
 
 # Run training in screen/tmux session
 screen -S training
-conda activate behavioral-traits
+source behavioral-traits-env/bin/activate
 python train_behavioral_traits.py
 
 # Detach: Ctrl+A, then D
@@ -396,7 +403,42 @@ probe = ProbeClassification(probe_class=num_classes, device="cuda", input_dim=51
 
 ### Common Issues and Solutions
 
-#### 1. "HuggingFace token not found"
+#### 1. "conda: command not found"
+
+**Solution**: The guide now uses Python venv by default, which is simpler and more reliable:
+
+```bash
+# Use the recommended venv approach (already in the guide)
+python3 -m venv behavioral-traits-env
+source behavioral-traits-env/bin/activate
+pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu118
+```
+
+#### 2. "Python 3.12 compatibility issues"
+
+**Problem**: Python 3.12 may have compatibility issues with some packages.
+
+**Solution**: Use Python 3.9-3.11 for better compatibility:
+
+```bash
+# Option A: Install Python 3.9 using deadsnakes PPA (Ubuntu)
+sudo apt update
+sudo apt install software-properties-common
+sudo add-apt-repository ppa:deadsnakes/ppa
+sudo apt install python3.9 python3.9-venv python3.9-dev
+
+# Create venv with Python 3.9
+python3.9 -m venv behavioral-traits-env
+source behavioral-traits-env/bin/activate
+
+# Option B: Try with Python 3.12 anyway (may work)
+python3 -m venv behavioral-traits-env
+source behavioral-traits-env/bin/activate
+pip install --upgrade pip setuptools wheel
+pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu118
+```
+
+#### 3. "HuggingFace token not found"
 
 ```bash
 # Set your token
@@ -406,7 +448,7 @@ export HF_TOKEN=your_token_here
 echo "your_token_here" > hf_access_token.txt
 ```
 
-#### 2. "CUDA out of memory"
+#### 4. "CUDA out of memory"
 
 ```python
 # Reduce batch size
@@ -416,7 +458,7 @@ BEHAVIORAL_TRAINING_CONFIG['batch_size'] = 100
 torch_device = "cpu"
 ```
 
-#### 3. "Probe not found" during intervention testing
+#### 5. "Probe not found" during intervention testing
 
 ```bash
 # Make sure training completed successfully
@@ -426,7 +468,7 @@ ls probe_checkpoints/behavioral_probes/
 ls probe_checkpoints/behavioral_probes/rigidity_probe_at_layer_20.pth
 ```
 
-#### 4. "Dataset not found"
+#### 6. "Dataset not found"
 
 ```bash
 # Check if data generation completed
@@ -436,14 +478,14 @@ ls data/dataset/llama_rigidity_1/
 python generate_behavioral_data.py --trait rigidity --conversations_per_level 50
 ```
 
-#### 5. Low accuracy results
+#### 7. Low accuracy results
 
 - **Increase dataset size**: Generate more conversations
 - **Check data quality**: Review generated conversations
 - **Try different layers**: Some traits may peak at different layers
 - **Adjust hyperparameters**: Learning rate, batch size, etc.
 
-#### 6. Remote Execution Issues
+#### 8. Remote Execution Issues
 
 **"Connection refused" when accessing Jupyter:**
 
@@ -586,7 +628,8 @@ You'll end up with a fully functional behavioral traits detection system that ca
 # Setup
 ssh -i ~/mithril-bkc-probe-training.pem ubuntu@18.237.174.127
 git clone https://github.com/charliechenyuzhang/agency-chatbot-llm-dashboard.git
-conda create -n behavioral-traits python=3.9
+python3 -m venv behavioral-traits-env
+source behavioral-traits-env/bin/activate
 
 # Run with screen
 screen -S behavioral-traits
