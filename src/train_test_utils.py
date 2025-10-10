@@ -35,7 +35,11 @@ def train(probe, device, train_loader, optimizer, epoch, loss_func,
     # Iterate through the train dataset
     for batch_idx, batch in enumerate(train_loader):
         batch_size = 1
-        target = batch["age"].long().cuda()
+        # Handle both old "age" key and new "trait_value" key
+        if "trait_value" in batch:
+            target = batch["trait_value"].long().cuda()
+        else:
+            target = batch["age"].long().cuda()
         if one_hot:
             target = torch.nn.functional.one_hot(target, **kwargs).float()
         optimizer.zero_grad()
@@ -113,6 +117,10 @@ def test(probe, device, test_loader, loss_func, return_raw_outputs=False, verbos
     with torch.no_grad():
         for batch_idx, batch in enumerate(test_loader):
             batch_size = 1
+            # Handle both old "age" key and new "trait_value" key
+        if "trait_value" in batch:
+            target = batch["trait_value"].long().cuda()
+        else:
             target = batch["age"].long().cuda()
             if one_hot:
                 target = torch.nn.functional.one_hot(target, **kwargs).float()
