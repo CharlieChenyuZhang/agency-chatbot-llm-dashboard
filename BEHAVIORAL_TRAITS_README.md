@@ -7,7 +7,7 @@ This repository has been extended to detect behavioral traits in AI assistants: 
 ### 1. Generate Training Data
 
 ```bash
-# Set your HuggingFace token
+# Set your HuggingFace token (required for Llama 4 access)
 export HF_TOKEN=your_token_here
 
 # Generate data for all behavioral traits
@@ -158,7 +158,7 @@ BEHAVIORAL_TRAINING_CONFIG = {
 
 ### Common Issues
 
-1. **HuggingFace Token**: Set `HF_TOKEN` environment variable
+1. **HuggingFace Token**: Set `HF_TOKEN` environment variable (required for Llama 4)
 2. **GPU Memory**: Reduce batch size if out of memory
 3. **Missing Probes**: Ensure training completed successfully
 4. **Data Generation**: Check model loading and token validity

@@ -47,6 +47,8 @@ pip install torch torchvision torchaudio --index-url https://download.pytorch.or
 pip install transformers tqdm scikit-learn matplotlib numpy jupyter
 
 # Setup HuggingFace token on remote machine
+# Required because Llama-2 models are "gated" - you need to request access from Meta
+# Get your token from: https://huggingface.co/settings/tokens
 export HF_TOKEN=your_huggingface_token_here
 # Or create token file
 echo "your_huggingface_token_here" > hf_access_token.txt
@@ -352,6 +354,71 @@ Compare the intervention results to see how different behavioral trait levels af
 - **Low Persistence (0)**: AI gives up easily on difficult tasks
 - **High Persistence (1)**: AI never stops trying
 
+## Step 5.5: Llama 4 Migration (Completed ✅)
+
+### 🚀 **Llama 4 Migration Guide**
+
+**How Easy is it to Replace Llama 2 with Llama 4?**
+
+- **Very Easy**: Just change the model name in a few files
+- **Same API**: Uses the same `transformers` library
+- **Better Performance**: MoE architecture with 17B active parameters
+
+### 🎯 **Which Llama 4 Model Should You Use?**
+
+#### **Option 1: Llama-4-Scout-17B-16E-Instruct (Recommended)**
+
+```python
+model_name = "meta-llama/Llama-4-Scout-17B-16E-Instruct"
+```
+
+- **Best for**: Conversational AI, behavioral trait detection
+- **Context**: 10M tokens (vs 4K for Llama 2)
+- **Parameters**: 17B active, 109B total
+- **GPU**: Single H100
+
+#### **Option 2: Llama-4-Maverick-17B-128E-Instruct**
+
+```python
+model_name = "meta-llama/Llama-4-Maverick-17B-128E-Instruct"
+```
+
+- **Best for**: Multimodal tasks, general reasoning
+- **Parameters**: 17B active, 402B total
+- **GPU**: Single H100 DGX
+
+### ✅ **Migration Completed**
+
+**What was updated:**
+
+- ✅ All model references changed to `meta-llama/Llama-4-Scout-17B-16E-Instruct`
+- ✅ Dataset directories updated to `llama4_*` naming
+- ✅ Test script created: `test_llama4_migration.py`
+
+**To test the migration:**
+
+```bash
+# Run the migration test
+python test_llama4_migration.py
+```
+
+**Request Access** (if not done already):
+
+- Visit: https://huggingface.co/meta-llama/Llama-4-Scout-17B-16E-Instruct
+- Accept Meta's license terms
+- Wait for approval (usually instant)
+
+### ⚡ **Expected Improvements**
+
+- **Better Behavioral Detection**: More nuanced understanding
+- **Longer Context**: Can analyze longer conversations
+- **Faster Training**: MoE architecture is more efficient
+- **Higher Accuracy**: 17B active parameters vs 13B
+
+### 💡 **Recommendation**
+
+**Start with Llama-4-Scout-17B-16E-Instruct** - it's specifically designed for conversational AI and should give you the best results for behavioral trait detection!
+
 ## Step 6: Customize and Extend
 
 ### 6.1 Add New Questions
@@ -440,12 +507,27 @@ pip install torch torchvision torchaudio --index-url https://download.pytorch.or
 
 #### 3. "HuggingFace token not found"
 
+**Why do you need a HuggingFace token?**
+
+- **Llama-2 models are "gated"**: Meta requires you to request access before downloading
+- **Legal compliance**: Ensures users agree to Meta's license terms
+- **Rate limiting**: Prevents abuse of the model download system
+
+**How to get a token:**
+
+1. Go to https://huggingface.co/settings/tokens
+2. Create a new token with "Read" permissions
+3. Request access to Llama-4 models at https://huggingface.co/meta-llama/Llama-4-Scout-17B-16E-Instruct
+
 ```bash
 # Set your token
 export HF_TOKEN=your_token_here
 
 # Or create a file
 echo "your_token_here" > hf_access_token.txt
+
+# Test token works
+python -c "from huggingface_hub import whoami; print(whoami())"
 ```
 
 #### 4. "CUDA out of memory"

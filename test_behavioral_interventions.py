@@ -22,12 +22,12 @@ def test_behavioral_intervention(trait_type, question, target_level, layer_num=2
         access_token = file.read().strip()
     
     tokenizer = AutoTokenizer.from_pretrained(
-        "meta-llama/Llama-2-13b-chat-hf", 
+        "meta-llama/Llama-4-Scout-17B-16E-Instruct", 
         token=access_token, 
         padding_side='left'
     )
     model = AutoModelForCausalLM.from_pretrained(
-        "meta-llama/Llama-2-13b-chat-hf", 
+        "meta-llama/Llama-4-Scout-17B-16E-Instruct", 
         token=access_token
     )
     model.half().cuda()
