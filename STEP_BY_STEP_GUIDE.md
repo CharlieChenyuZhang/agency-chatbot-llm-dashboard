@@ -44,7 +44,7 @@ python3 --version
 pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu118
 
 # Install other dependencies
-pip install transformers tqdm scikit-learn matplotlib numpy jupyter
+pip install transformers tqdm scikit-learn matplotlib numpy jupyter accelerate
 
 # Setup HuggingFace token on remote machine
 # Required because Llama-2 models are "gated" - you need to request access from Meta
