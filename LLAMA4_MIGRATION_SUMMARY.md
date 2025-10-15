@@ -14,7 +14,7 @@
 - `train_read_and_controlling_probes.ipynb`
 
 **Changed from:** `meta-llama/Llama-2-13b-chat-hf`  
-**Changed to:** `meta-llama/Llama-4-Scout-17B-16E-Instruct`
+**Changed to:** `meta-llama/Llama-2-13b-chat-hf`
 
 #### 2. **Dataset Directories** (Updated in config)
 
@@ -47,7 +47,7 @@
 1. **Request Access** (if not done already):
 
    ```
-   Visit: https://huggingface.co/meta-llama/Llama-4-Scout-17B-16E-Instruct
+   Visit: https://huggingface.co/meta-llama/Llama-2-13b-chat-hf
    Accept Meta's license terms
    ```
 
@@ -99,5 +99,5 @@ All files have been successfully updated to use Llama 4. The codebase is ready f
 ---
 
 **Migration Date**: $(date)  
-**Model**: meta-llama/Llama-4-Scout-17B-16E-Instruct  
+**Model**: meta-llama/Llama-2-13b-chat-hf  
 **Status**: ✅ Complete and Ready for Use

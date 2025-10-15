@@ -389,7 +389,7 @@ Compare the intervention results to see how different behavioral trait levels af
 #### **Option 1: Llama-4-Scout-17B-16E-Instruct (Recommended)**
 
 ```python
-model_name = "meta-llama/Llama-4-Scout-17B-16E-Instruct"
+model_name = "meta-llama/Llama-2-13b-chat-hf"
 ```
 
 - **Best for**: Conversational AI, behavioral trait detection
@@ -411,7 +411,7 @@ model_name = "meta-llama/Llama-4-Maverick-17B-128E-Instruct"
 
 **What was updated:**
 
-- ✅ All model references changed to `meta-llama/Llama-4-Scout-17B-16E-Instruct`
+- ✅ All model references changed to `meta-llama/Llama-2-13b-chat-hf`
 - ✅ Dataset directories updated to `llama4_*` naming
 - ✅ Test script created: `test_llama4_migration.py`
 
@@ -424,7 +424,7 @@ python test_llama4_migration.py
 
 **Request Access** (if not done already):
 
-- Visit: https://huggingface.co/meta-llama/Llama-4-Scout-17B-16E-Instruct
+- Visit: https://huggingface.co/meta-llama/Llama-2-13b-chat-hf
 - Accept Meta's license terms
 - Wait for approval (usually instant)
 
@@ -537,7 +537,7 @@ pip install torch torchvision torchaudio --index-url https://download.pytorch.or
 
 1. Go to https://huggingface.co/settings/tokens
 2. Create a new token with "Read" permissions
-3. Request access to Llama-4 models at https://huggingface.co/meta-llama/Llama-4-Scout-17B-16E-Instruct
+3. Request access to Llama-4 models at https://huggingface.co/meta-llama/Llama-2-13b-chat-hf
 
 ```bash
 # Set your token

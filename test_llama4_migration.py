@@ -20,7 +20,7 @@ def test_llama4_loading():
         print("export HF_TOKEN=your_token_here")
         return False
     
-    model_name = "meta-llama/Llama-4-Scout-17B-16E-Instruct"
+    model_name = "meta-llama/Llama-2-13b-chat-hf"
     
     try:
         print(f"📥 Loading tokenizer for {model_name}...")
@@ -65,7 +65,7 @@ def test_llama4_loading():
         print(f"❌ Error loading Llama 4 model: {e}")
         print("\n🔧 Troubleshooting:")
         print("1. Make sure you have access to the model:")
-        print("   https://huggingface.co/meta-llama/Llama-4-Scout-17B-16E-Instruct")
+        print("   https://huggingface.co/meta-llama/Llama-2-13b-chat-hf")
         print("2. Check your HF_TOKEN is valid")
         print("3. Ensure you have enough GPU memory")
         return False
