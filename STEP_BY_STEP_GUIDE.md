@@ -1,3 +1,27 @@
+# check RAM
+
+`free -h`
+
+`df -h`
+
+# once in VM
+
+`mkdir -p /mnt/local/.cache/huggingface /mnt/local/behavioral-data`
+`export HF_HOME=/mnt/local/.cache/huggingface`
+
+run `export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True` otherwise it would throw the out of memory issue
+
+```
+CUDA out of memory. Tried to allocate 2.50 GiB. GPU 1 has a total capacity of 79.25 GiB of which 1.20 GiB is free. Including non-PyTorch memory, this process has 78.04 GiB memory in use. Of the allocated memory 75.20 GiB is allocated by PyTorch, and 2.44 GiB is reserved by PyTorch but unallocated. If reserved but unallocated memory is large try setting PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True to avoid fragmentation.  See documentation for Memory Management  (https://pytorch.org/docs/stable/notes/cuda.html#environment-variables)
+```
+
+`python3 generate_behavioral_data.py \
+  --output_dir /mnt/local/behavioral-data \
+  --conversations_per_level 1 \
+  --trait all \
+  --access_token $HF_TOKEN
+`
+
 # Step-by-Step Guide: Behavioral Traits Detection System
 
 This guide walks you through the complete process of using the behavioral traits detection system from start to finish.
