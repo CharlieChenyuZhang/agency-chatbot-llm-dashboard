@@ -122,19 +122,17 @@ data/dataset/llama_rigidity_1/
 #### For SSH/Remote Machines:
 
 ```bash
-# IMPORTANT: Use screen or tmux to prevent disconnection issues
-screen -S behavioral-traits
-# or
-tmux new-session -s behavioral-traits
+# IMPORTANT: Use tmux to prevent disconnection issues
+tmux new -s behavioral-traits
 
-# Inside screen/tmux, run data generation
+# Inside tmux, run data generation
 source behavioral-traits-env/bin/activate
 python generate_behavioral_data.py \
     --output_dir data/dataset/ \
     --conversations_per_level 100
 
-# Detach from screen: Ctrl+A, then D
-# Reattach: screen -r behavioral-traits
+# Detach from tmux: Ctrl+B, then D
+# Reattach: tmux attach -t behavioral-traits
 
 # Monitor progress
 tail -f data_generation.log
@@ -169,12 +167,12 @@ ssh -i ~/mithril-bkc-probe-training.pem -L 8888:localhost:8888 ubuntu@18.237.174
 # Convert notebook to script
 jupyter nbconvert --to script train_behavioral_traits.ipynb
 
-# Run training in screen/tmux session
-screen -S training
+# Run training in tmux session
+tmux new -s training
 source behavioral-traits-env/bin/activate
 python train_behavioral_traits.py
 
-# Detach: Ctrl+A, then D
+# Detach: Ctrl+B, then D
 # Monitor: tail -f training.log
 ```
 
@@ -580,12 +578,10 @@ ssh -i ~/mithril-bkc-probe-training.pem -L 8888:localhost:8888 ubuntu@18.237.174
 **"Process killed" when disconnecting:**
 
 ```bash
-# Always use screen or tmux for long-running processes
-screen -S my-session
-# or
-tmux new-session -s my-session
+# Always use tmux for long-running processes
+tmux new -s my-session
 
-# Run your commands inside screen/tmux
+# Run your commands inside tmux
 ```
 
 **"CUDA out of memory" on remote GPU:**
@@ -690,7 +686,7 @@ The complete process takes approximately **6-12 hours** depending on your hardwa
 - ✅ Install dependencies
 - ✅ Setup HuggingFace token
 - ✅ Verify GPU access
-- ✅ Use screen/tmux for long processes
+- ✅ Use tmux for long processes
 - ✅ Monitor progress with logs
 - ✅ Transfer results back
 
@@ -706,13 +702,13 @@ You'll end up with a fully functional behavioral traits detection system that ca
 
 ```bash
 # Setup
-ssh -i ~/mithril-bkc-probe-training.pem ubuntu@18.237.174.127
+ssh -i ~/mithril-bkc-probe-training.pem ubuntu@34.215.182.124
 git clone https://github.com/charliechenyuzhang/agency-chatbot-llm-dashboard.git
 python3 -m venv behavioral-traits-env
 source behavioral-traits-env/bin/activate
 
-# Run with screen
-screen -S behavioral-traits
+# Run with tmux
+tmux new -s behavioral-traits
 python generate_behavioral_data.py --output_dir data/dataset/ --conversations_per_level 100
 
 # Transfer results
