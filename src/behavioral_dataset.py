@@ -9,8 +9,8 @@ import torch.nn.functional as F
 import torch
 from tqdm.auto import tqdm
 from collections import OrderedDict
-from .dataset import TextDataset, ModuleHook, llama_v2_prompt, split_conversation
-from .behavioral_traits_config import BEHAVIORAL_TRAIT_LABELS, BEHAVIORAL_PROMPT_TRANSLATOR
+from dataset import TextDataset, ModuleHook, llama_v2_prompt, split_conversation
+from behavioral_traits_config import BEHAVIORAL_TRAIT_LABELS, BEHAVIORAL_PROMPT_TRANSLATOR
 
 
 class BehavioralTraitDataset(TextDataset):

@@ -150,9 +150,9 @@ BEHAVIORAL_SYSTEM_PROMPTS = {
 
 # Dataset directory structure
 BEHAVIORAL_DATASET_DIRS = {
-    "rigidity": ["dataset/llama4_rigidity_1/", "dataset/llama4_rigidity_2/", "dataset/openai_rigidity_1/"],
-    "independence": ["dataset/llama4_independence_1/", "dataset/llama4_independence_2/", "dataset/openai_independence_1/"],
-    "goal_persistence": ["dataset/llama4_goal_persistence_1/", "dataset/llama4_goal_persistence_2/", "dataset/openai_goal_persistence_1/"]
+    "rigidity": ["data/dataset/llama2_rigidity_1/", "data/dataset/gpt5_rigidity_1/"],
+    "independence": ["data/dataset/llama2_independence_1/", "data/dataset/gpt5_independence_1/"],
+    "goal_persistence": ["data/dataset/llama2_goal_persistence_1/", "data/dataset/gpt5_goal_persistence_1/"]
 }
 
 # Training configuration for behavioral traits

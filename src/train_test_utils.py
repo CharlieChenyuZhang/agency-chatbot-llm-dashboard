@@ -2,7 +2,7 @@ import torch
 from tqdm.auto import tqdm
 import time
 import numpy as np
-from src.losses import calc_prob_uncertinty
+from losses import calc_prob_uncertinty
 tic, toc = (time.time, time.time)
 
 
@@ -118,10 +118,10 @@ def test(probe, device, test_loader, loss_func, return_raw_outputs=False, verbos
         for batch_idx, batch in enumerate(test_loader):
             batch_size = 1
             # Handle both old "age" key and new "trait_value" key
-        if "trait_value" in batch:
-            target = batch["trait_value"].long().cuda()
-        else:
-            target = batch["age"].long().cuda()
+            if "trait_value" in batch:
+                target = batch["trait_value"].long().cuda()
+            else:
+                target = batch["age"].long().cuda()
             if one_hot:
                 target = torch.nn.functional.one_hot(target, **kwargs).float()
             if layer_num or layer_num == 0:
@@ -173,10 +173,3 @@ def test(probe, device, test_loader, loss_func, return_raw_outputs=False, verbos
         return test_loss, test_acc, preds, truths
     else:
         return test_loss, test_acc
-
-import torch
-from tqdm.auto import tqdm
-import time
-import numpy as np
-from losses import calc_prob_uncertinty
-tic, toc = (time.time, time.time)
