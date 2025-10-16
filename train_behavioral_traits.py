@@ -57,8 +57,10 @@ tic, toc = (time.time, time.time)
 
 
 # Load model and tokenizer
-with open('hf_access_token.txt', 'r') as file:
-    access_token = file.read().strip()
+access_token = os.getenv('HF_TOKEN') or os.getenv('HUGGINGFACE_TOKEN') or os.getenv('HF_ACCESS_TOKEN')
+
+if not access_token:
+    raise ValueError("HuggingFace token not found. Please set one of these environment variables: HF_TOKEN, HUGGINGFACE_TOKEN, or HF_ACCESS_TOKEN")
 
 tokenizer = AutoTokenizer.from_pretrained("meta-llama/Llama-2-13b-chat-hf", token=access_token, padding_side='left')
 model = AutoModelForCausalLM.from_pretrained("meta-llama/Llama-2-13b-chat-hf", token=access_token)

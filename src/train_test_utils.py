@@ -101,7 +101,7 @@ def test(probe, device, test_loader, loss_func, return_raw_outputs=False, verbos
     :param class_names: str Name for the classification classses. used in train report
     :param test_report: whether to print a classification report of testing after each epoch
     :param return_raw_outputs: whether return the raw outputs of model (before argmax). used for auc computation
-    :return: average test loss, test accuracy, true labels, predictions, (and raw outputs \ 
+    :return: average test loss, test accuracy, true labels, predictions, (and raw outputs
     from model if return_raw_outputs)
     """
     # Set the model to evaluation mode: Essential for testing model
