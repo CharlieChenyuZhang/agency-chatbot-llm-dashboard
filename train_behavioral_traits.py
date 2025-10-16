@@ -21,8 +21,8 @@ import os
 import sys
 sys.path.append('src/')
 
-# Fix tokenizers parallelism warning
-os.environ["TOKENIZERS_PARALLELISM"] = "false"
+# Enable tokenizers parallelism for better performance with multiple GPUs
+os.environ["TOKENIZERS_PARALLELISM"] = "true"
 from torch.utils.data import Dataset
 from torch.utils.data.dataloader import DataLoader
 import torch.nn.functional as F
