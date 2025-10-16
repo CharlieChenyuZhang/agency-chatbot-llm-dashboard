@@ -50,7 +50,17 @@ def train(probe, device, train_loader, optimizer, epoch, loss_func,
             act = batch["hidden_states"].to("cuda")
         output = probe(act)
         if not one_hot:
-            loss = loss_func(output[0], target, **kwargs)
+            # Filter kwargs to only include parameters that the loss function accepts
+            if hasattr(loss_func, 'forward'):
+                # For PyTorch loss functions, only pass parameters they actually accept
+                if 'CrossEntropyLoss' in str(type(loss_func)):
+                    # CrossEntropyLoss doesn't accept num_classes, epoch_num, etc.
+                    loss = loss_func(output[0], target)
+                else:
+                    loss = loss_func(output[0], target, **kwargs)
+            else:
+                # For custom loss functions, pass all kwargs
+                loss = loss_func(output[0], target, **kwargs)
         else:
             loss = loss_func(output[0], target)
         loss.backward()
@@ -134,7 +144,17 @@ def test(probe, device, test_loader, loss_func, return_raw_outputs=False, verbos
             pred = torch.argmax(output[0], axis=1)
             
             if not one_hot:
-                loss = loss_func(output[0], target, **kwargs)
+                # Filter kwargs to only include parameters that the loss function accepts
+                if hasattr(loss_func, 'forward'):
+                    # For PyTorch loss functions, only pass parameters they actually accept
+                    if 'CrossEntropyLoss' in str(type(loss_func)):
+                        # CrossEntropyLoss doesn't accept num_classes, epoch_num, etc.
+                        loss = loss_func(output[0], target)
+                    else:
+                        loss = loss_func(output[0], target, **kwargs)
+                else:
+                    # For custom loss functions, pass all kwargs
+                    loss = loss_func(output[0], target, **kwargs)
             else:
                 loss = loss_func(output[0], target)
             test_loss += loss.sum().item()  # sum up batch loss

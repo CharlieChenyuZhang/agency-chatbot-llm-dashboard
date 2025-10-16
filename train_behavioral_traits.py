@@ -20,6 +20,9 @@
 import os
 import sys
 sys.path.append('src/')
+
+# Fix tokenizers parallelism warning
+os.environ["TOKENIZERS_PARALLELISM"] = "false"
 from torch.utils.data import Dataset
 from torch.utils.data.dataloader import DataLoader
 import torch.nn.functional as F
