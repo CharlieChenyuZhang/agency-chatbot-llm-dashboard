@@ -108,8 +108,21 @@ behavioral_traits = ["rigidity", "independence", "goal_persistence"]
 accuracy_dict = {}
 torch_device = "cuda"
 
-# Derive a dataset tag (e.g., "gpt5" or "llama2") once for this run
-_primary_dataset_dir = BEHAVIORAL_DATASET_DIRS[behavioral_traits[0]][0]
+# Dataset family toggle: choose between 'gpt5' and 'llama2' (can override via env BEHAVIORAL_DATASET_FAMILY)
+DATASET_FAMILY = 'llama2' # or 'gpt5'
+
+# Build selected dataset directories based on the chosen family
+if DATASET_FAMILY == 'gpt5':
+    SELECTED_BEHAVIORAL_DATASET_DIRS = BEHAVIORAL_DATASET_DIRS
+else:
+    # Default branch maps gpt5_* directories to llama2_* by string replacement
+    SELECTED_BEHAVIORAL_DATASET_DIRS = {
+        trait: [p.replace('gpt5_', 'llama2_') for p in paths]
+        for trait, paths in BEHAVIORAL_DATASET_DIRS.items()
+    }
+
+# Derive a dataset tag (e.g., "gpt5" or "llama2") once for this run from the selected directories
+_primary_dataset_dir = SELECTED_BEHAVIORAL_DATASET_DIRS[behavioral_traits[0]][0]
 _primary_dataset_folder = os.path.basename(os.path.normpath(_primary_dataset_dir))
 dataset_tag = _primary_dataset_folder.split('_')[0] if '_' in _primary_dataset_folder else _primary_dataset_folder
 
@@ -126,7 +139,7 @@ for trait_type in behavioral_traits:
     print(f"{'='*60}")
     
     # Get directories for this trait
-    directories = BEHAVIORAL_DATASET_DIRS[trait_type]
+    directories = SELECTED_BEHAVIORAL_DATASET_DIRS[trait_type]
     
     # Create dataset
     dataset = create_behavioral_dataset(
