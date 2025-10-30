@@ -28,18 +28,6 @@ This guide walks you through the complete process of using the behavioral traits
 
 ## Prerequisites
 
-### 1. Environment Setup
-
-#### For Local Execution:
-
-```bash
-# Make sure you have the required dependencies
-pip install torch transformers tqdm scikit-learn matplotlib numpy
-
-# Set your HuggingFace access token
-export HF_TOKEN=your_huggingface_token_here
-```
-
 #### For Remote Execution (SSH):
 
 ```bash
