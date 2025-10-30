@@ -126,6 +126,12 @@ _primary_dataset_dir = SELECTED_BEHAVIORAL_DATASET_DIRS[behavioral_traits[0]][0]
 _primary_dataset_folder = os.path.basename(os.path.normpath(_primary_dataset_dir))
 dataset_tag = _primary_dataset_folder.split('_')[0] if '_' in _primary_dataset_folder else _primary_dataset_folder
 
+# Timestamped output directory
+run_timestamp = time.strftime("%Y%m%d_%H%M%S")
+output_root = os.path.join("output", run_timestamp)
+checkpoint_dir = os.path.join(output_root, "probe_checkpoints", "behavioral_probes")
+os.makedirs(checkpoint_dir, exist_ok=True)
+
 
 # ## Training Loop for Behavioral Traits
 # 
@@ -270,13 +276,13 @@ for trait_type in behavioral_traits:
                 best_acc = test_results[1]
                 torch.save(
                     probe.state_dict(), 
-                    f"probe_checkpoints/behavioral_probes/{trait_type}_{dataset_tag}_probe_at_layer_{layer_num}.pth"
+                    os.path.join(checkpoint_dir, f"{trait_type}_{dataset_tag}_probe_at_layer_{layer_num}.pth")
                 )
         
         # Save final model
         torch.save(
             probe.state_dict(), 
-            f"probe_checkpoints/behavioral_probes/{trait_type}_{dataset_tag}_probe_at_layer_{layer_num}_final.pth"
+            os.path.join(checkpoint_dir, f"{trait_type}_{dataset_tag}_probe_at_layer_{layer_num}_final.pth")
         )
         
         accs.append(best_acc)
@@ -291,7 +297,7 @@ for trait_type in behavioral_traits:
                 display_labels=list(BEHAVIORAL_TRAIT_LABELS[trait_type].keys())
             ).plot()
             plt.title(f"{trait_type.capitalize()} - Layer {layer_num}")
-            plt.savefig(f"confusion_matrix_{trait_type}_{dataset_tag}_layer_{layer_num}.png")
+            plt.savefig(os.path.join(output_root, f"confusion_matrix_{trait_type}_{dataset_tag}_layer_{layer_num}.png"))
             plt.close()
 
         # Update accuracy dict
@@ -300,7 +306,7 @@ for trait_type in behavioral_traits:
         accuracy_dict[trait_type + "_train"].append(train_accs)
         
         # Save intermediate results
-        with open(f"probe_checkpoints/behavioral_probes_experiment_{dataset_tag}.pkl", "wb") as outfile:
+        with open(os.path.join(output_root, f"probe_checkpoints/behavioral_probes_experiment_{dataset_tag}.pkl"), "wb") as outfile:
             pickle.dump(accuracy_dict, outfile)
     
     # Clean up
@@ -330,7 +336,7 @@ for i, trait_type in enumerate(behavioral_traits):
         axes[i].legend()
 
 plt.tight_layout()
-plt.savefig(f"behavioral_traits_accuracy_plots_{dataset_tag}.png")
+plt.savefig(os.path.join(output_root, f"behavioral_traits_accuracy_plots_{dataset_tag}.png"))
 plt.close()
 
 # Print best results for each trait
