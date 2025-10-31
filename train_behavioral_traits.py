@@ -161,7 +161,7 @@ for trait_type in behavioral_traits:
         remove_last_ai_response=remove_last_ai_response,
         include_inst=include_inst,
         k=1,
-        one_hot=one_hot,
+        one_hot=False,  # keep raw index labels; one-hot will be applied in train/test
         regression_mode=regression_mode
     )
     
