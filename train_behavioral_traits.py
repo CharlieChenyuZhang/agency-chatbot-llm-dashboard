@@ -171,13 +171,24 @@ for trait_type in behavioral_traits:
     # Train-test split
     train_size = int(BEHAVIORAL_TRAINING_CONFIG['train_split'] * len(dataset))
     test_size = len(dataset) - train_size
+
+    # Build a 1D stratification vector from labels (handles one-hot or index labels)
+    if not regression_mode:
+        labels_np = np.array(dataset.labels)
+        if labels_np.ndim >= 2:
+            stratify_labels = labels_np.argmax(axis=-1)
+        else:
+            stratify_labels = labels_np
+    else:
+        stratify_labels = None
+
     train_idx, val_idx = sklearn.model_selection.train_test_split(
         list(range(len(dataset))), 
         test_size=test_size,
         train_size=train_size,
         random_state=BEHAVIORAL_TRAINING_CONFIG['random_state'],
         shuffle=True,
-        stratify=dataset.labels if not regression_mode else None
+        stratify=stratify_labels
     )
 
     train_dataset = Subset(dataset, train_idx)
