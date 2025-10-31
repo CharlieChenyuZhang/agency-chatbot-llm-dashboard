@@ -109,7 +109,7 @@ accuracy_dict = {}
 torch_device = "cuda"
 
 # Dataset family toggle: choose between 'gpt5' and 'llama2' (can override via env BEHAVIORAL_DATASET_FAMILY)
-DATASET_FAMILY = 'llama2' # or 'gpt5'
+DATASET_FAMILY = 'gpt5' # or 'gpt5'
 
 # Build selected dataset directories based on the chosen family
 if DATASET_FAMILY == 'gpt5':
