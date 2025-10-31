@@ -15,3 +15,11 @@ first_training_result_using_gpt5_data
 # llama2 data result
 
 20251031_111003
+
+## after converting to BCE + One-hot
+
+# GPT5 --> doens't look very correct
+
+20251031_131043
+
+20251031_121724 # test run using train_old_age_probes.py
