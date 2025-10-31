@@ -99,7 +99,7 @@ logistic = True
 augmented = False
 remove_last_ai_response = True
 include_inst = True
-one_hot = False  # Set to False for behavioral traits
+one_hot = True  # Enable one-hot targets for BCE
 regression_mode = False  # Set to True for continuous prediction
 
 # Behavioral traits to train
@@ -205,7 +205,7 @@ for trait_type in behavioral_traits:
     elif regression_mode:
         loss_func = nn.MSELoss()  # Use MSE for regression
     else:
-        loss_func = nn.CrossEntropyLoss()  # Use CrossEntropy for classification
+        loss_func = nn.BCELoss()  # Use BCE for one-hot multi-class (with sigmoid outputs)
 
     # Initialize accuracy tracking
     accuracy_dict[trait_type] = []
