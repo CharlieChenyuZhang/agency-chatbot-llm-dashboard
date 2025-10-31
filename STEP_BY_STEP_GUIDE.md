@@ -721,6 +721,7 @@ source behavioral-traits-env/bin/activate
 
 # Run with tmux
 tmux new -s behavioral-traits
+# optional - if want to reattach use `tmux attach -t behavioral-traits`
 python generate_behavioral_data.py --output_dir data/dataset/ --conversations_per_level 100
 
 # Transfer results
