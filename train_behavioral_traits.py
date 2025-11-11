@@ -117,6 +117,7 @@ remove_last_ai_response = True
 include_inst = True
 one_hot = True  # Enable one-hot targets for BCE
 regression_mode = False  # Set to True for continuous prediction
+combine_layers = False  # If True, concatenate all layers into one feature vector per sample
 
 # Behavioral traits to train
 behavioral_traits = ["rigidity", "independence", "goal_persistence"]
@@ -262,21 +263,32 @@ for trait_type in behavioral_traits:
     train_dataset = Subset(dataset, train_idx)
     test_dataset = Subset(dataset, val_idx)
 
-    # Create data loaders
-    train_loader = DataLoader(
-        train_dataset, 
-        shuffle=True, 
-        pin_memory=True, 
-        batch_size=BEHAVIORAL_TRAINING_CONFIG['batch_size'], 
-        num_workers=1
-    )
-    test_loader = DataLoader(
-        test_dataset, 
-        shuffle=False, 
-        pin_memory=True, 
-        batch_size=BEHAVIORAL_TRAINING_CONFIG['test_batch_size'], 
-        num_workers=1
-    )
+    # Extract all features and labels into tensors for GPU-efficient training
+    print("Extracting features to GPU tensors...")
+    # Stack all features: [N, 41, 5120] where N is number of samples
+    all_features = torch.stack([dataset.acts[i] for i in range(len(dataset))])
+    all_labels = torch.tensor(dataset.labels, dtype=torch.long if not regression_mode else torch.float32)
+    
+    # Split into train/test
+    train_features = all_features[train_idx]  # [N_train, 41, 5120]
+    test_features = all_features[val_idx]      # [N_test, 41, 5120]
+    train_labels = all_labels[train_idx]
+    test_labels = all_labels[val_idx]
+    
+    # Move to GPU with non_blocking for better performance
+    train_features = train_features.to(torch_device, non_blocking=True)
+    test_features = test_features.to(torch_device, non_blocking=True)
+    train_labels = train_labels.to(torch_device, non_blocking=True)
+    test_labels = test_labels.to(torch_device, non_blocking=True)
+    
+    # Convert labels to one-hot if needed
+    if one_hot and not regression_mode:
+        num_classes = len(BEHAVIORAL_TRAIT_LABELS[trait_type])
+        train_labels = F.one_hot(train_labels.long(), num_classes=num_classes).float()
+        test_labels = F.one_hot(test_labels.long(), num_classes=num_classes).float()
+    
+    print(f"Train features shape: {train_features.shape}, Test features shape: {test_features.shape}")
+    print(f"Train labels shape: {train_labels.shape}, Test labels shape: {test_labels.shape}")
 
     # Loss function
     if uncertainty:
@@ -284,7 +296,7 @@ for trait_type in behavioral_traits:
     elif regression_mode:
         loss_func = nn.MSELoss()  # Use MSE for regression
     else:
-        loss_func = nn.BCELoss()  # Use BCE for one-hot multi-class (with sigmoid outputs)
+        loss_func = nn.BCELoss() if one_hot else nn.CrossEntropyLoss()  # Use BCE for one-hot, CE for index labels
 
     # Initialize accuracy tracking
     accuracy_dict[trait_type] = []
@@ -295,111 +307,131 @@ for trait_type in behavioral_traits:
     final_accs = []
     train_accs = []
     
-    # Train probes for each layer
-    for i in tqdm(range(0, 41), desc=f"Training {trait_type} probes"):
-        trainer_config = TrainerConfig()
+    # Train probes - either per layer or on combined layers
+    if combine_layers:
+        # Combine all layers into one feature matrix: [N, 41*5120]
+        print("Combining features from all layers into one feature matrix...")
+        train_X = train_features.reshape(train_features.shape[0], -1)  # [N_train, 41*5120]
+        test_X = test_features.reshape(test_features.shape[0], -1)    # [N_test, 41*5120]
         
-        # Create probe
+        # Train single probe on combined features
+        trainer_config = TrainerConfig()
         num_classes = len(BEHAVIORAL_TRAIT_LABELS[trait_type]) if not regression_mode else 1
+        combined_input_dim = 41 * 5120  # Combined feature dimension
+        
         probe = LinearProbeClassification(
             probe_class=num_classes, 
-            device="cuda", 
-            input_dim=5120,
+            device=torch_device, 
+            input_dim=combined_input_dim,
             logistic=logistic
         )
+        probe = probe.to(torch_device, non_blocking=True)
         
         optimizer, scheduler = probe.configure_optimizers(trainer_config)
         best_acc = 0
         max_epoch = BEHAVIORAL_TRAINING_CONFIG['max_epochs']
-        verbosity = False
-        layer_num = i
         
-        print(f"\n{'-' * 40} Layer {layer_num} {'-' * 40}")
+        print(f"\n{'-' * 40} Combined Layers (41*5120={combined_input_dim}) {'-' * 40}")
         
-        # Track per-epoch losses for this layer
         layer_train_losses = []
         layer_test_losses = []
         
         for epoch in range(1, max_epoch + 1):
-            if epoch == max_epoch:
-                verbosity = True
+            verbosity = (epoch == max_epoch)
             
-            # Training
-            if uncertainty:
-                train_results = train(
-                    probe, torch_device, train_loader, optimizer, 
-                    epoch, loss_func=loss_func, verbose_interval=None,
-                    verbose=verbosity, layer_num=layer_num, 
-                    return_raw_outputs=True, epoch_num=epoch, 
-                    num_classes=num_classes
-                )
-                test_results = test(
-                    probe, torch_device, test_loader, loss_func=loss_func, 
-                    return_raw_outputs=True, verbose=verbosity, layer_num=layer_num,
-                    scheduler=scheduler, epoch_num=epoch, 
-                    num_classes=num_classes
-                )
+            # Training on full tensor
+            probe.train()
+            optimizer.zero_grad()
+            
+            logits, _ = probe(train_X, None)
+            
+            if regression_mode:
+                loss = loss_func(logits.squeeze(), train_labels)
+            elif one_hot:
+                loss = loss_func(logits, train_labels)
             else:
-                train_results = train(
-                    probe, torch_device, train_loader, optimizer, 
-                    epoch, loss_func=loss_func, verbose_interval=None,
-                    verbose=verbosity, layer_num=layer_num,
-                    return_raw_outputs=True,
-                    one_hot=one_hot, num_classes=num_classes
-                )
-                test_results = test(
-                    probe, torch_device, test_loader, loss_func=loss_func, 
-                    return_raw_outputs=True, verbose=verbosity, layer_num=layer_num,
-                    scheduler=scheduler,
-                    one_hot=one_hot, num_classes=num_classes
-                )
-
-            # Record per-epoch loss
-            layer_train_losses.append(train_results[0])
-            layer_test_losses.append(test_results[0])
-
-            # Save best model
-            if test_results[1] > best_acc:
-                best_acc = test_results[1]
+                loss = loss_func(logits, train_labels.long())
+            
+            loss.backward()
+            optimizer.step()
+            
+            with torch.no_grad():
+                if regression_mode:
+                    train_pred = logits.squeeze()
+                    train_acc = 1.0 - (torch.mean((train_pred - train_labels) ** 2) / torch.var(train_labels)).item()
+                else:
+                    train_pred = torch.argmax(logits, dim=1)
+                    train_target = torch.argmax(train_labels, dim=1) if one_hot else train_labels.long()
+                    train_acc = (train_pred == train_target).float().mean().item()
+            
+            train_loss = loss.item()
+            layer_train_losses.append(train_loss)
+            
+            # Testing
+            probe.eval()
+            with torch.no_grad():
+                test_logits, _ = probe(test_X, None)
+                
+                if regression_mode:
+                    test_loss = loss_func(test_logits.squeeze(), test_labels).item()
+                    test_pred = test_logits.squeeze()
+                    test_acc = 1.0 - (torch.mean((test_pred - test_labels) ** 2) / torch.var(test_labels)).item()
+                elif one_hot:
+                    test_loss = loss_func(test_logits, test_labels).item()
+                    test_pred = torch.argmax(test_logits, dim=1)
+                    test_target = torch.argmax(test_labels, dim=1)
+                    test_acc = (test_pred == test_target).float().mean().item()
+                else:
+                    test_loss = loss_func(test_logits, test_labels.long()).item()
+                    test_pred = torch.argmax(test_logits, dim=1)
+                    test_target = test_labels.long()
+                    test_acc = (test_pred == test_target).float().mean().item()
+            
+            layer_test_losses.append(test_loss)
+            
+            if scheduler:
+                scheduler.step(test_loss)
+            
+            if verbosity:
+                print(f'Epoch {epoch}: Train Loss: {train_loss:.4f}, Train Acc: {train_acc:.4f}, '
+                      f'Test Loss: {test_loss:.4f}, Test Acc: {test_acc:.4f}')
+            
+            if test_acc > best_acc:
+                best_acc = test_acc
                 torch.save(
                     probe.state_dict(), 
-                    os.path.join(checkpoint_dir, f"{trait_type}_{dataset_tag}_probe_at_layer_{layer_num}.pth")
+                    os.path.join(checkpoint_dir, f"{trait_type}_{dataset_tag}_probe_combined_layers.pth")
                 )
         
-        # Save final model
-        torch.save(
-            probe.state_dict(), 
-            os.path.join(checkpoint_dir, f"{trait_type}_{dataset_tag}_probe_at_layer_{layer_num}_final.pth")
-        )
-        
+        # Store results
         accs.append(best_acc)
-        final_accs.append(test_results[1])
-        train_accs.append(train_results[1])
+        final_accs.append(test_acc)
+        train_accs.append(train_acc)
         
-        # Plot per-epoch loss curves for this layer
+        # Plot loss curves
         plt.figure(figsize=(6,4))
         plt.plot(range(1, len(layer_train_losses)+1), layer_train_losses, label='Train Loss')
         plt.plot(range(1, len(layer_test_losses)+1), layer_test_losses, label='Test Loss')
         plt.xlabel('Epoch')
         plt.ylabel('Loss')
-        plt.title(f'{trait_type.capitalize()} - Layer {layer_num} Loss')
+        plt.title(f'{trait_type.capitalize()} - Combined Layers Loss')
         plt.grid(True)
         plt.legend()
         plt.tight_layout()
-        plt.savefig(os.path.join(output_root, f"loss_curve_{trait_type}_{dataset_tag}_layer_{layer_num}.png"))
+        plt.savefig(os.path.join(output_root, f"loss_curve_{trait_type}_{dataset_tag}_combined_layers.png"))
         plt.close()
         
         # Plot confusion matrix
         if not regression_mode:
-            cm = confusion_matrix(test_results[3], test_results[2])
+            cm = confusion_matrix(test_target.cpu().numpy(), test_pred.cpu().numpy())
             cm_display = ConfusionMatrixDisplay(
                 cm, 
                 display_labels=list(BEHAVIORAL_TRAIT_LABELS[trait_type].keys())
             ).plot()
-            plt.title(f"{trait_type.capitalize()} - Layer {layer_num}")
-            plt.savefig(os.path.join(output_root, f"confusion_matrix_{trait_type}_{dataset_tag}_layer_{layer_num}.png"))
+            plt.title(f"{trait_type.capitalize()} - Combined Layers")
+            plt.savefig(os.path.join(output_root, f"confusion_matrix_{trait_type}_{dataset_tag}_combined_layers.png"))
             plt.close()
-
+        
         # Update accuracy dict
         accuracy_dict[trait_type].append(accs)
         accuracy_dict[trait_type + "_final"].append(final_accs)
@@ -409,9 +441,174 @@ for trait_type in behavioral_traits:
         with open(os.path.join(output_root, f"probe_checkpoints/behavioral_probes_experiment_{dataset_tag}.pkl"), "wb") as outfile:
             pickle.dump(accuracy_dict, outfile)
     
+    else:
+        # Train probes for each layer separately
+        for i in tqdm(range(0, 41), desc=f"Training {trait_type} probes"):
+            trainer_config = TrainerConfig()
+            
+            # Create probe - ensure it's on the same device
+            num_classes = len(BEHAVIORAL_TRAIT_LABELS[trait_type]) if not regression_mode else 1
+            probe = LinearProbeClassification(
+                probe_class=num_classes, 
+                device=torch_device, 
+                input_dim=5120,
+                logistic=logistic
+            )
+            # Ensure probe is on the correct device
+            probe = probe.to(torch_device, non_blocking=True)
+            
+            optimizer, scheduler = probe.configure_optimizers(trainer_config)
+            best_acc = 0
+            max_epoch = BEHAVIORAL_TRAINING_CONFIG['max_epochs']
+            verbosity = False
+            layer_num = i
+            
+            print(f"\n{'-' * 40} Layer {layer_num} {'-' * 40}")
+            
+            # Extract features for this layer: [N, 5120]
+            train_X = train_features[:, layer_num, :]  # [N_train, 5120]
+            test_X = test_features[:, layer_num, :]    # [N_test, 5120]
+            
+            # Track per-epoch losses for this layer
+            layer_train_losses = []
+            layer_test_losses = []
+            
+            for epoch in range(1, max_epoch + 1):
+                if epoch == max_epoch:
+                    verbosity = True
+                
+                # Training on full tensor
+                probe.train()
+                optimizer.zero_grad()
+                
+                # Forward pass on entire training set
+                logits, _ = probe(train_X, None)
+                
+                # Compute loss
+                if regression_mode:
+                    loss = loss_func(logits.squeeze(), train_labels)
+                elif one_hot:
+                    loss = loss_func(logits, train_labels)
+                else:
+                    loss = loss_func(logits, train_labels.long())
+                
+                # Backward pass
+                loss.backward()
+                optimizer.step()
+                
+                # Compute training accuracy
+                with torch.no_grad():
+                    if regression_mode:
+                        train_pred = logits.squeeze()
+                        train_acc = 1.0 - (torch.mean((train_pred - train_labels) ** 2) / torch.var(train_labels)).item()
+                    else:
+                        train_pred = torch.argmax(logits, dim=1)
+                        if one_hot:
+                            train_target = torch.argmax(train_labels, dim=1)
+                        else:
+                            train_target = train_labels.long()
+                        train_acc = (train_pred == train_target).float().mean().item()
+                
+                train_loss = loss.item()
+                layer_train_losses.append(train_loss)
+                
+                # Testing on full tensor
+                probe.eval()
+                with torch.no_grad():
+                    test_logits, _ = probe(test_X, None)
+                    
+                    # Compute test loss
+                    if regression_mode:
+                        test_loss = loss_func(test_logits.squeeze(), test_labels).item()
+                    elif one_hot:
+                        test_loss = loss_func(test_logits, test_labels).item()
+                    else:
+                        test_loss = loss_func(test_logits, test_labels.long()).item()
+                    
+                    # Compute test accuracy
+                    if regression_mode:
+                        test_pred = test_logits.squeeze()
+                        test_acc = 1.0 - (torch.mean((test_pred - test_labels) ** 2) / torch.var(test_labels)).item()
+                    else:
+                        test_pred = torch.argmax(test_logits, dim=1)
+                        if one_hot:
+                            test_target = torch.argmax(test_labels, dim=1)
+                        else:
+                            test_target = test_labels.long()
+                        test_acc = (test_pred == test_target).float().mean().item()
+                
+                layer_test_losses.append(test_loss)
+                
+                # Update scheduler
+                if scheduler:
+                    scheduler.step(test_loss)
+                
+                if verbosity:
+                    print(f'Epoch {epoch}: Train Loss: {train_loss:.4f}, Train Acc: {train_acc:.4f}, '
+                          f'Test Loss: {test_loss:.4f}, Test Acc: {test_acc:.4f}')
+                
+                # Save best model
+                if test_acc > best_acc:
+                    best_acc = test_acc
+                    torch.save(
+                        probe.state_dict(), 
+                        os.path.join(checkpoint_dir, f"{trait_type}_{dataset_tag}_probe_at_layer_{layer_num}.pth")
+                    )
+                
+                # Store results for final epoch
+                if epoch == max_epoch:
+                    train_results = (train_loss, train_acc, train_pred.cpu().numpy(), 
+                                   (train_target if not regression_mode else train_labels).cpu().numpy())
+                    test_results = (test_loss, test_acc, test_pred.cpu().numpy(), 
+                                   (test_target if not regression_mode else test_labels).cpu().numpy())
+            
+            # Save final model
+            torch.save(
+                probe.state_dict(), 
+                os.path.join(checkpoint_dir, f"{trait_type}_{dataset_tag}_probe_at_layer_{layer_num}_final.pth")
+            )
+            
+            accs.append(best_acc)
+            final_accs.append(test_results[1])
+            train_accs.append(train_results[1])
+            
+            # Plot per-epoch loss curves for this layer
+            plt.figure(figsize=(6,4))
+            plt.plot(range(1, len(layer_train_losses)+1), layer_train_losses, label='Train Loss')
+            plt.plot(range(1, len(layer_test_losses)+1), layer_test_losses, label='Test Loss')
+            plt.xlabel('Epoch')
+            plt.ylabel('Loss')
+            plt.title(f'{trait_type.capitalize()} - Layer {layer_num} Loss')
+            plt.grid(True)
+            plt.legend()
+            plt.tight_layout()
+            plt.savefig(os.path.join(output_root, f"loss_curve_{trait_type}_{dataset_tag}_layer_{layer_num}.png"))
+            plt.close()
+            
+            # Plot confusion matrix
+            if not regression_mode:
+                cm = confusion_matrix(test_results[3], test_results[2])
+                cm_display = ConfusionMatrixDisplay(
+                    cm, 
+                    display_labels=list(BEHAVIORAL_TRAIT_LABELS[trait_type].keys())
+                ).plot()
+                plt.title(f"{trait_type.capitalize()} - Layer {layer_num}")
+                plt.savefig(os.path.join(output_root, f"confusion_matrix_{trait_type}_{dataset_tag}_layer_{layer_num}.png"))
+                plt.close()
+        
+        # Update accuracy dict after all layers are processed
+        accuracy_dict[trait_type] = accs
+        accuracy_dict[trait_type + "_final"] = final_accs
+        accuracy_dict[trait_type + "_train"] = train_accs
+        
+        # Save intermediate results
+        with open(os.path.join(output_root, f"probe_checkpoints/behavioral_probes_experiment_{dataset_tag}.pkl"), "wb") as outfile:
+            pickle.dump(accuracy_dict, outfile)
+    
     # Clean up
-    del dataset, train_dataset, test_dataset, train_loader, test_loader
-    torch.cuda.empty_cache()
+    del dataset, train_dataset, test_dataset, train_features, test_features, train_labels, test_labels
+    if torch_device == "cuda":
+        torch.cuda.empty_cache()
 
 print("\nTraining completed for all behavioral traits!")
 
