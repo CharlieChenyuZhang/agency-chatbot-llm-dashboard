@@ -680,13 +680,18 @@ if num_traits > 0:
     
     for i, trait_type in enumerate(behavioral_traits):
         if trait_type in accuracy_dict:
-            accs = accuracy_dict[trait_type][-1]  # Get the last (complete) results
-            axes[i].plot(range(len(accs)), accs, 'b-', label='Best Accuracy')
-            axes[i].set_title(f'{trait_type.capitalize()} Probe Accuracy')
-            axes[i].set_xlabel('Layer')
-            axes[i].set_ylabel('Accuracy')
-            axes[i].grid(True)
-            axes[i].legend()
+            accs = accuracy_dict[trait_type]
+            # Handle both cases: direct list (combine_layers=False) or nested list (combine_layers=True)
+            if isinstance(accs, list) and len(accs) > 0 and isinstance(accs[0], list):
+                accs = accs[-1]  # Get the last (complete) results from nested list
+            # Now accs should be a list of floats
+            if isinstance(accs, list) and len(accs) > 0:
+                axes[i].plot(range(len(accs)), accs, 'b-', label='Best Accuracy')
+                axes[i].set_title(f'{trait_type.capitalize()} Probe Accuracy')
+                axes[i].set_xlabel('Layer' if len(accs) > 1 else 'Combined Layers')
+                axes[i].set_ylabel('Accuracy')
+                axes[i].grid(True)
+                axes[i].legend()
     
     plt.tight_layout()
     plt.savefig(os.path.join(output_root, f"behavioral_traits_accuracy_plots_{dataset_tag}.png"))
@@ -696,10 +701,16 @@ if num_traits > 0:
 print("\nBest Results:")
 for trait_type in behavioral_traits:
     if trait_type in accuracy_dict:
-        accs = accuracy_dict[trait_type][-1]
-        best_layer = np.argmax(accs)
-        best_acc = max(accs)
-        print(f"{trait_type.capitalize()}: {best_acc:.3f} at layer {best_layer}")
+        accs = accuracy_dict[trait_type]
+        # Handle both cases: direct list (combine_layers=False) or nested list (combine_layers=True)
+        if isinstance(accs, list) and len(accs) > 0 and isinstance(accs[0], list):
+            accs = accs[-1]  # Get the last (complete) results from nested list
+        # Now accs should be a list of floats
+        if isinstance(accs, list) and len(accs) > 0:
+            best_layer = np.argmax(accs)
+            best_acc = max(accs)
+            layer_label = f"layer {best_layer}" if len(accs) > 1 else "combined layers"
+            print(f"{trait_type.capitalize()}: {best_acc:.3f} at {layer_label}")
 
 
 # 
