@@ -262,6 +262,10 @@ for trait_type in behavioral_traits:
         
         print(f"\n{'-' * 40} Layer {layer_num} {'-' * 40}")
         
+        # Track per-epoch losses for this layer
+        layer_train_losses = []
+        layer_test_losses = []
+        
         for epoch in range(1, max_epoch + 1):
             if epoch == max_epoch:
                 verbosity = True
@@ -296,6 +300,10 @@ for trait_type in behavioral_traits:
                     one_hot=one_hot, num_classes=num_classes
                 )
 
+            # Record per-epoch loss
+            layer_train_losses.append(train_results[0])
+            layer_test_losses.append(test_results[0])
+
             # Save best model
             if test_results[1] > best_acc:
                 best_acc = test_results[1]
@@ -313,6 +321,19 @@ for trait_type in behavioral_traits:
         accs.append(best_acc)
         final_accs.append(test_results[1])
         train_accs.append(train_results[1])
+        
+        # Plot per-epoch loss curves for this layer
+        plt.figure(figsize=(6,4))
+        plt.plot(range(1, len(layer_train_losses)+1), layer_train_losses, label='Train Loss')
+        plt.plot(range(1, len(layer_test_losses)+1), layer_test_losses, label='Test Loss')
+        plt.xlabel('Epoch')
+        plt.ylabel('Loss')
+        plt.title(f'{trait_type.capitalize()} - Layer {layer_num} Loss')
+        plt.grid(True)
+        plt.legend()
+        plt.tight_layout()
+        plt.savefig(os.path.join(output_root, f"loss_curve_{trait_type}_{dataset_tag}_layer_{layer_num}.png"))
+        plt.close()
         
         # Plot confusion matrix
         if not regression_mode:
