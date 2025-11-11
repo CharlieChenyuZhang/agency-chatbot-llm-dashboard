@@ -423,10 +423,17 @@ for trait_type in behavioral_traits:
         
         # Plot confusion matrix
         if not regression_mode:
-            cm = confusion_matrix(test_target.cpu().numpy(), test_pred.cpu().numpy())
+            test_target_np = test_target.cpu().numpy()
+            test_pred_np = test_pred.cpu().numpy()
+            # Get unique labels present in the data
+            unique_labels = np.unique(np.concatenate([test_target_np, test_pred_np]))
+            # Map numeric labels to string keys from config
+            label_map = {v: k for k, v in BEHAVIORAL_TRAIT_LABELS[trait_type].items()}
+            display_labels = [label_map[label] for label in sorted(unique_labels)]
+            cm = confusion_matrix(test_target_np, test_pred_np, labels=sorted(unique_labels))
             cm_display = ConfusionMatrixDisplay(
                 cm, 
-                display_labels=list(BEHAVIORAL_TRAIT_LABELS[trait_type].keys())
+                display_labels=display_labels
             ).plot()
             plt.title(f"{trait_type.capitalize()} - Combined Layers")
             plt.savefig(os.path.join(output_root, f"confusion_matrix_{trait_type}_{dataset_tag}_combined_layers.png"))
@@ -587,10 +594,17 @@ for trait_type in behavioral_traits:
             
             # Plot confusion matrix
             if not regression_mode:
-                cm = confusion_matrix(test_results[3], test_results[2])
+                test_target_np = test_results[3]
+                test_pred_np = test_results[2]
+                # Get unique labels present in the data
+                unique_labels = np.unique(np.concatenate([test_target_np, test_pred_np]))
+                # Map numeric labels to string keys from config
+                label_map = {v: k for k, v in BEHAVIORAL_TRAIT_LABELS[trait_type].items()}
+                display_labels = [label_map[label] for label in sorted(unique_labels)]
+                cm = confusion_matrix(test_target_np, test_pred_np, labels=sorted(unique_labels))
                 cm_display = ConfusionMatrixDisplay(
                     cm, 
-                    display_labels=list(BEHAVIORAL_TRAIT_LABELS[trait_type].keys())
+                    display_labels=display_labels
                 ).plot()
                 plt.title(f"{trait_type.capitalize()} - Layer {layer_num}")
                 plt.savefig(os.path.join(output_root, f"confusion_matrix_{trait_type}_{dataset_tag}_layer_{layer_num}.png"))
