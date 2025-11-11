@@ -1,0 +1,194 @@
+### Human: Help me solve this complex problem
+### Assistant: Absolutely—happy to help. Could you share a few details about the problem? If you’re short on time, I can start with a quick framework and fill in details as you confirm a few key choices (like goals, constraints, and data you have). Do you prefer a fast initial plan or a quick round of clarifying questions first?
+### Human: Let’s do a fast initial plan. I’m leading a small team and we need to reduce churn for our B2B SaaS in the next 90 days. We’re short on engineering time and our analytics are a bit messy. Most churn is among small accounts.
+### Assistant: Got it. I’ll propose a 90-day plan with some default assumptions and flag the places where I need your confirmation.
+
+Goal and scope (assumptions—please confirm):
+- Target: Reduce churn by 20% within 90 days
+- Focus segment: Small accounts (default: under $10k ARR)
+- Primary metric: Revenue churn (unless you prefer logo churn)
+- Resources: 2 engineers (part-time?), 1 CS rep, limited budget
+
+Plan outline:
+- Weeks 1–2: Baseline and quick wins
+  - Confirm metric and baseline churn
+  - Segment churned vs retained by ARR, tenure, industry
+  - Identify top 2 drop-off moments (onboarding, first value)
+  - Quick wins: proactive outreach to at-risk accounts; fix 1–2 obvious onboarding blockers
+- Weeks 3–6: Experiments
+  - Run 2–3 low-engineering experiments (e.g., lifecycle emails, guided checklists, CS “save” plays)
+  - Trial a simple risk score to prioritize accounts
+- Weeks 7–10: Scale winners
+  - Productize the winning play(s)
+  - Playbook + light automation
+- Weeks 11–12: Consolidate and measure
+  - Cohort analysis, write-up, next-quarter plan
+
+Questions to confirm before I lock this in:
+1) Is revenue churn the right primary metric, or should we optimize for logo churn?
+2) Is “small” = under $10k ARR?
+3) Do you have product usage events (e.g., in Mixpanel/Segment) and a CRM (HubSpot/Salesforce)?
+4) Any constraints I should know (e.g., code freeze, legal limits on contacting users)?
+If you’re okay with the defaults, I’ll flesh out week 1 in detail and propose the first two experiments.
+### Human: We track revenue churn and “small” is under $10k ARR. We have Mixpanel and HubSpot. There’s no code freeze, but engineering time is tight. What should we do first next week?
+### Assistant: Great—here’s a concrete week-1 plan, optimized for tight engineering bandwidth:
+
+Week 1 objectives:
+- Establish a clean baseline and a prioritized at-risk list
+- Launch one zero/low-code win
+
+Steps:
+1) Baseline (owner: you + analyst/engineer, ~0.5 day)
+   - Pull last 6 months monthly revenue churn by cohort (Mixpanel + HubSpot)
+   - Split by tenure buckets: 0–30, 31–90, 91–180 days
+   - Output: a 1-pager baseline and the worst tenure bucket
+
+2) Build an at-risk list (owner: you, ~1 day)
+   - Criteria (default—can tweak): last 14 days active < 2 sessions, no “aha” feature used, open ticket in last 30 days, contract renewal within 45 days
+   - Pull from Mixpanel (events) + HubSpot (renewal date)
+   - Output: CSV with company, ARR, renewal date, health score
+
+3) Quick win outreach (owner: CS, ~1 day to launch)
+   - Send a “help you get value” email to top 50 at-risk small accounts
+   - Offer a 20-minute guided setup or a 3-step checklist (no discount yet)
+   - Book calls directly via calendar link
+
+4) Low-code nudge (owner: you + CS, ~0.5 day)
+   - Lifecycle email to new small accounts at day 3 and day 7 if no “aha” event fired
+   - If you prefer, I can draft the copy now and you can ship via HubSpot without engineering
+
+Do you want me to draft the outreach and lifecycle email copy now? Also, is your “aha” feature clearly defined, or should I propose a default (e.g., “connected data source + created first report”)?
+### Human: Draft the emails, please. Our “aha” is when a user integrates data and creates their first automated report.
+### Assistant: Perfect—here are drafts you can paste into HubSpot.
+
+1) At-risk outreach (CS to admin/primary contact)
+Subject: Quick help to get more value from [Product]
+
+Hi [First Name],
+
+I noticed your team hasn’t had a chance to set up automated reports yet. Most teams see value once they:
+1) Connect [data source]
+2) Create their first automated report
+3) Share it with the team
+
+Would a 20-minute session help? I can walk you through the setup and share a 3-step checklist so you’re getting insights by next week.
+
+You can grab a time here: [Booking link]
+If you prefer the checklist, I’ll send it right away.
+
+Best,
+[Your Name]
+
+2) Day-3 lifecycle (trigger: no “aha” event by day 3)
+Subject: 3 steps to your first automated report
+
+Hi [First Name], here’s the fastest path:
+- Connect [data source] (1–2 minutes)
+- Choose a template (Sales pipeline, Support SLAs, or [top 3])
+- Schedule your first automated report
+
+Want a hand? Book a 20-minute setup: [Booking link]
+
+3) Day-7 lifecycle (trigger: still no “aha” by day 7)
+Subject: Still waiting on your first automated report?
+
+Hi [First Name], quick nudge—teams that schedule their first report in week 1 are 2x more likely to keep using [Product].
+Reply “help” and I’ll set it up with you, or book here: [Booking link]
+
+Would you like me to also draft a 3-step checklist PDF or in-email version? If yes, I’ll assume the top three templates are Sales pipeline, Support SLAs, and Weekly KPI Rollup unless you want different ones.
+### Human: That looks good. We can use those templates. How do we prioritize who to reach out to first? Can you define a quick risk score?
+### Assistant: Yes—I’ll propose a lightweight risk score you can compute from Mixpanel + HubSpot with minimal engineering. We can adjust weights if needed.
+
+Proposed risk score (0–100; higher = riskier):
+- Low recent activity (last 14 days < 2 sessions): +30
+- No “aha” event yet: +25
+- Declining usage (last 7 days sessions < 50% of prior 7 days): +15
+- Renewal in ≤45 days: +15
+- Open/unsolved ticket in last 30 days: +10
+- No admin login in last 14 days: +5
+
+Risk tiers:
+- 70–100: High (CS outreach + priority)
+- 40–69: Medium (lifecycle emails + spot CS outreach)
+- 0–39: Low (lifecycle only)
+
+Is this weighting acceptable, or do you want me to bias more heavily toward upcoming renewals? If you agree, I’ll outline how to pull each field quickly.
+### Human: The weights look fine. We can pull most of that. What if we don’t have “declining usage” calculated easily?
+### Assistant: No problem—use this fallback that requires only two aggregates per account:
+- Compute sessions_last_7 and sessions_prev_7
+- If sessions_prev_7 >= 4 and sessions_last_7/sessions_prev_7 < 0.6, flag as declining (+15)
+- If you can’t get prev_7 quickly, drop that factor and bump “no aha” from +25 to +35 to keep the scale similar
+
+Do you want me to prepare a simple CSV schema and a Google Sheet scoring template so CS can upload and auto-score without waiting on engineering? If yes, I’ll include:
+- Columns: account_id, ARR, renewal_date, sessions_last_14, aha_flag, sessions_last_7, sessions_prev_7, open_ticket_flag, admin_login_last_14
+- A risk formula and conditional formatting
+### Human: Yes, send the template. Also, can we avoid discounts? I don’t want to train customers to expect them.
+### Assistant: Agreed—let’s focus on value-based retention. Two experiments without discounts:
+
+Experiment A: Guided activation push
+- Target: Medium/high-risk accounts with no “aha”
+- Treatment: Offer a live setup session + checklist; follow with a templated “first report done” email
+- Success metric (leading): “aha” rate within 7 days; (lagging): 30-day retention and renewal win rate
+- Effort: Low (CS + emails)
+
+Experiment B: Issue-to-value rescue
+- Target: Accounts with open support tickets and upcoming renewals
+- Treatment: CS schedules a “resolution + one value win” call: close the ticket on the call and complete one high-impact setup (e.g., schedule the first report)
+- Success metric: Ticket closure within 3 days; uplift in weekly active users; renewal save rate
+- Effort: Low-medium (CS coordination)
+
+Guardrails:
+- Holdout: 10% randomized holdout per segment to measure impact
+- Stop-loss: If activation rate doesn’t improve by ≥15% after 2 weeks, pause and iterate
+
+Are you okay with the 10% holdout and these success metrics, or do you want a different holdout size?
+### Human: 10% holdout is fine. How will we know within three weeks if we’re on track for the 20% churn reduction?
+### Assistant: Use leading indicators tied to churn:
+
+Weekly leading indicators:
+- Aha conversion rate among small accounts (target: +20–30% vs baseline)
+- Count of high-risk accounts (score ≥70) week over week (target: -15% by week 3)
+- Renewal win rate for accounts up in ≤45 days (target: +10–15% vs baseline)
+- CS touch coverage for high-risk accounts (target: ≥80% touched within 5 business days)
+
+Plan:
+- Create a one-page weekly dashboard (Sheet or Looker Studio) with baseline in week 0
+- Review every Friday: if two leading indicators miss targets, pivot the weakest experiment
+
+I can include this dashboard template with the risk score sheet. Want me to assume Google Sheets for both?
+### Human: Yes, Google Sheets works. One more thing—engineering can spare maybe 1 day in weeks 2–3. Where should we spend it?
+### Assistant: With one engineering day, prioritize the highest leverage, lowest effort:
+
+Option 1 (recommended): Instrument the “aha” event cleanly and backfill a simple “last aha date” property per account
+- Impact: Improves targeting and measurement across all experiments
+- Effort: Low if events already exist; mostly mapping and a small script
+
+Option 2: In-app checklist (no heavy UI—use a lightweight modal or existing banner)
+- Show steps to reach “aha” and a CTA to book setup
+- If this is more than a day, skip and rely on emails + CS for now
+
+Option 3: Auto-tag at-risk accounts in HubSpot
+- Nightly job to push risk tier so CS gets tasks automatically
+- If you already have Segment → HubSpot, this might be <1 day
+
+My vote: Option 1 first, Option 3 second if time remains. Okay to proceed with that prioritization?
+### Human: Go with Option 1, then 3 if time allows. Can you summarize our next steps and share anything else you need from me?
+### Assistant: Summary of next steps:
+- This week
+  - Baseline churn and segmentation (you + analyst/engineer, 0.5 day)
+  - Build at-risk list and score in Google Sheets (I’ll provide templates)
+  - Launch CS outreach to top 50 at-risk accounts using the drafted email
+  - Launch day-3/day-7 lifecycle emails for non-aha users
+- Weeks 2–3
+  - Engineering day: clean “aha” instrumentation and push risk tier to HubSpot if time
+  - Run Experiment A (guided activation) and Experiment B (issue-to-value rescue) with 10% holdouts
+- Weekly
+  - Track leading indicators in the dashboard; Friday review and iterate
+
+What I need from you:
+- Booking link for CS calls
+- Confirmation of the three template reports (Sales pipeline, Support SLAs, Weekly KPI Rollup)
+- A list of the exact Mixpanel event names for: session/start, connect data source, create report, share/schedule report
+- HubSpot field names for renewal date and ARR
+
+I’ll send the Google Sheets templates and a short setup note. If any of the defaults (weights, holdout, success metrics) need to change, tell me now and I’ll adjust; otherwise I’ll proceed with these settings.

@@ -112,7 +112,15 @@ class BehavioralTraitDataset(TextDataset):
                 text = text[text.find("<s>") + len("<s>"): text.rfind("[/INST]") - 1]
             
             # Extract label from filename
-            label = file_path[file_path.rfind(self.label_idf) + len(self.label_idf):file_path.rfind(".txt")]
+            # Pattern: conversation_{trait}_{label}_{index}.txt
+            # e.g., conversation_independence_0_1.txt -> label is "0"
+            # e.g., conversation_independence_0.5_48.txt -> label is "0.5"
+            label_start = file_path.rfind(self.label_idf) + len(self.label_idf)
+            label_end = file_path.find("_", label_start)
+            if label_end == -1:
+                # Fallback: if no underscore found, extract until .txt (for backward compatibility)
+                label_end = file_path.rfind(".txt")
+            label = file_path[label_start:label_end]
             
             if label not in self.label_to_id.keys():
                 continue

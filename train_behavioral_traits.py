@@ -126,15 +126,33 @@ accuracy_dict = {}
 # Dataset family toggle: choose between 'gpt5' and 'llama2' (can override via env BEHAVIORAL_DATASET_FAMILY)
 DATASET_FAMILY = 'gpt5' # or 'gpt5'
 
+# Use training data from final_trainingdata_gpt5 directory
+BASE_DATASET_DIR = "data/dataset/final_trainingdata_gpt5"
+
 # Build selected dataset directories based on the chosen family
 if DATASET_FAMILY == 'gpt5':
-    SELECTED_BEHAVIORAL_DATASET_DIRS = BEHAVIORAL_DATASET_DIRS
+    # Override to use final_trainingdata_gpt5 directory
+    SELECTED_BEHAVIORAL_DATASET_DIRS = {
+        "rigidity": [os.path.join(BASE_DATASET_DIR, "gpt5_rigidity_1/")],
+        "independence": [os.path.join(BASE_DATASET_DIR, "gpt5_independence_1/")],
+        "goal_persistence": [os.path.join(BASE_DATASET_DIR, "gpt5_goal_persistence_1/")]
+    }
 else:
     # Default branch maps gpt5_* directories to llama2_* by string replacement
     SELECTED_BEHAVIORAL_DATASET_DIRS = {
         trait: [p.replace('gpt5_', 'llama2_') for p in paths]
         for trait, paths in BEHAVIORAL_DATASET_DIRS.items()
     }
+
+# Filter behavioral traits to only include those with existing directories
+behavioral_traits = [trait for trait in behavioral_traits 
+                     if trait in SELECTED_BEHAVIORAL_DATASET_DIRS 
+                     and os.path.exists(SELECTED_BEHAVIORAL_DATASET_DIRS[trait][0])]
+
+if not behavioral_traits:
+    raise ValueError(f"No valid dataset directories found in {BASE_DATASET_DIR}")
+
+print(f"Training probes for traits: {behavioral_traits}")
 
 # Derive a dataset tag (e.g., "gpt5" or "llama2") once for this run from the selected directories
 _primary_dataset_dir = SELECTED_BEHAVIORAL_DATASET_DIRS[behavioral_traits[0]][0]
