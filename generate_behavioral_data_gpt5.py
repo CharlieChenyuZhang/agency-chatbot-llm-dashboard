@@ -14,6 +14,9 @@ from openai import OpenAI
 from tqdm.auto import tqdm
 import argparse
 import time
+import concurrent.futures
+import threading
+import uuid
 from src.behavioral_traits_config import (
     BEHAVIORAL_SYSTEM_PROMPTS,
     RIGIDITY_QUESTIONS,
@@ -44,6 +47,9 @@ class GPT5BehavioralDataGenerator:
         # Initialize OpenAI client
         self.client: OpenAI = OpenAI(api_key=api_key)
         
+        # Thread-local state for per-thread rate limiting
+        self._thread_local = threading.local()
+        
         # Question pools for each trait
         self.question_pools: Dict[str, List[str]] = {
             "rigidity": RIGIDITY_QUESTIONS,
@@ -52,16 +58,18 @@ class GPT5BehavioralDataGenerator:
         }
         
         # Rate limiting
-        self.last_request_time: float = 0
         self.min_request_interval: float = 1.0  # seconds between requests
     
     def _rate_limit(self):
         """Simple rate limiting to avoid hitting API limits"""
+        # Use per-thread last_request_time to avoid cross-thread contention
+        if not hasattr(self._thread_local, "last_request_time"):
+            self._thread_local.last_request_time = 0.0
         current_time = time.time()
-        time_since_last = current_time - self.last_request_time
+        time_since_last = current_time - self._thread_local.last_request_time
         if time_since_last < self.min_request_interval:
             time.sleep(self.min_request_interval - time_since_last)
-        self.last_request_time = time.time()
+        self._thread_local.last_request_time = time.time()
     
     def generate_conversation(self, trait_type: str, trait_level: str, question: str, 
                             num_turns: int = 3) -> str:
@@ -127,7 +135,8 @@ Make the conversation feel natural and realistic, with the user asking follow-up
     
     
     def generate_dataset(self, trait_type: str, output_dir: str, 
-                        conversations_per_level: int = 100) -> None:
+                        conversations_per_level: int = 100,
+                        workers: int = 8) -> None:
         """
         Generate a complete dataset for a behavioral trait
         
@@ -135,53 +144,64 @@ Make the conversation feel natural and realistic, with the user asking follow-up
             trait_type: One of "rigidity", "independence", "goal_persistence"
             output_dir: Directory to save the generated conversations
             conversations_per_level: Number of conversations to generate per trait level
+            workers: Number of concurrent threads for generation
         """
         os.makedirs(output_dir, exist_ok=True)
         
         trait_levels = list(BEHAVIORAL_TRAIT_LABELS[trait_type].keys())
         questions = self.question_pools[trait_type]
         
-        conversation_id = 0
-        
+        # Prepare tasks
+        tasks = []
         for level in trait_levels:
-            print(f"Generating {conversations_per_level} conversations for {trait_type} level {level}")
-            
-            for _ in tqdm(range(conversations_per_level), desc=f"Level {level}"):
-                # Select a random question
-                question = random.choice(questions)
-                
-                # Generate conversation
-                conversation = self.generate_conversation(
-                    trait_type=trait_type,
-                    trait_level=level,
-                    question=question
-                )
-                
-                # Save conversation
-                filename = f"conversation_{conversation_id}_{trait_type}_{level}.txt"
-                filepath = os.path.join(output_dir, filename)
-                
-                with open(filepath, 'w', encoding='utf-8') as f:
-                    f.write(conversation)
-                
-                conversation_id += 1
+            for _ in range(conversations_per_level):
+                tasks.append((level, random.choice(questions)))
         
-        print(f"Generated {conversation_id} conversations for {trait_type}")
+        total_tasks = len(tasks)
+        completed = 0
+        
+        def _generate_and_write(level: str, question: str) -> str:
+            conversation = self.generate_conversation(
+                trait_type=trait_type,
+                trait_level=level,
+                question=question
+            )
+            # Use UUID to ensure unique filenames across threads
+            filename = f"conversation_{trait_type}_{level}_{uuid.uuid4().hex}.txt"
+            filepath = os.path.join(output_dir, filename)
+            with open(filepath, 'w', encoding='utf-8') as f:
+                f.write(conversation)
+            return filename
+        
+        print(f"Generating {conversations_per_level} conversations per level for {trait_type} using {workers} workers")
+        with concurrent.futures.ThreadPoolExecutor(max_workers=max(1, workers)) as executor:
+            futures = [executor.submit(_generate_and_write, level, q) for (level, q) in tasks]
+            for future in tqdm(concurrent.futures.as_completed(futures), total=total_tasks, desc=f"{trait_type}"):
+                try:
+                    _ = future.result()
+                except Exception:
+                    # Errors already logged in generation; continue
+                    pass
+                completed += 1
+        
+        print(f"Generated {completed} conversations for {trait_type}")
     
     def generate_all_datasets(self, base_output_dir: str, 
-                            conversations_per_level: int = 100) -> None:
+                            conversations_per_level: int = 100,
+                            workers: int = 8) -> None:
         """
         Generate datasets for all behavioral traits
         
         Args:
             base_output_dir: Base directory to save all datasets
             conversations_per_level: Number of conversations per trait level
+            workers: Number of concurrent threads for generation
         """
         traits = ["rigidity", "independence", "goal_persistence"]
         
         for trait in traits:
             output_dir = os.path.join(base_output_dir, f"gpt5_{trait}_1")
-            self.generate_dataset(trait, output_dir, conversations_per_level)
+            self.generate_dataset(trait, output_dir, conversations_per_level, workers=workers)
         
         print(f"Generated all behavioral trait datasets in {base_output_dir}")
     
@@ -221,6 +241,8 @@ def main():
                        default="medium", help="Output verbosity level")
     parser.add_argument("--sample", action="store_true",
                        help="Generate a single sample conversation for testing")
+    parser.add_argument("--workers", type=int, default=8,
+                       help="Number of concurrent threads for generation")
     
     args = parser.parse_args()
     
@@ -250,10 +272,10 @@ def main():
         print("="*50)
         print(conversation)
     elif args.trait == "all":
-        _ = generator.generate_all_datasets(args.output_dir, args.conversations_per_level)
+        _ = generator.generate_all_datasets(args.output_dir, args.conversations_per_level, workers=args.workers)
     else:
         output_dir = os.path.join(args.output_dir, f"gpt5_{args.trait}_1")
-        _ = generator.generate_dataset(args.trait, output_dir, args.conversations_per_level)
+        _ = generator.generate_dataset(args.trait, output_dir, args.conversations_per_level, workers=args.workers)
 
 
 if __name__ == "__main__":
