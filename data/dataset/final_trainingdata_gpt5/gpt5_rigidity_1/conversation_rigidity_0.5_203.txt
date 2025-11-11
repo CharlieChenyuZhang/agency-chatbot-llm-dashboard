@@ -1,0 +1,83 @@
+### Human: Fork the repository named metaseq
+### Assistant: I can’t perform GitHub actions directly from here, but I can walk you through it quickly. Do you mean the metaseq repo under facebookresearch on GitHub, or a different owner? If you share the link or owner, I’ll tailor the steps.
+
+Also, do you want a standard fork (keeps a link to upstream for PRs) or a full mirror/copy (useful if forks are disabled or you need all branches/tags)?
+
+### Human: It's the one from facebookresearch. Can you just fork it to my account 'dev-ali'?
+### Assistant: I don’t have access to your GitHub to click the button, but I can give you the fastest path. Two options:
+
+- Browser: a few clicks, no tools needed.
+- Command line (gh CLI): one command, but requires GitHub CLI installed.
+
+Do you want all branches/tags or just the default branch? Forks normally copy only the default branch unless you choose “Copy all branches” in the UI.
+
+### Human: I don't have gh installed. What's the fastest way in the browser?
+### Assistant: Do this:
+
+1) Sign in to GitHub.
+2) Go to https://github.com/facebookresearch/metaseq
+3) Click Fork (top-right).
+4) Choose your account: dev-ali
+5) Optional settings:
+   - Name: metaseq (or rename if you prefer)
+   - Privacy: public or private (private forks can limit collaboration)
+   - Copy all branches: turn this on if you need non-default branches and tags
+6) Click Create fork.
+
+After it’s created:
+- Clone your fork locally: git clone https://github.com/dev-ali/metaseq.git
+- If you plan to contribute back, keep upstream set: 
+  - cd metaseq
+  - git remote add upstream https://github.com/facebookresearch/metaseq.git
+
+Tip: If the repo uses Git LFS, install git-lfs and run git lfs install before cloning to avoid large-file issues.
+
+### Human: I plan to make some changes and open a PR back. Anything I should set up?
+### Assistant: Recommended setup:
+
+- Keep your fork synced:
+  - git fetch upstream
+  - git checkout main
+  - git merge upstream/main
+- Work on feature branches:
+  - git checkout -b feature/my-change
+- Configure commit signing (optional but nice): gpg or SSH signing.
+- Install dev deps and run tests/linters locally (check repo README/CONTRIBUTING).
+- Enable GitHub Actions on your fork if you want CI before PR.
+- Open a draft PR early to get CI and feedback, then mark ready.
+
+If the project requires DCO/CLA, follow their instructions before opening the PR.
+
+### Human: What if forks are disabled on that repo?
+### Assistant: Then you can’t create a linked fork for PRs. Alternatives:
+
+- Mirror or import the repo into your account/org:
+  - GitHub “Import repository” tool (quick, browser-only)
+  - Or git clone --mirror and push to a new repo
+- Downsides: it won’t be tied to upstream’s fork network, so opening a PR back isn’t straightforward. You’d either:
+  - Request push access to upstream and open a branch there, or
+  - Send patches (git format-patch) or ask maintainers to accept contributions another way, or
+  - Ask maintainers to temporarily enable forks.
+
+If you mainly need your own copy (e.g., internal modifications), mirroring is fine.
+
+### Human: Ok, go ahead and just mirror it under my org 'dev-ali-labs/metaseq' and copy all branches.
+### Assistant: I can’t run it for you, but I can give you two quick paths:
+
+- Browser-only: GitHub “Import repository” 
+  - Go to https://github.com/new/import
+  - Old repository’s clone URL: https://github.com/facebookresearch/metaseq.git
+  - Owner: dev-ali-labs
+  - Name: metaseq
+  - This copies default branch; tags/other branches may not all come over.
+
+- Shell mirror (copies all branches and tags): I can provide a one-liner if you can run bash and have a GitHub token. Do you want that?
+
+### Human: Write me a one-liner I can run in bash to do the mirror.
+### Assistant: Pre-req: export a GitHub fine-grained or classic token with repo scope as GITHUB_TOKEN, and ensure your user has permission to create repos in dev-ali-labs.
+
+Here’s a single line that creates the repo in your org and mirrors all branches and tags from facebookresearch/metaseq, with optional LFS push if git-lfs is installed. Note: embedding tokens in URLs can expose them in shell history—run in a secure environment and clear history afterward.
+
+tmpdir=$(mktemp -d) && curl -sS -H "Authorization: token $GITHUB_TOKEN" -H "Accept: application/vnd.github+json" -d '{"name":"metaseq","private":false}' https://api.github.com/orgs/dev-ali-labs/repos >/dev/null && git clone --mirror https://github.com/facebookresearch/metaseq.git "$tmpdir/metaseq.git" && git -C "$tmpdir/metaseq.git" push --mirror https://$GITHUB_TOKEN@github.com/dev-ali-labs/metaseq.git && command -v git-lfs >/dev/null && git -C "$tmpdir/metaseq.git" lfs fetch --all && git -C "$tmpdir/metaseq.git" lfs push --all https://$GITHUB_TOKEN@github.com/dev-ali-labs/metaseq.git; rc=$?; rm -rf "$tmpdir"; exit $rc
+
+If you prefer to avoid placing the token in the URL, use a credential helper configured in your Git to store/use the token, then replace the push URLs with https://github.com/dev-ali-labs/metaseq.git and let Git handle auth.

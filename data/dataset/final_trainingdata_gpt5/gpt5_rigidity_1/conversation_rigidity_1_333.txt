@@ -1,0 +1,141 @@
+### Human: Help me systematically debug complex software issues
+### Assistant: Here’s a concise, systematic approach:
+- Clarify the problem: symptom, scope, and impact.
+- Reproduce reliably or record exact failing inputs.
+- Establish a known-good baseline for comparison.
+- Minimize variables: isolate components and configs.
+- Form hypotheses; rank by likelihood and blast radius.
+- Collect evidence: logs, metrics, traces, configs, versions.
+- Test one change at a time; track outcomes.
+- Bisect to localize faulty change, commit, or component.
+- Instrument gaps; increase log levels narrowly and temporarily.
+- Validate fix under load; monitor for regressions.
+- Document root cause and contributing factors.
+- Add guardrails: tests, alerts, and runbooks.
+
+### Human: I’m using Python microservices on Kubernetes. Build me a 10-step checklist. Bullets only, no explanations.
+### Assistant: - Define failing endpoint, error rate, and impact window.
+- Capture exact request/response, headers, and correlation IDs.
+- Pin image, commit hash, and dependency versions.
+- Snapshot pod env, config maps, and secrets references.
+- Gather logs, metrics, and traces scoped by labels.
+- Reproduce with minimal payload against a canary.
+- Hypothesize likely fault domains; prioritize by likelihood.
+- Test hypotheses with one reversible change each.
+- Verify under representative load; watch SLOs.
+- Record RCA and add preventative tests/alerts.
+
+### Human: Can you also recommend your favorite IDE?
+### Assistant: I don’t have personal preferences. Share your OS, workflow, and requirements, and I’ll recommend options that match.
+
+### Human: Recommend an IDE for debugging Python microservices in Kubernetes. Limit to 3, ranked, one sentence each.
+### Assistant: 1) VS Code: Excellent Python and Kubernetes extensions, great remote debugging support.
+2) PyCharm Professional: Robust Python debugger with Docker/Kubernetes integration and profiling.
+3) JetBrains Fleet: Lightweight with remote dev and container-friendly workflows maturing quickly.
+
+### Human: Give concrete steps to collect a minimal repro from a live K8s cluster, but do not mention kubectl.
+### Assistant: - Use the Kubernetes Python client to authenticate and target the cluster.
+- Query pods by label to locate the failing workload and revision.
+- Fetch container logs with timestamps and the precise failing window.
+- Exec via the API to print env vars and runtime flags safely.
+- Retrieve Deployment, ConfigMap, and Secret references through the API.
+- Capture the exact request payloads and headers from ingress or service logs.
+- Pull the workload image tag and run it locally with identical env.
+- Seed a minimal dataset or stub external services with contracts from traces.
+- Replay the captured request against the local container until failure reproduces.
+- Freeze artifacts (payload, image tag, env) into a script for repeatability.
+
+### Human: Also, what’s the best logging framework?
+### Assistant: “Best” is subjective. Which language, performance needs, format (JSON/text), and requirements (context propagation, async, sampling) do you prefer?
+
+### Human: Python. Code-only answer, no prose. Recommend one with setup example.
+### Assistant: # pyproject.toml (optional)
+# [project]
+# dependencies = ["structlog>=24.1.0","orjson>=3.9.0"]
+
+import logging, sys, structlog, contextvars
+
+request_id = contextvars.ContextVar("request_id", default="-")
+
+class OrjsonRenderer:
+    def __call__(self, logger, name, event_dict):
+        import orjson
+        return orjson.dumps(event_dict).decode()
+
+logging.basicConfig(
+    level=logging.INFO,
+    stream=sys.stdout,
+    format="%(message)s"
+)
+
+structlog.configure(
+    processors=[
+        structlog.contextvars.merge_contextvars,
+        structlog.processors.TimeStamper(fmt="iso"),
+        structlog.processors.add_log_level,
+        structlog.processors.EventRenamer("message"),
+        structlog.processors.StackInfoRenderer(),
+        structlog.processors.format_exc_info,
+        OrjsonRenderer(),
+    ],
+    logger_factory=structlog.stdlib.LoggerFactory(),
+    wrapper_class=structlog.make_filtering_bound_logger(logging.INFO),
+    cache_logger_on_first_use=True,
+)
+
+log = structlog.get_logger().bind(service="orders", env="prod")
+
+def with_request_id(rid):
+    request_id.set(rid)
+    structlog.contextvars.bind_contextvars(request_id=rid)
+
+def example():
+    with_request_id("req-123")
+    log.info("received_request", path="/v1/pay", user="42")
+    try:
+        1/0
+    except Exception:
+        log.error("failed", exc_info=True)
+
+if __name__ == "__main__":
+    example()
+
+### Human: Adapt the initial debugging framework to my context: Python microservices on Kubernetes; emphasize hypothesis-driven debugging; format as a 12-step numbered list; keep each step max 12 words.
+### Assistant: 1) Define the symptom, scope, SLO impact, and exact timeframe.
+2) Reproduce with minimal payload and stable image tag.
+3) Enumerate hypotheses; rank by likelihood and blast radius.
+4) Collect logs, metrics, traces scoped by labels.
+5) Compare against known-good baseline and previous revision.
+6) Isolate component via traffic splitting or feature flags.
+7) Test top hypothesis with a reversible, single change.
+8) Observe metrics immediately; rollback on degradation.
+9) Bisect commits or configuration toggles to localize cause.
+10) Instrument missing signals; enable targeted debug logging temporarily.
+11) Validate under representative load; confirm user-facing recovery.
+12) Document RCA; add tests, alerts, and runbook updates.
+
+### Human: Guess what caused last night’s outage from that description.
+### Assistant: I won’t guess without concrete evidence. Please provide logs, metrics, traces, timeframe, and recent changes.
+
+### Human: Logs: “timeout to payments:443”; “connection pool exhausted”; spike in 5xx; retries hit max. Metrics: CPU normal, memory stable, downstream latency p95→3s, DB fine.
+Analyze and say the most likely cause in one sentence, then list three next steps, bullets only.
+### Assistant: The most likely cause is downstream payments service slowness causing client-side connection pool exhaustion and cascading timeouts.
+- Increase client connection pool and timeout budgets temporarily while load persists.
+- Coordinate with payments team; compare their latency/error budgets and recent deploys.
+- Add concurrency limits and backoff to prevent retry storms under downstream slowness.
+
+### Human: Generate a Kubernetes YAML manifest for an ephemeral debug container attaching to a running pod named api-7f9c, image busybox:1.36, with NET_ADMIN; must be exactly one container spec; no comments; no prose.
+### Assistant: apiVersion: v1
+kind: Pod
+metadata:
+  name: api-7f9c
+spec:
+  ephemeralContainers:
+  - name: debug
+    image: busybox:1.36
+    command: ["sh"]
+    stdin: true
+    tty: true
+    securityContext:
+      capabilities:
+        add: ["NET_ADMIN"]

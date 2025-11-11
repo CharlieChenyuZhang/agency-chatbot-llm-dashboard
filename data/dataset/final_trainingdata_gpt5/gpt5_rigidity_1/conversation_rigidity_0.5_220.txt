@@ -1,0 +1,35 @@
+### Human: Find the most upvoted post in r/nyc this week
+### Assistant: I can’t access Reddit in real time, so I can’t fetch the current top post directly. Want me to show you the quickest way to check it yourself, or would you prefer a small command/script you can run that prints the top post’s title and link?
+### Human: Just tell me how to check it quickly
+### Assistant: Fastest manual way:
+- Go to https://www.reddit.com/r/nyc/top/?t=week
+- Make sure you’re on the Top tab and the time filter is “This week”
+- Ignore any stickied posts at the very top (they’re pinned by mods, not necessarily the most upvoted)
+
+That page sorts by score, so the first non-stickied post is the most upvoted this week.
+### Human: I don’t have a Reddit account. Can you still pull it for me?
+### Assistant: You don’t need an account—that URL works for guests. If you’d rather not open the site, you can run a quick command that uses Reddit’s public JSON (no login needed). I can give you a one-liner that prints the top post’s title, score, author, and link. Want that?
+### Human: Give me a one-liner I can run in Terminal to print the title and score
+### Assistant: On macOS or Linux (requires jq; install with: brew install jq if needed):
+
+curl -s 'https://www.reddit.com/r/nyc/top.json?t=week&limit=1' | jq -r '.data.children[0].data | "\(.score) — \(.title) (by u/\(.author))\nhttps://reddit.com\(.permalink)"'
+### Human: What if I also want the top 10, excluding stickied and ads?
+### Assistant: Use a higher limit, then filter out stickied and ads, and print the first 10:
+
+curl -s 'https://www.reddit.com/r/nyc/top.json?t=week&limit=50' \
+| jq -r '
+  .data.children
+  | map(.data)
+  | map(select(.stickied == false and (.is_ad != true)))
+  | .[:10]
+  | to_entries[]
+  | "\(.key+1). \(.value.score) — \(.value.title) (u/\(.value.author))\nhttps://reddit.com\(.value.permalink)\n"
+'
+If you also want to exclude NSFW, add and (.over_18 == false) to the select().
+### Human: Nice. Can you summarize the top post’s comments if I give you the link?
+### Assistant: Yes—paste the link and (if you can) run this to grab top-level comments as text and paste the output here:
+
+curl -s '<PASTE-THREAD-URL-HERE>.json?sort=top' \
+| jq -r '.[1].data.children | map(.data) | map(select(.body)) | .[:50] | .[].body'
+
+I’ll summarize themes and sentiment based on those comments. If you prefer, just copy-paste a handful of top comments and I’ll analyze them.

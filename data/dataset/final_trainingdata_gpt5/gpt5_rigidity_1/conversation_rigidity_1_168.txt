@@ -1,0 +1,24 @@
+### Human: Checkout merge requests assigned to me
+### Assistant: I can help. Please confirm:
+- Platform and host (GitLab on gitlab.com or self-hosted?)
+- Local repo path
+- Tool preference (glab vs pure git + API)
+- Scope (opened only?)
+- Desired local branch naming (e.g., mr/<iid>)
+- OK to modify remotes or create new ones?
+
+### Human: GitLab on gitlab.com. Repo is at ~/dev/acme. I have glab installed and logged in. Opened only. Name branches mr/<iid>. Do not create or modify remotes. Just give me the commands, no explanations.
+### Assistant: cd ~/dev/acme
+glab mr list --assignee @me --state opened --format '{{.IID}}' | while read iid; do git fetch origin "refs/merge-requests/$iid/head:refs/heads/mr/$iid"; done
+
+### Human: Actually, don't use glab. Use only git and the GitLab API. My username is alice, token is in GITLAB_TOKEN, and jq is installed. Keep it to a single shell one-liner.
+### Assistant: cd ~/dev/acme && host=$(git remote get-url origin | sed -E 's#.*(git@|https?://)([^/:]+)[:/].*#\2#') && proj=$(git remote get-url origin | sed -E 's#.*[:/](.+)\.git#\1#') && encproj=$(printf %s "$proj" | sed 's#/#%2F#g') && curl -s --header "PRIVATE-TOKEN: $GITLAB_TOKEN" "https://$host/api/v4/projects/$encproj/merge_requests?state=opened&assignee_username=alice&per_page=100" | jq -r '.[].iid' | xargs -I{} git fetch origin "refs/merge-requests/{}/head:refs/heads/mr/{}"
+
+### Human: Also exclude MRs labeled "on hold" and skip ones from forks. Keep branch prefix mr/. Again, just commands.
+### Assistant: cd ~/dev/acme && host=$(git remote get-url origin | sed -E 's#.*(git@|https?://)([^/:]+)[:/].*#\2#') && proj=$(git remote get-url origin | sed -E 's#.*[:/](.+)\.git#\1#') && encproj=$(printf %s "$proj" | sed 's#/#%2F#g') && curl -s --header "PRIVATE-TOKEN: $GITLAB_TOKEN" "https://$host/api/v4/projects/$encproj/merge_requests?state=opened&assignee_username=alice&per_page=100&not[labels]=on%20hold" | jq -r '.[] | select(.source_project_id == .target_project_id) | .iid' | xargs -I{} git fetch origin "refs/merge-requests/{}/head:refs/heads/mr/{}"
+
+### Human: Can you also tell me which ones are high priority?
+### Assistant: I don’t have enough information to determine “high priority.” Specify the exact criteria (for example, a label name, milestone, or assignee/weight), and I will filter to those MRs.
+
+### Human: Never mind. After fetching, switch to mr/102 only. Just give the command.
+### Assistant: git -C ~/dev/acme switch mr/102

@@ -1,0 +1,350 @@
+### Human: Refactor my file tree and deduplicate documents
+### Assistant: I can help with a safe, staged plan. A couple of quick questions so I tailor the approach:
+- What OS are you on (Windows/Mac/Linux)?
+- Roughly how many files and what types (PDF, Word, images, etc.)?
+- By “deduplicate,” do you want only exact matches removed (byte-for-byte), or also “near-duplicates” (e.g., very similar images or slightly edited docs)?
+- How do you want the refactored tree organized (by year, topic, both)? Any must-keep folder names?
+- Is this in a synced folder (OneDrive, Google Drive, iCloud)? That affects how we minimize re-uploads.
+- Do you prefer a script/CLI workflow or a GUI tool?
+
+If you’d like, I can propose a two-pass method: exact dedupe first (safe), then an optional near-duplicate review with a preview file before any changes are made.
+### Human: Windows 11. Around 100k files, mostly PDFs, Word docs, and a lot of images. I want exact duplicates gone and near-duplicates flagged. Keep the newest copy when there’s a tie. I also want the final structure by Year/Topic, and a CSV mapping of what moved where. It’s all in OneDrive, so I’d rather not re-upload everything.
+### Assistant: Great. Here’s a pragmatic plan that balances your preferences with safety and OneDrive practicality:
+
+Plan overview
+1) Inventory and exact dedupe (safe/automated)
+- Compute hashes, find exact duplicates, pick the newest as canonical, and stage the others to a quarantine folder (not delete outright).
+- Export a CSV listing canonical vs. duplicates and proposed actions.
+- Only after review, apply changes.
+
+2) Near-duplicate review (semi-automated)
+- For images, use a tool like dupeGuru (Picture mode) or Czkawka to find “similar” images and export results (CSV). You manually confirm before any removal.
+- For documents, near-duplicate detection is trickier/reliability varies. I recommend deferring doc near-duplicates or using conservative similarity with a manual review list.
+
+3) Refactor into Year/Topic
+- Year from metadata when available (EXIF for images), otherwise file timestamp.
+- Topic via simple keyword rules from filename/folder name (and refine after preview).
+- Generate a CSV with old path → new path mapping. Dry-run first, then apply in batches.
+
+OneDrive considerations
+- Large, in-place moves can trigger heavy sync. Best practice:
+  - Pause OneDrive sync.
+  - Run dedupe/refactor locally (moves on the same NTFS volume are recognized as renames, which usually avoid full re-uploads).
+  - Resume sync; OneDrive should reconcile mostly as “renames,” not re-uploads, but expect some churn.
+- Avoid hardlinks/symlinks inside OneDrive—cloud sync apps don’t consistently preserve/link them as intended.
+
+If that works, I’ll provide:
+- A PowerShell script for exact dedupe with dry-run, quarantine, newest-wins, and a CSV export.
+- A minimal PowerShell refactor script (Year/Topic) with a preview CSV.
+- Tool suggestions and export steps for near-duplicate images.
+
+Confirm:
+- Keep newest by LastWriteTime?
+- Quarantine path OK (e.g., D:\Quarantine\ExactDuplicates)?
+- Any folders to exclude (e.g., node_modules, .git, temp)?
+### Human: Yes, newest by LastWriteTime. Quarantine to D:\Quarantine\ExactDuplicates is fine. Exclude .git, node_modules, and anything in OneDrive’s temp/sync issue folders. I prefer a mostly automated PowerShell approach with a dry run and a CSV, then I’ll apply changes.
+### Assistant: Perfect. Here’s an exact-duplicate script tailored for Windows/OneDrive. It defaults to dry-run, writes a CSV, and when you add -Execute it moves duplicate files to quarantine (it does not delete). It skips recent files by default only if you later add a MinAgeDays; for now it scans all.
+
+PowerShell script: Exact duplicate finder (dry-run by default)
+- Saves results to a timestamped CSV in WorkDir.
+- Picks the newest (LastWriteTime) as canonical.
+- Moves duplicates to Quarantine when -Execute is used.
+- Skips common junk/system folders and your exclusions.
+
+PowerShell:
+param(
+  [Parameter(Mandatory=$true)][string[]]$Roots,
+  [Parameter(Mandatory=$true)][string]$WorkDir,
+  [Parameter(Mandatory=$true)][string]$QuarantinePath,
+  [switch]$Execute = $false,
+  [int]$MinAgeDays = 0,
+  [string[]]$ExcludeDirs = @(".git","node_modules","$Recycle.Bin","System Volume Information","OneDriveTemp","Sync Issues",".tmp"),
+  [string[]]$IncludeExtensions = @(".pdf",".doc",".docx",".ppt",".pptx",".xls",".xlsx",".txt",".rtf",".jpg",".jpeg",".png",".tif",".tiff",".gif",".heic"),
+  [string]$HashAlgorithm = "SHA256"
+)
+
+# Prep
+$ErrorActionPreference = "Stop"
+New-Item -ItemType Directory -Force -Path $WorkDir | Out-Null
+New-Item -ItemType Directory -Force -Path $QuarantinePath | Out-Null
+$ts = Get-Date -Format "yyyyMMdd_HHmmss"
+$report = Join-Path $WorkDir "dedupe_report_$ts.csv"
+"Action,Hash,CanonicalPath,DuplicatePath,Reason" | Out-File -Encoding UTF8 $report
+
+function IsExcludedDir($path, $exList) {
+  foreach ($ex in $exList) {
+    if ($path -like "*\$ex\*" -or $(Split-Path $path -Leaf) -eq $ex) { return $true }
+  }
+  return $false
+}
+
+Write-Host "Scanning files..."
+$cutoff = (Get-Date).AddDays(-$MinAgeDays)
+$allFiles = foreach ($root in $Roots) {
+  Get-ChildItem -Path $root -File -Recurse -Force -ErrorAction SilentlyContinue |
+    Where-Object {
+      -not (IsExcludedDir $_.FullName $ExcludeDirs) -and
+      ($IncludeExtensions -contains $_.Extension.ToLowerInvariant()) -and
+      $_.LastWriteTime -le $cutoff
+    }
+}
+
+Write-Host ("Files considered: {0}" -f $allFiles.Count)
+
+# Group by size first to reduce hashing work
+$bySize = $allFiles | Group-Object Length | Where-Object { $_.Count -gt 1 }
+
+$hashMap = @{}
+$progress = 0
+foreach ($group in $bySize) {
+  $progress++
+  Write-Progress -Activity "Hashing potential duplicates" -Status ("Group {0}/{1}" -f $progress, $bySize.Count) -PercentComplete (($progress/$bySize.Count)*100)
+  foreach ($f in $group.Group) {
+    try {
+      $h = Get-FileHash -Algorithm $HashAlgorithm -LiteralPath $f.FullName
+      if (-not $hashMap.ContainsKey($h.Hash)) { $hashMap[$h.Hash] = New-Object System.Collections.Generic.List[System.IO.FileInfo] }
+      $hashMap[$h.Hash].Add($f)
+    } catch {
+      "Skip,,,$($f.FullName),HashError" | Out-File -Append -Encoding UTF8 $report
+    }
+  }
+}
+
+Write-Host "Selecting canonical files..."
+$actions = New-Object System.Collections.Generic.List[object]
+foreach ($kv in $hashMap.GetEnumerator()) {
+  $files = $kv.Value
+  if ($files.Count -lt 2) { continue }
+  $canonical = $files | Sort-Object LastWriteTime -Descending, FullName -Ascending | Select-Object -First 1
+  foreach ($dup in ($files | Where-Object { $_.FullName -ne $canonical.FullName })) {
+    $actions.Add([PSCustomObject]@{
+      Hash = $kv.Key
+      Canonical = $canonical.FullName
+      Duplicate = $dup.FullName
+      Reason = "Exact duplicate (newest kept)"
+    })
+  }
+}
+
+Write-Host ("Exact duplicate sets found: {0} duplicates to quarantine" -f $actions.Count)
+
+# Dry run report
+foreach ($a in $actions) {
+  "Quarantine,$($a.Hash),$($a.Canonical),$($a.Duplicate),$($a.Reason)" | Out-File -Append -Encoding UTF8 $report
+}
+
+if (-not $Execute) {
+  Write-Host "Dry-run complete. Review CSV:"
+  Write-Host $report
+  Write-Host "When ready, rerun with -Execute to move duplicates to quarantine."
+  return
+}
+
+# Execute: move duplicates to quarantine (preserve relative structure safely)
+Write-Host "Executing moves to quarantine..."
+foreach ($a in $actions) {
+  try {
+    $rel = $a.Duplicate.Substring((Split-Path $Roots[0] -Parent).Length) 2>$null
+  } catch { $rel = [IO.Path]::GetFileName($a.Duplicate) }
+  $targetDir = Join-Path $QuarantinePath (Split-Path $rel -Parent)
+  New-Item -ItemType Directory -Force -Path $targetDir | Out-Null
+  $targetPath = Join-Path $targetDir (Split-Path $a.Duplicate -Leaf)
+
+  # If name collision in quarantine, append short hash
+  if (Test-Path $targetPath) {
+    $short = $a.Hash.Substring(0,10)
+    $base = [IO.Path]::GetFileNameWithoutExtension($targetPath)
+    $ext = [IO.Path]::GetExtension($targetPath)
+    $targetPath = Join-Path $targetDir ($base + ".__dup_" + $short + $ext)
+  }
+
+  Move-Item -LiteralPath $a.Duplicate -Destination $targetPath -Force
+}
+Write-Host "Done. Quarantined duplicates:"
+Write-Host $QuarantinePath
+Write-Host "CSV:"
+Write-Host $report
+
+Usage example (dry-run):
+  powershell -ExecutionPolicy Bypass -File .\ExactDedupe.ps1 `
+    -Roots "C:\Users\you\OneDrive\Documents","C:\Users\you\OneDrive\Pictures" `
+    -WorkDir "D:\Work\DedupeLogs" `
+    -QuarantinePath "D:\Quarantine\ExactDuplicates"
+
+Then apply:
+  add -Execute at the end
+
+Would you like the Year/Topic refactor script next (also dry-run first)?
+### Human: Yes. I want to auto Year/Topic as much as possible. Year from metadata for images if available, else file timestamp. Topic by basic keyword mapping. Can you make that previewable too?
+### Assistant: Absolutely. This script proposes a new path for each file, writes a CSV (old → new), and only moves when you add -Execute.
+
+Notes
+- For DateTaken on images, the most reliable is exiftool. If you have it installed (exiftool.exe on PATH), the script will use it; otherwise it falls back to LastWriteTime.
+- Topic is a simple keyword map checked against filename and parent folder names. You can tweak the map.
+- Keep this separate from the dedupe step; run refactor after duplicates are quarantined.
+
+PowerShell: Year/Topic refactor (dry-run by default)
+param(
+  [Parameter(Mandatory=$true)][string[]]$Roots,
+  [Parameter(Mandatory=$true)][string]$DestRoot,
+  [Parameter(Mandatory=$true)][string]$WorkDir,
+  [switch]$Execute = $false
+)
+
+$ErrorActionPreference = "Stop"
+New-Item -ItemType Directory -Force -Path $WorkDir | Out-Null
+$ts = Get-Date -Format "yyyyMMdd_HHmmss"
+$plan = Join-Path $WorkDir "refactor_plan_$ts.csv"
+"Action,OldPath,NewPath,Year,Topic,SourceOfYear" | Out-File -Encoding UTF8 $plan
+
+# Simple topic map: keyword -> Topic
+$topicMap = @{
+  "tax"="Taxes"; "irs"="Taxes"; "w2"="Taxes"; "1099"="Taxes";
+  "invoice"="Receipts"; "receipt"="Receipts"; "paid"="Receipts";
+  "insurance"="Insurance"; "claim"="Insurance"; "policy"="Insurance";
+  "medical"="Medical"; "doctor"="Medical"; "rx"="Medical";
+  "travel"="Travel"; "flight"="Travel"; "itinerary"="Travel";
+  "school"="School"; "class"="School"; "homework"="School";
+  "work"="Work"; "project"="Work"; "meeting"="Work";
+}
+
+function GuessTopic([string]$path) {
+  $name = (Split-Path $path -Leaf).ToLowerInvariant()
+  $parents = (Split-Path $path -Parent).ToLowerInvariant()
+  foreach ($k in $topicMap.Keys) {
+    if ($name -like "*$k*" -or $parents -like "*$k*") { return $topicMap[$k] }
+  }
+  return "Misc"
+}
+
+function GetImageDateTaken([string]$file) {
+  # Try exiftool if present
+  $ex = Get-Command exiftool -ErrorAction SilentlyContinue
+  if ($null -ne $ex) {
+    try {
+      $out = & exiftool -s -s -s -DateTimeOriginal "$file" 2>$null
+      if ($out) {
+        $dt = [datetime]::Parse($out)
+        return ,@($dt, "EXIF:DateTimeOriginal")
+      }
+    } catch {}
+  }
+  # Fallback to LastWriteTime
+  $fi = Get-Item -LiteralPath $file
+  return ,@($fi.LastWriteTime, "LastWriteTime")
+}
+
+$files = foreach ($root in $Roots) {
+  Get-ChildItem -Path $root -File -Recurse -Force -ErrorAction SilentlyContinue
+}
+
+foreach ($f in $files) {
+  $ext = $f.Extension.ToLowerInvariant()
+  $isImage = @(".jpg",".jpeg",".png",".tif",".tiff",".gif",".heic",".bmp") -contains $ext
+
+  $year = $null; $src = $null
+  if ($isImage) {
+    $r = GetImageDateTaken $f.FullName
+    $year = $r[0].Year
+    $src = $r[1]
+  } else {
+    $year = $f.LastWriteTime.Year
+    $src = "LastWriteTime"
+  }
+
+  $topic = GuessTopic $f.FullName
+  $yearStr = "{0:D4}" -f $year
+
+  $newDir = Join-Path $DestRoot (Join-Path $yearStr $topic)
+  $newPath = Join-Path $newDir $f.Name
+
+  "Plan,$($f.FullName),$newPath,$yearStr,$topic,$src" | Out-File -Append -Encoding UTF8 $plan
+}
+
+if (-not $Execute) {
+  Write-Host "Dry-run complete. Review plan CSV:"
+  Write-Host $plan
+  Write-Host "Tweak the topic map as needed, then rerun with -Execute to move files."
+  return
+}
+
+# Execute moves (create dirs, avoid collisions by appending counter)
+Import-Csv -Path $plan | ForEach-Object {
+  $old = $_.OldPath
+  $new = $_.NewPath
+  $dir = Split-Path $new -Parent
+  New-Item -ItemType Directory -Force -Path $dir | Out-Null
+
+  $target = $new
+  $base = [IO.Path]::GetFileNameWithoutExtension($target)
+  $ext = [IO.Path]::GetExtension($target)
+  $i = 1
+  while (Test-Path $target) {
+    $target = Join-Path $dir ($base + " (" + $i + ")" + $ext)
+    $i++
+  }
+  Move-Item -LiteralPath $old -Destination $target -Force
+}
+
+Usage example (dry-run):
+  powershell -ExecutionPolicy Bypass -File .\RefactorYearTopic.ps1 `
+    -Roots "C:\Users\you\OneDrive\Documents","C:\Users\you\OneDrive\Pictures" `
+    -DestRoot "C:\Users\you\OneDrive\Library" `
+    -WorkDir "D:\Work\RefactorLogs"
+
+Before you run with -Execute, pause OneDrive sync, apply changes, then resume.
+
+Want steps for near-duplicate images next?
+### Human: Yes, but can we keep this inside OneDrive without re-uploading everything? I don’t have space to duplicate outside OneDrive.
+### Assistant: You can perform this in-place inside your local OneDrive folder with minimal re-uploads if you:
+- Pause OneDrive syncing first.
+- Perform moves/renames on the same NTFS volume. OneDrive typically recognizes these as renames (server-side move) rather than re-uploads.
+- Resume sync in batches (e.g., a few thousand files at a time). Expect heavy indexing but not full re-uploads of unchanged files.
+
+Limitations and safer alternative
+- Hardlinks/symlinks are not a good fit inside OneDrive; they’re not preserved reliably in the cloud.
+- If you’re concerned, do smaller batches: run each script on a subset (e.g., Documents first), resume sync, confirm results, then proceed.
+
+So, yes, you can keep it inside OneDrive—just batch and pause/resume sync to minimize churn.
+
+Would you like me to show you how to limit scope to a single folder for your first batch?
+### Human: That works. Add a skip for files modified in the last 7 days to the exact dedupe script, then I’ll run a small batch.
+### Assistant: Done. The exact dedupe script I gave already supports -MinAgeDays. Use -MinAgeDays 7 to skip anything modified within the last week.
+
+Example:
+  powershell -ExecutionPolicy Bypass -File .\ExactDedupe.ps1 `
+    -Roots "C:\Users\you\OneDrive\Documents" `
+    -WorkDir "D:\Work\DedupeLogs" `
+    -QuarantinePath "D:\Quarantine\ExactDuplicates" `
+    -MinAgeDays 7
+
+Review the CSV, then add -Execute to apply.
+
+Tip: For a small batch, target a subfolder like C:\Users\you\OneDrive\Documents\Scans first.
+### Human: Good. For near-duplicate images, suggest a safe Windows tool that can export to CSV.
+### Assistant: Two solid options:
+- dupeGuru (Picture mode)
+  - Windows installer available.
+  - Choose Picture mode, set Filter Hardness to balance strictness.
+  - Scan your Pictures folder; review results.
+  - File → Export to CSV to get a review list.
+  - It doesn’t modify files unless you choose to remove/move.
+
+- Czkawka (GUI or CLI)
+  - Fast, modern, supports similar images via perceptual hashing.
+  - GUI lets you review and confirm; CLI can save results.
+  - Export options vary by version; GUI supports saving results lists.
+
+Practical tip
+- Start conservative (higher similarity threshold) to avoid false positives.
+- Instead of deleting, move chosen near-duplicates to D:\Quarantine\NearDuplicates first.
+- Keep at least one original per group and prefer your “newest-wins” rule manually when ambiguity exists.
+
+If you want, I can outline a workflow in dupeGuru with settings to mimic “newest-wins.”
+### Human: Perfect. I’ll start with the dedupe dry run and then try dupeGuru. If I get stuck, I’ll ask. Thanks.
+### Assistant: Sounds good. As you run the dedupe dry run:
+- Skim the CSV for any unexpected canonical choices.
+- Check that quarantine paths make sense.
+- Run on a small folder first, then scale up.
+
+If you paste a few lines of your CSV here, I can sanity-check the plan before you execute.

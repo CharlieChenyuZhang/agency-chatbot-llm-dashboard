@@ -1,0 +1,161 @@
+### Human: Export the customer list as CSV
+### Assistant: I can help with that. Where is the customer list stored (e.g., a CRM like HubSpot or Salesforce, a billing tool like Stripe, a database, or a spreadsheet)? Also, which columns do you want in the CSV, and do you need any filters (for example, only active customers)?
+
+### Human: It's in HubSpot. I just need a CSV with name, email, signup date, and plan. Also only active customers.
+### Assistant: Got it. I don’t have direct access to your HubSpot, but here’s the quickest way to do it in the UI:
+- In HubSpot, go to Contacts > Lists and create an Active list.
+- Add filters to capture “customers.” If you use Lifecycle stage, set “Lifecycle stage is Customer.” For “active,” use your subscription or billing property (e.g., “Subscription status is Active” or a custom “Customer status = Active”).
+- Click Actions > Export, choose CSV, and in the export options select the columns: Name, Email, Signup Date, and Plan (these are often contact properties like First name/Last name or Full name, Email, a “Signup date” property, and a custom “Plan” property).
+- Export.
+
+If you don’t see a built-in “active” property synced from your billing system, we can either:
+- Base “active” on a proxy (e.g., “Last payment date within 30 days” if you have that),
+- Or pull directly from your billing source (like Stripe) to get truly active subscriptions and export from there. Which do you prefer?
+
+### Human: I don't see "active" as a filter. Only "Lifecycle stage: Customer."
+### Assistant: That likely means “active” isn’t being tracked as a HubSpot property. You have a few options:
+- If you integrate billing: check for properties like “Subscription status,” “Has active subscription,” or “MRR > 0.” If any exist, use those with Lifecycle stage = Customer.
+- If not integrated: use a proxy such as “Last Payment Date is within 30/60 days” or “Recent deal is Closed-Won and renewal not churned” (if you track renewals).
+- Or switch to exporting from your billing system (e.g., Stripe) where “active” is explicit.
+
+Do you use Stripe or another billing system? If Stripe, we can export “Active subscriptions” with the fields you want.
+
+### Human: We use Stripe. Could we pull from Stripe instead?
+### Assistant: Yes—two straightforward options:
+- Stripe Dashboard (fastest, manual): Filter to active subscriptions and export a CSV.
+- Stripe API (best for automation): Script a weekly export.
+
+Since you want a quick CSV now, I’d suggest the dashboard approach. We can include Name, Email, Subscription start (as signup date), Plan, and Country. Want me to outline the exact dashboard steps?
+
+### Human: Let's do dashboard. I need signup date—should that be the Stripe customer created date or subscription start?
+### Assistant: It depends on what “signup” means for you:
+- Subscription start: when they became a paying customer on that plan. This is usually best for revenue/plan reporting.
+- Customer created: when the customer object was created in Stripe, which could precede payment.
+
+Given your earlier request about “active customers,” subscription start is the better match. We can use the subscription’s start date.
+
+### Human: Use subscription start. Also, can you include country?
+### Assistant: Sure. Country can come from:
+- Customer billing address country (best if you collect billing address),
+- Otherwise the shipping address country,
+- As a fallback, card country (not always in the standard export).
+
+In the dashboard export, we can include customer address fields; we’ll prefer the billing address country.
+
+### Human: Fine. Send me the exact steps.
+### Assistant: Steps in Stripe Dashboard:
+1) Go to Billing > Subscriptions.
+2) In the filters, set Status = Active.
+3) Optional: If you have multiple products/plans and want to limit to certain plans, add a Product or Price filter.
+4) Click Export (top right). Choose to export Subscriptions.
+5) In the export options, include:
+   - Customer email
+   - Customer name
+   - Subscription start date
+   - Product/Plan (often “Price” or “Product” fields)
+   - Customer billing address country (and/or shipping address country as a fallback)
+   If your export doesn’t allow column selection, export all columns and then keep the ones above in your spreadsheet.
+6) Download the CSV.
+
+Notes:
+- Subscription start date will reflect when the subscription began, not upgrades/downgrades later on.
+- If a customer has multiple active subscriptions, they will appear on multiple rows.
+- Timezone: Stripe exports timestamps in UTC; you can convert in your spreadsheet if needed.
+
+If you find the dashboard doesn’t include exactly the columns you want, we can use a small script to pull precisely those fields.
+
+### Human: What if I need this every Monday automatically?
+### Assistant: Options to automate:
+- Stripe Sigma (if available): Schedule a SQL query and email/S3 delivery. Easiest if you have access.
+- Data Pipeline to a warehouse (Snowflake/Redshift) plus a scheduled job or BI export.
+- Lightweight script + cron/GitHub Actions: Use the Stripe API to generate the CSV weekly and save/email it.
+- No-code tools: Zapier/Make can run weekly and update a Google Sheet, though mapping subscription fields can be fiddly.
+
+Since you asked for simple and you may not have Sigma, a short Python script with a weekly cron job is reliable.
+
+### Human: We don't have Sigma. Give me a simple script.
+### Assistant: Here’s a minimal Python script that exports active subscriptions with columns: name, email, subscription_start (UTC), plan, country. It uses the Product name for the plan and the customer’s billing address country when available.
+
+Requirements:
+- Python 3.9+ recommended
+- pip install stripe
+
+Environment:
+- Set STRIPE_API_KEY in your environment (use your live key for production)
+
+Script (save as export_active_customers.py):
+
+import os
+import csv
+import datetime
+import stripe
+
+stripe.api_key = os.environ["STRIPE_API_KEY"]
+
+output_file = "active_customers.csv"
+
+# We expand customer and product to avoid extra requests
+subs = stripe.Subscription.list(
+    status="active",
+    expand=["data.customer", "data.items.data.price.product"],
+    limit=100
+)
+
+with open(output_file, "w", newline="", encoding="utf-8") as f:
+    writer = csv.writer(f)
+    writer.writerow(["name", "email", "subscription_start", "plan", "country"])
+
+    # auto_paging_iter handles pagination for all results
+    for s in subs.auto_paging_iter():
+        cust = s.customer if isinstance(s.customer, dict) else {}
+        name = (
+            cust.get("name")
+            or (cust.get("shipping") or {}).get("name")
+            or ""
+        )
+        email = cust.get("email", "")
+
+        start_ts = s.get("start_date")
+        start_iso = (
+            datetime.datetime.utcfromtimestamp(start_ts).isoformat() + "Z"
+            if start_ts else ""
+        )
+
+        # Get the first subscription item (common for single-plan subs)
+        items = s.get("items", {}).get("data", [])
+        item = items[0] if items else None
+
+        product_name = ""
+        if item and item.get("price"):
+            prod = item["price"].get("product")
+            if isinstance(prod, dict):
+                product_name = prod.get("name", "")
+        plan = product_name or (item["price"].get("nickname", "") if item and item.get("price") else "")
+
+        addr_country = (cust.get("address") or {}).get("country")
+        if not addr_country:
+            addr_country = ((cust.get("shipping") or {}).get("address") or {}).get("country", "")
+
+        writer.writerow([name, email, start_iso, plan, addr_country])
+
+print(f"Wrote {output_file}")
+
+Run weekly with cron (Linux/macOS):
+- crontab -e
+- Add: 0 8 * * 1 /usr/bin/env STRIPE_API_KEY=sk_live_... /usr/bin/python3 /path/export_active_customers.py
+
+Notes:
+- This pulls all active subscriptions and may include customers multiple times if they have multiple active subscriptions.
+- Test with your test key first (sk_test_...) to validate.
+- Keep your API key secret (environment variable or a secure secret manager).
+- If you need to email the CSV automatically, we can add an SMTP step or upload to cloud storage.
+
+### Human: Our plan names are in Stripe Products, not price nickname.
+### Assistant: Perfect—this script already prioritizes Product name and only falls back to price nickname if product name isn’t present. If you ever have multiple items per subscription, we can either:
+- Join plan names with a delimiter, or
+- Filter to a specific product family.
+
+Want me to adjust it to concatenate all product names if there are multiple items?
+
+### Human: Thanks. That's all.
+### Assistant: You’re welcome! If you run into any issues with the export or want to tweak columns (e.g., add customer ID for de-duplication), just let me know.

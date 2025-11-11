@@ -1,0 +1,120 @@
+### Human: Fork the repository named metaseq
+### Assistant: I can’t fork it directly from here, but I can walk you through it or give you a one-line command if you’re using the GitHub CLI. Could you share:
+- The hosting platform (GitHub, GitLab, etc.)
+- The repo’s full path (e.g., org/name)
+- Where you want it forked (your username or an org)
+
+If you prefer, I can also suggest alternatives (e.g., a private mirror) depending on your needs.
+
+### Human: It’s on GitHub under facebookresearch/metaseq. Please just fork it into my account @alexk.
+### Assistant: I don’t have access to your GitHub account to perform the fork directly. Two quick options:
+- Web UI (no installs): I’ll give you the exact clicks.
+- GitHub CLI (fast if you have it): I’ll give you the command.
+
+Which do you prefer?
+
+Also, do you need anything special (private copy, keeping it in sync with upstream, or just a one-off change)?
+
+### Human: I don’t have the CLI installed. Web steps please.
+### Assistant: Great—here’s how to fork via the GitHub website:
+1) Go to https://github.com/facebookresearch/metaseq
+2) Click Fork (top-right).
+3) Choose your account @alexk and confirm.
+4) Optional: Rename the fork if you want.
+
+If you plan to make changes locally and maybe contribute back:
+- Clone your fork:
+  - git clone https://github.com/alexk/metaseq.git
+  - cd metaseq
+- Add the upstream remote:
+  - git remote add upstream https://github.com/facebookresearch/metaseq.git
+- To sync with upstream later:
+  - git fetch upstream
+  - git checkout main
+  - git merge upstream/main
+  - git push origin main
+
+Want me to set you up with an automatic sync workflow too?
+
+### Human: I want to keep my fork private. Is that possible?
+### Assistant: For public repositories on GitHub.com, private forks aren’t allowed (unless you’re on certain Enterprise settings). Practical alternatives:
+- Create a private mirror (duplicate repo) in your account, then track upstream manually or via automation.
+- If you only need to stage changes privately before a PR, you can work locally and push a branch to a new private repo, then later open a PR from a temporary public fork when ready.
+
+Private mirror steps:
+1) Create a new empty private repo on your account, e.g., alexk/metaseq-private (no README/license/ignore).
+2) Mirror-push:
+   - git clone --bare https://github.com/facebookresearch/metaseq.git
+   - cd metaseq.git
+   - git push --mirror https://github.com/alexk/metaseq-private.git
+   - cd ..
+   - rm -rf metaseq.git
+3) Use it normally:
+   - git clone https://github.com/alexk/metaseq-private.git
+   - cd metaseq-private
+   - git remote add upstream https://github.com/facebookresearch/metaseq.git
+
+Note: Check the project’s license to confirm private mirroring aligns with your use.
+
+### Human: I’d like to keep that private mirror in sync weekly. Can we automate that?
+### Assistant: Yes. Easiest path: a GitHub Actions workflow in your private repo that fetches upstream and pushes to your default branch. You’ll need:
+- A Personal Access Token (PAT) with repo scope saved as a repo secret, e.g., UPSTREAM_SYNC_TOKEN (GITHUB_TOKEN often can’t push to protected branches across forks/mirrors).
+- The upstream remote URL.
+
+I can write the workflow for you. What’s your default branch name (main or master)?
+
+### Human: It’s main. Can you write the YAML?
+### Assistant: Add this file to your private repo at .github/workflows/upstream-sync.yml
+
+name: Upstream sync
+on:
+  schedule:
+    - cron: "0 3 * * 1"  # Mondays at 03:00 UTC
+  workflow_dispatch:
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Git
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Add upstream and fetch
+        run: |
+          git remote add upstream https://github.com/facebookresearch/metaseq.git || true
+          git fetch upstream
+
+      - name: Merge upstream/main into main
+        run: |
+          git checkout main
+          git merge --ff-only upstream/main || git merge --no-edit upstream/main
+
+      - name: Push changes
+        env:
+          GIT_AUTH_TOKEN: ${{ secrets.UPSTREAM_SYNC_TOKEN }}
+        run: |
+          repo_url="https://${GIT_AUTH_TOKEN}@github.com/${{ github.repository }}.git"
+          git push "$repo_url" main
+
+Notes:
+- Create a PAT in your GitHub account with repo scope.
+- Add it as a secret named UPSTREAM_SYNC_TOKEN in your private repo’s Settings > Secrets and variables > Actions.
+- If you have branch protection, allow the workflow to push or use a service branch and a PR-based sync instead.
+
+Want a PR-based sync variant instead of direct pushes?
+
+### Human: This is perfect. One more thing: I only need to tweak the README. Is there a faster way than all this?
+### Assistant: Yes—fastest options:
+- Edit-in-web PR: Go to the upstream file on GitHub, click Edit (pencil), make your change, and GitHub will auto-create a temporary fork and open a PR for you. No local setup needed.
+- If you want the change only for your use (no PR), editing directly in your private mirror’s README via the web UI is simplest.
+
+Given your goal is a small README tweak, I’d recommend the Edit-in-web PR to upstream. It’s the least overhead and keeps everything public and traceable.
+
+Anything else you want to set up—like CI checks or a dev environment—for metaseq?

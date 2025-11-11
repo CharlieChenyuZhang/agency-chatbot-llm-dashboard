@@ -1,0 +1,299 @@
+### Human: Help me systematically debug complex software issues
+### Assistant: Great goal. Here’s a practical, repeatable approach you can adapt to most stacks:
+
+1) Clarify the problem
+- What is broken, how do we know, and since when?
+- Scope: single user, endpoint, service, region, or global?
+- Severity vs frequency: how bad and how often?
+
+2) Reproduce or capture evidence
+- Best: minimal reproducible case.
+- If not reproducible: capture exemplars (logs, metrics, traces) for 3–5 failing instances.
+
+3) Establish a baseline
+- What is normal for latency, error rate, resource use, and dependencies?
+- Compare current vs last known good.
+
+4) Form hypotheses
+- Turn observations into falsifiable statements (e.g., “timeouts started after deploy X due to connection pool exhaustion”).
+
+5) Instrument and test
+- Add/enable metrics, structured logs, traces around suspected areas.
+- Run low-risk experiments: feature flag off/on, canary, replay a request.
+
+6) Narrow down
+- Bisect: config toggle, code path, dependency, or data segment.
+- Change one variable at a time and observe.
+
+7) Fix and verify
+- Implement minimal fix, validate with metrics, expand canary, then full rollout.
+
+8) Prevent regressions
+- Add tests (unit/property-based), alerts, runbooks.
+- Document root cause and guardrails.
+
+If you’d like, I can tailor this into a checklist or a team runbook. What stack and typical failure modes do you see?
+
+### Human: We run microservices on Kubernetes. Our main issue is intermittent latency spikes in production. Where should we start?
+### Assistant: Start with narrowing scope and correlating spikes:
+
+- Confirm blast radius: which services/endpoints, regions, and versions are affected. Look at p95/p99 histograms, not averages.
+- Correlate with events: deploys, autoscaling, node drain/restarts, config changes, GC, dependency rate limits.
+- Check resource saturation on pods and nodes: CPU throttling, memory pressure, high GC, thread/conn pool saturation.
+- Examine dependency health: DB latency, cache hit rate, downstream error budgets.
+- Sample slow requests: trace a handful, or if you lack tracing, add temporary structured logs with a request ID and timing at key boundaries (ingress, handler, DB, external calls).
+
+If you don’t have distributed tracing, you can still get 80% there with:
+- Request correlation IDs across services.
+- Ingress/service mesh latency buckets and upstream cluster stats.
+- Short-lived debug logging around suspected calls, with sampling to control cost.
+
+Want a concrete step-by-step for a live spike?
+
+### Human: We don’t have tracing yet. Can we still do this?
+### Assistant: Yes. Short-term, use low-friction options:
+
+- Correlation IDs: generate at the edge (gateway/ingress) and propagate via headers (e.g., X-Request-ID). Log it everywhere.
+- Structured logs with timing: log at boundaries (request start/end, DB/query start/end, external calls), include service name, route, status, duration, and correlation ID.
+- Mesh/ingress metrics: if using Nginx/Envoy/Istio, enable access logs and scrape upstream cluster stats (pending requests, retries, connection errors).
+- Kubernetes signals: kubectl top pods, events, restarts, OOMKilled, throttling.
+- DB/cache metrics: latency, queue length, hit/miss, connection utilization.
+
+Note: If you crank up logging, sample and scrub PII. If you want, I can suggest a minimal log schema you can roll out this week.
+
+### Human: Give me a concrete step-by-step for a live latency spike.
+### Assistant: Here’s a quick runbook you can run during an incident:
+
+1) Detect and scope (5–10 min)
+- Identify affected services/endpoints and versions.
+- Compare p50 vs p95/p99 to confirm tail latency issue.
+- Check if errors also spiked.
+
+2) Correlate with recent events (5 min)
+- Deploys, config changes, autoscaler actions, node events, dependency incidents.
+
+3) Check saturation (10 min)
+- kubectl top nodes/pods; look for CPU throttling and memory pressure.
+- Check thread/connection pool utilization and queue lengths.
+- DB/cache: latency, connection saturation, hit rate.
+
+4) Sample slow requests (10–20 min)
+- Pick 3–5 slow requests by correlation ID.
+- For each, log timing at: ingress, handler start, each downstream call, DB/query.
+- Determine where time is spent: network, app CPU, DB, external.
+
+5) Narrow and test (10–20 min)
+- If network-bound: check retries, TLS handshakes, DNS, connection reuse; bump pool sizes conservatively.
+- If CPU-bound: check GC pauses, hot code paths; temporarily scale out or reduce work per request.
+- If DB-bound: find top slow queries; add/adjust indexes, increase cache, or cache results.
+- If dependency-bound: rate-limited? Backoff/retry policy changes; consider a temporary circuit breaker.
+
+6) Mitigate and verify
+- Roll out the minimal change behind a feature flag or canary.
+- Watch p95/p99, error rate, and saturation return to baseline.
+
+7) Document quick findings and next steps.
+
+I can tailor the “if X then Y” actions to your stack if you share more details (language/runtime, ingress, DB).
+
+### Human: I just want a universal flowchart I can hand to anyone.
+### Assistant: A single flowchart won’t fit every stack and failure mode, but we can give you a compact decision tree that covers 80% and add stack-specific leaf nodes. Here’s a portable version:
+
+Start:
+- Are errors spiking? If yes, check recent changes and error type (4xx vs 5xx), roll back or disable new code path; else continue.
+- Is p95/p99 high while p50 normal? If yes, tail latency path; else if all percentiles high, global saturation path.
+
+Tail latency path:
+- Resource saturation? If CPU/mem/thread/conn near limits, scale or adjust pools, then re-check.
+- Downstream latency? If yes, isolate: which dependency? Inspect its saturation and retries; consider backoff/circuit breaker.
+- GC pauses or CPU spikes? If yes, tune GC or hot path; sample profile.
+
+Global latency path:
+- Recent deploy/config change? If yes, roll back or canary compare.
+- Traffic pattern change? Hot endpoints? Cache invalidation? Add caching, rate limit, or pre-warm.
+
+If none:
+- Capture exemplars with timing, add temporary logging/tracing, and bisect config/feature flags.
+
+I can also produce service-specific subflows (e.g., JVM + Postgres) if you want.
+
+### Human: Can you create a Jira-friendly checklist template?
+### Assistant: Sure—paste this into a Jira ticket template:
+
+Title: [Service] [Symptom] started [when]
+
+Impact
+- Affected endpoints/services:
+- Regions/tenants:
+- Severity/frequency:
+
+Evidence
+- Metrics dashboards (links):
+- Example correlation IDs (3–5):
+- Recent changes (deploy/config/infrastructure):
+
+Baseline
+- Normal p50/p95/p99 and error rate:
+- Normal resource usage (CPU/mem/threads/conns):
+
+Hypotheses (ranked)
+- H1:
+- H2:
+- H3:
+
+Experiments
+- Instrumentation to add/enable:
+- Low-risk changes (feature flag/canary):
+- Rollback candidate:
+
+Findings
+- Root cause:
+- Fix implemented:
+- Verification metrics:
+
+Prevention
+- Tests added:
+- Alerts/runbook updates:
+- Follow-up actions/owners/dates:
+
+### Human: We often can’t reproduce locally. What then?
+### Assistant: Use production-adjacent strategies:
+
+- Record + replay: capture sanitized request payloads and headers; replay in staging with prod-like data.
+- Canary and feature flags: narrow impact of changes and A/B suspected paths.
+- Shadow traffic: mirror a small percent to a non-user-facing instance to observe behavior.
+- Deterministic inputs: pin versions, freeze feature flags, seed randomness.
+- Snapshot data: create masked subsets that reflect production scale and skew.
+- If none available: use exemplars + bisect config/flags in prod with tiny rollouts, and log/timing at boundaries.
+
+### Human: Our logs are noisy and expensive. How do we tune them without losing signal?
+### Assistant: Practical logging hygiene:
+
+- Structured logs with a minimal schema: timestamp, service, route, status, duration, correlation ID, key dimensions (tenant/region), error code.
+- Dynamic levels: make log level switchable at runtime per service/route.
+- Sampling: e.g., sample 1% of successful requests, 100% of errors/timeouts, and 10% of slow (>p99) requests.
+- Suppress known-noise: avoid logging successful health checks; collapse repetitive errors with counters.
+- PII hygiene: central redaction; treat logs as sensitive data.
+- Retention tiers: short retention for verbose logs, longer for summaries; ship metrics derived from logs to cheaper storage.
+- Where possible, move high-cardinality details to tracing/metrics instead of logs.
+
+### Human: Any quick diagnostic commands for a Java service on Linux when latency spikes?
+### Assistant: Yes—low-risk first:
+
+Low-impact checks
+- top/htop to spot CPU steal/irq or a hot process.
+- pidstat -wt 1 -p <pid> for thread CPU/wait time.
+- jstat -gcutil <pid> 1s to check GC pauses.
+- jcmd <pid> VM.flags; ensure GC/logging flags are sane.
+- ss -s and ss -tan state established to check sockets and TIME_WAIT buildup.
+- iostat -xz 1 and vmstat 1 for IO and run queue.
+
+Targeted snapshots
+- jstack <pid> to capture thread dump (grab 3 spaced by 5s).
+- jcmd <pid> GC.class_histogram to detect leaks/hot allocations.
+- Async-profiler (if allowed) for 30–60s CPU or wall profiling in staging or a canary.
+
+Caution: perf/eBPF tools may be restricted in prod; prefer canary or staging under prod-like load. Enable safe GC logging (-Xlog:gc*) for ongoing signal.
+
+### Human: Management wants KPIs proving our debugging is improving. What should we measure?
+### Assistant: Start with these, baseline for 4–6 weeks, then set targets:
+
+- MTTA and MTTR for incidents.
+- Change failure rate (incidents per deploy).
+- Reopen rate of bugs and percent with a reproducible case.
+- Percent of incidents with a runbook followed.
+- SLO burn rate and time to detection.
+- Lead time from bug report to fix in prod.
+
+If tooling is limited, start with a simple spreadsheet and promote to your observability tool later.
+
+### Human: Can you draft a lightweight runbook for timeouts to add to our repo?
+### Assistant: Timeout runbook (v1)
+
+Prereqs
+- Correlation IDs enabled; dashboard links.
+
+Detection
+- Alert: p95/p99 latency or timeout rate > threshold for 5 min.
+
+Triage (10 min)
+- Scope endpoints/services/regions/versions.
+- Check recent deploys/config/infrastructure events.
+
+Diagnosis (20–40 min)
+- Resource saturation: CPU throttling, memory, thread/conn pools.
+- Downstream health: DB/cache latency, rate limits, retries.
+- Network: DNS errors, handshake times, connection reuse.
+- App: GC pauses, hot methods, locks.
+
+Mitigations
+- Roll back recent changes or disable suspect feature.
+- Increase timeouts slightly only if paired with retry/backoff review.
+- Tune pool sizes conservatively; scale out if saturated.
+- Add caching or reduce work per request.
+
+Verification
+- Confirm p95/p99 and error rate return to baseline.
+- Capture exemplars before/after.
+
+Post-incident
+- Root cause doc, test added, alert tuning, follow-ups with owners/dates.
+
+### Human: We can’t install eBPF or perf in prod due to policy. Alternatives?
+### Assistant: Options that respect constraints:
+
+- JVM-native tools: jstack, jmap, jstat, GC logging.
+- App-level timing: log durations at boundaries with correlation IDs.
+- HTTP timing headers: Server-Timing to surface internal spans without full tracing.
+- Canary debug pods: run a single pod with extra logging/profiling.
+- Ephemeral containers (if allowed) for jcmd/jstack without restarting.
+- Use external metrics: load balancer (ALB/ELB) target latency, 5xx, TLS errors; DNS resolver metrics.
+- Profile in staging under prod-like load with async-profiler; validate fixes via canary.
+
+### Human: Sometimes bugs are data-dependent. How do we approach those?
+### Assistant: Treat them as “input class” problems:
+
+- Capture failing inputs (sanitized) and diff against normals.
+- Add schema validation and invariant checks at boundaries; log violations.
+- Property-based tests around data transformations and parsers.
+- Data shadowing: run new code against a sample of prod data in parallel and compare outputs.
+- Canary migrations with checksums and row-level sampling; define rollback.
+- Generate synthetic edge cases (nulls, extremes, skewed distributions).
+- If data is huge, stratified sampling by tenant/region/feature flags.
+
+### Human: This is great. Can you package a 1-page quick reference?
+### Assistant: One-page debugging quick reference
+
+Triage
+- Define symptom, scope, severity, since when.
+- Check p50 vs p95/p99, error rate, and recent changes.
+
+Evidence
+- Grab 3–5 exemplars with correlation IDs.
+- Baseline resource and dependency health.
+
+Decide path
+- Tail latency (high p95/p99 only): check saturation, downstreams, GC/CPU.
+- Global latency: check deploys/config, traffic/caching changes.
+
+Actions
+- Add boundary timing logs; propagate correlation IDs.
+- Bisect via feature flags/config toggles; change one thing at a time.
+- For CPU: check GC, thread dumps, quick profile (staging/canary).
+- For network: verify DNS, TLS reuse, pool sizes, retries/backoff.
+- For DB/cache: inspect slow queries, connections, cache hit rate.
+
+Mitigate
+- Roll back or disable suspect path.
+- Scale conservatively or tune pools.
+- Add caching/circuit breaker as needed.
+
+Verify
+- Watch p95/p99, errors, and saturation return to baseline.
+- Compare before/after exemplars.
+
+Prevent
+- Add tests, alerts, and a runbook entry.
+- Record root cause, guardrails, and owner/date for follow-ups.
+
+If you want, I can adapt this to your exact stack and add command snippets and dashboard links.

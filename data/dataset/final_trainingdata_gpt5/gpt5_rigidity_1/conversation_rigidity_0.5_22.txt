@@ -1,0 +1,292 @@
+### Human: Organize my files and documents
+### Assistant: I can help you set up a simple, sustainable system and, if you want, some automation to keep it tidy. A few questions to tailor it:
+- What device(s) and OS do you use?
+- Where are your files now (Desktop, Downloads, external drive, Google Drive, etc.)?
+- What kinds of files do you have most (work docs, PDFs, photos, invoices, media)?
+- Do you prefer a small number of broad folders or a more detailed structure?
+- Are you okay with renaming files, or should names stay as-is?
+
+If you’d rather skip the details, I can propose a default setup and you can tweak from there.
+
+### Human: I'm on a MacBook. Everything’s scattered across Desktop, Downloads, and Google Drive. Mostly PDFs, Word docs, invoices, and photos. I’d like this to be automatic if possible. I don’t care much about folders—I just want to find things quickly.
+### Assistant: Great, thanks. On Mac, we can do this with free, built-in tools:
+- Organization approach: Minimal top-level folders + tags + Smart Folders for fast search.
+- Automation: Shortcuts + Folder Actions (Automator) to auto-move, tag, and optionally rename. We can start with Downloads so it doesn’t disrupt work-in-progress on Desktop.
+- Photos caution: If you use the Photos app, we shouldn’t move files inside your Photos Library. We can organize exported photos or referenced folders only.
+
+Proposed plan (safe and gradual):
+1) Create a minimal folder structure in iCloud Drive or Google Drive.
+2) Set up rules to clean Downloads: move by type (PDFs, docs, images), tag invoices, and optionally rename them.
+3) Add Smart Folders that show what you need (e.g., “All Invoices this year”, “Recent Docs”).
+4) Run in review mode first (copy or tag only), then switch to full auto-move once you’re happy.
+
+Do you want me to write the Shortcuts/Automator pieces for you, or would you prefer a different tool?
+
+### Human: I don’t want to pay for Hazel. Can we do it with only free tools?
+### Assistant: Yes. We can use:
+- Shortcuts: To parse text, rename, tag, and move files.
+- Automator: To attach a Folder Action to Downloads so it triggers when new files arrive.
+- Optional: launchd to schedule a daily sweep if you prefer batches instead of instant moves.
+
+I can provide:
+- A Shortcuts flow to detect invoices (PDFs), extract text, parse date/vendor, rename, tag, and move to your Google Drive folder.
+- An Automator Folder Action that runs the Shortcut when new files land in Downloads.
+
+Would you like me to generate the Shortcut steps and a small script to parse dates/vendors?
+
+### Human: Yes. Write me the script to rename invoices and move them to Google Drive > Finance > Invoices, using the vendor and date from the PDF.
+### Assistant: Got it. Two free approaches:
+
+Option A (native-only, no installs): Use a macOS Shortcut
+- Extract text from the PDF
+- Use a regex to find a date (e.g., YYYY-MM-DD or MM/DD/YYYY) and a vendor (from a known list or the first line)
+- Rename to vendor_YYYY-MM-DD_description.pdf
+- Move to Google Drive/Finance/Invoices
+- Tag as “Invoice” and “Processed”
+This is reliable if the date appears clearly and vendors are known.
+
+Option B (more robust parsing): Use a small Python script with pdfminer.six via Homebrew
+- Better OCR/text extraction and more flexible regex
+- Slightly more setup
+
+Since you asked for a script, I’ll give you both. Choose the one you prefer.
+
+A) Shortcut outline (no external installs)
+1) Actions:
+   - Get Folder Contents: Downloads
+   - Filter for PDFs
+   - Repeat with each PDF:
+     - Get Text from PDF
+     - Match Text (regex) for date:
+       - Patterns to try:
+         - (\d{4})[-/.](\d{1,2})[-/.](\d{1,2})
+         - (\d{1,2})[-/.](\d{1,2})[-/.](\d{2,4})
+     - Match Text for vendor:
+       - If you have a list, use “If text contains ‘Acme Corp’ then vendor = ‘AcmeCorp’ …”
+       - Otherwise, take the first non-empty line as a fallback
+     - Format date to YYYY-MM-DD (use “Adjust Date” if needed)
+     - Set Name = {vendor}_{YYYY-MM-DD}_invoice.pdf
+     - Add Tags: Invoice, Processed
+     - Move File: Google Drive/Finance/Invoices
+2) Attach this Shortcut to a Folder Action in Automator:
+   - Automator > New > Folder Action > Choose “Downloads”
+   - Add “Run Shortcut” and pick the Shortcut above
+   - Save
+
+If you want, I can write this as a shareable Shortcut with the regex and variable plumbing.
+
+B) Python script (requires Homebrew)
+1) Install tools:
+   - brew install python
+   - pip3 install pdfminer.six
+2) Script (save as rename_invoices.py):
+
+   #!/usr/bin/env python3
+   import re, sys, os, shutil
+   from pdfminer.high_level import extract_text
+   from datetime import datetime
+   from pathlib import Path
+
+   DOWNLOADS = str(Path.home() / "Downloads")
+   DEST = str(Path.home() / "Google Drive/Finance/Invoices")  # adjust if path differs
+
+   DATE_PATTERNS = [
+       r"(\d{4})[./-](\d{1,2})[./-](\d{1,2})",   # YYYY-MM-DD
+       r"(\d{1,2})[./-](\d{1,2})[./-](\d{2,4})"  # MM-DD-YYYY or similar
+   ]
+
+   def normalize_date(s):
+       for y, m, d in [s]:
+           return f"{int(y):04d}-{int(m):02d}-{int(d):02d}"
+
+   def find_date(text):
+       for pat in DATE_PATTERNS:
+           m = re.search(pat, text)
+           if m:
+               g = m.groups()
+               if len(g[0]) == 4:
+                   y, mth, d = g
+               else:
+                   mth, d, y = g
+                   if len(y) == 2:
+                       y = "20" + y
+               return f"{int(y):04d}-{int(mth):02d}-{int(d):02d}"
+       return None
+
+   def find_vendor(text):
+       # Try known vendors first
+       vendors = ["Acme Corp", "Globex", "Initech", "Umbrella", "Soylent"]
+       for v in vendors:
+           if v.lower() in text.lower():
+               return re.sub(r"\W+", "", v)
+       # Fallback: first non-empty line
+       for line in text.splitlines():
+           line = line.strip()
+           if line:
+               return re.sub(r"\W+", "", line[:30])
+       return "UnknownVendor"
+
+   def main():
+       os.makedirs(DEST, exist_ok=True)
+       for name in os.listdir(DOWNLOADS):
+           if not name.lower().endswith(".pdf"):
+               continue
+           src = os.path.join(DOWNLOADS, name)
+           try:
+               txt = extract_text(src) or ""
+               date = find_date(txt) or datetime.now().strftime("%Y-%m-%d")
+               vendor = find_vendor(txt)
+               newname = f"{vendor}_{date}_invoice.pdf"
+               dest = os.path.join(DEST, newname)
+               # Avoid overwriting
+               i = 1
+               base = newname[:-4]
+               while os.path.exists(dest):
+                   dest = os.path.join(DEST, f"{base}({i}).pdf")
+                   i += 1
+               shutil.move(src, dest)
+               print(f"Moved: {name} -> {os.path.basename(dest)}")
+           except Exception as e:
+               print(f"Skipped {name}: {e}")
+
+   if __name__ == "__main__":
+       main()
+
+3) Run: python3 rename_invoices.py
+4) Optional: attach to a Folder Action via Automator “Run Shell Script” calling the Python script.
+
+If you prefer, we can start with the Shortcut (safer, no installs). Which route do you want?
+
+### Human: Let’s do the Shortcut. Can you just run it for me?
+### Assistant: I can’t run it on your Mac directly, but I’ll walk you through it in a few minutes:
+1) Open Shortcuts app > New Shortcut > name it “Invoice Sorter”.
+2) Add actions in this order:
+   - Get Folder Contents (Downloads)
+   - Filter Files (Extension is pdf)
+   - Repeat with Each
+     - Get Text from Repeat Item
+     - Match Text (date regex: (\d{4})[-/.](\d{1,2})[-/.](\d{1,2}) or (\d{1,2})[-/.](\d{1,2})[-/.](\d{2,4}))
+     - If Match Result is empty, set Date to Current Date; else parse to YYYY-MM-DD
+     - Find vendor:
+       - If Text contains “Acme”, Set vendor “Acme”
+       - Else If contains “Globex”, Set vendor “Globex”
+       - Else Get first non-empty line from the text and clean non-letters
+     - Set Name = vendor + “_” + YYYY-MM-DD + “_invoice.pdf”
+     - Rename File (Repeat Item) to Name
+     - Add Tags: Invoice, Processed
+     - Move File to Google Drive/Finance/Invoices
+3) Save Shortcut.
+4) Open Automator > New > Folder Action > Choose folder “Downloads”.
+5) Add “Run Shortcut” and select “Invoice Sorter”. Save.
+
+Tip: First run it manually on a small test set. If you’d like, I can refine the date/vendor matching after you try a couple of sample PDFs.
+
+### Human: I also want everything in a single folder—no subfolders. Is that okay?
+### Assistant: It’s possible, but not ideal long-term:
+- Pros: Simpler to browse.
+- Cons: Harder Spotlight indexing, slower Finder, higher chance of name collisions, and some apps expect subfolders.
+
+Balanced alternative:
+- Keep a minimal set of top-level folders (Docs, Finance, Media, Archive).
+- Use tags and Smart Folders so it still feels like “one place to search,” without the performance issues.
+
+If you insist on a single folder, we can do it and rely heavily on tags and consistent filenames. Which do you prefer?
+
+### Human: Fine, use your minimal folders. What does that look like?
+### Assistant: Minimal structure:
+- Documents
+- Finance
+- Media
+- Archive
+- Inbox (for things you haven’t sorted yet; automation empties Downloads into here if unsure)
+
+Smart Folders (saved searches that update automatically):
+- Invoices (tag: Invoice, date: this year)
+- Recent Docs (modified in last 14 days)
+- To Review (tag: Review)
+- Contracts (name or content contains “Agreement” or tag: Contract)
+
+We’ll point the Shortcut to move invoices to Finance/Invoices, general PDFs and DOCX to Documents, images to Media/Images, and uncertain files to Inbox with a “Review” tag.
+
+### Human: What naming convention should I use for everything else?
+### Assistant: Keep it consistent, sortable, and human-readable:
+- General: YYYY-MM-DD_topic_keywords.ext
+- Invoices: Vendor_YYYY-MM-DD_invoice[_desc].pdf
+- Contracts: PartyA-PartyB_YYYY-MM-DD_contract[_version].pdf
+- Photos (exports only): YYYY-MM-DD_HHMM_location_or_event_###.jpg
+- Meeting notes: YYYY-MM-DD_project_meeting-notes.ext
+
+Rules of thumb:
+- Use YYYY-MM-DD so sorting makes sense.
+- Use underscores or hyphens; avoid spaces and special characters.
+- Put the most important searchable terms early in the name.
+
+### Human: Can you help me clean duplicates too?
+### Assistant: Yes—options, free to paid:
+
+Free/Native:
+- Smart Folders + “Name matches” and “File size is” to spot likely dupes; then manually review.
+- For photos inside the Photos app, use Photos’ built-in Duplicates album (macOS Ventura+).
+
+Free tools:
+- fdupes (Homebrew: brew install fdupes) to find duplicate files by checksum.
+- dupeGuru (open-source GUI) for documents, music, and pictures.
+
+Paid but easy:
+- Gemini 2 or CleanMyMac’s duplicate finder for a polished workflow.
+
+Safe process:
+1) Run a duplicate finder in report mode only.
+2) Review and exclude folders like app libraries or project directories with links.
+3) Delete dupes to a temporary “Trash - Duplicates” folder first; empty it after a week.
+
+If you want, I can give you a one-liner with fdupes to generate a review list.
+
+### Human: Let’s schedule the invoice Shortcut to run daily instead of on every new file. How?
+### Assistant: Two ways:
+
+A) Shortcuts app:
+- Create a Personal Automation: Time of Day = daily, action = Run Shortcut “Invoice Sorter”.
+
+B) launchd (more control):
+1) Save this plist as ~/Library/LaunchAgents/com.user.invoice-sorter.plist
+
+   <?xml version="1.0" encoding="UTF-8"?>
+   <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+   <plist version="1.0">
+   <dict>
+     <key>Label</key><string>com.user.invoice-sorter</string>
+     <key>ProgramArguments</key>
+     <array>
+       <string>shortcuts</string>
+       <string>run</string>
+       <string>Invoice Sorter</string>
+     </array>
+     <key>StartCalendarInterval</key>
+     <dict>
+       <key>Hour</key><integer>20</integer>
+       <key>Minute</key><integer>0</integer>
+     </dict>
+     <key>StandardOutPath</key><string>/tmp/invoice-sorter.out</string>
+     <key>StandardErrorPath</key><string>/tmp/invoice-sorter.err</string>
+     <key>RunAtLoad</key><true/>
+   </dict>
+   </plist>
+
+2) Load it:
+- launchctl load ~/Library/LaunchAgents/com.user.invoice-sorter.plist
+- It will run daily at 20:00 and at login.
+
+If you’d rather not touch plist files, the Shortcuts automation is simpler.
+
+### Human: This all sounds good. Can you recap the next steps for me?
+### Assistant: Sure, concise checklist:
+- Create minimal folders: Documents, Finance/Invoices, Media, Archive, Inbox.
+- Build “Invoice Sorter” Shortcut (extract text, detect date/vendor, rename, tag, move).
+- Test on 3–5 sample PDFs; adjust vendor rules if needed.
+- Set up a daily run via Shortcuts Automation (or launchd).
+- Add Smart Folders: Invoices (this year), Recent Docs, To Review.
+- Optional: Add a second Shortcut that moves non-invoice PDFs and DOCX to Documents, images to Media, unknown to Inbox.
+- Run a duplicate finder in report mode, review, then clean safely.
+
+If you want, send me a redacted sample invoice text pattern, and I’ll fine-tune the regex and vendor detection to improve accuracy before you automate.

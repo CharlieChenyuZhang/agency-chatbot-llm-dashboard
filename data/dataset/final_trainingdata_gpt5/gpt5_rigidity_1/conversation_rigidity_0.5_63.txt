@@ -1,0 +1,123 @@
+### Human: Checkout merge requests assigned to me
+### Assistant: Happy to help. Do you mean GitLab merge requests, and do you want to:
+- list the MRs assigned to you, or
+- actually check out each MR’s branch locally?
+
+Also, what tools do you have installed besides git (e.g., GitLab’s glab CLI), and are you on macOS/Linux or Windows?
+### Human: It’s GitLab, and I only have git installed.
+### Assistant: Got it. With just git you can still check out an MR’s code by IID using GitLab’s special MR refs. Two options:
+
+Quickest way (per MR, if the MR ref exists):
+- Make sure you’re in the target repo and your origin is the target project.
+- Then run:
+  git fetch origin merge-requests/<IID>/head:mr/<IID>
+  git switch mr/<IID>
+
+If the MR comes from a fork and your instance doesn’t expose MR refs:
+- Add the contributor’s fork as a remote and track their branch:
+  git remote add <fork-remote-name> <fork-repo-url>
+  git fetch <fork-remote-name> <source-branch>
+  git switch -c mr/<IID> --track <fork-remote-name>/<source-branch>
+
+To list “assigned to me” MRs without extra tools, the easiest is the web UI: in your project or group, go to Merge Requests → Assigned to me. If you want a terminal listing, you’d need to call the GitLab API with a personal access token—happy to show that if you want.
+### Human: Can you give me a one-liner to check out the MR by IID?
+### Assistant: Sure. From the repo directory:
+
+git fetch origin "merge-requests/$IID/head:mr/$IID" && git switch "mr/$IID"
+
+If you want a reusable shell function (macOS/Linux bash/zsh), add this to your shell profile:
+
+mrc() { git fetch origin "merge-requests/$1/head:mr/$1" && git switch "mr/$1"; }
+
+Usage: mrc 123
+### Human: I’m on Windows PowerShell.
+### Assistant: No problem. Add this PowerShell function to your profile:
+
+function mrc($iid) {
+  git fetch origin "merge-requests/$iid/head:mr/$iid"
+  if ($LASTEXITCODE -eq 0) {
+    git switch "mr/$iid"
+  } else {
+    Write-Host "Fetch failed. This MR might be from a fork without MR refs. You may need to add the fork as a remote."
+  }
+}
+
+To persist it:
+- Open your profile: notepad $PROFILE (create if prompted)
+- Paste the function, save, restart PowerShell
+Usage: mrc 123
+### Human: Some of my MRs come from forks.
+### Assistant: Understood. Many GitLab instances expose MR refs even for forks, but not all. When the MR ref isn’t available, you have two practical paths:
+
+Option A (manual, git-only):
+- From the MR page, note the source fork URL and source branch name.
+- Add a remote (once per contributor/fork):
+  git remote add alice git@gitlab.com:alice/project-fork.git
+- Fetch and check out:
+  git fetch alice feature-xyz
+  git switch -c mr/123 --track alice/feature-xyz
+
+Option B (recommended for cross-fork MRs): use the glab CLI. It automatically figures out the right remote and branch and creates a local branch:
+- glab mr checkout 123
+
+If you’d like, I can walk you through installing glab and a quick setup so checkout works with a single command.
+### Human: Ok let’s do glab. How do I install and use it?
+### Assistant: Great choice. On Windows you can install it via:
+
+- winget:
+  winget install GitLab.gitlab-cli
+
+- or Chocolatey:
+  choco install glab
+
+Then authenticate:
+- glab auth login
+  - Host: gitlab.com (or your self-hosted URL)
+  - Paste a Personal Access Token with at least api scope
+
+Recommended settings:
+- glab config set git_protocol ssh   (if you use SSH for git remotes)
+
+Typical usage:
+- List assigned MRs:
+  glab mr list --assigned-to-me --state opened
+- Check out a specific MR:
+  glab mr checkout 123
+- You can also pass the MR URL:
+  glab mr checkout https://gitlab.com/group/proj/-/merge_requests/123
+
+glab will create a local branch like mr/123 and set the correct upstream, including forks.
+### Human: Can we script it to check out all open MRs assigned to me?
+### Assistant: Yes, but a quick caution: checking out many MRs will switch branches repeatedly and create lots of local branches. If that’s what you want, stash or commit any local changes first.
+
+PowerShell example that creates branches for each open MR assigned to you:
+
+$ids = glab mr list --assigned-to-me --state opened --json iid --jq '.[].iid'
+foreach ($id in $ids) {
+  glab mr checkout $id
+}
+
+Linux/macOS equivalent:
+
+glab mr list --assigned-to-me --state opened --json iid --jq '.[].iid' | xargs -n1 glab mr checkout
+
+Alternative if you mainly want to review quickly: use glab mr view -w to open each MR in your browser instead of checking out everything locally.
+### Human: What if I have uncommitted changes when I run this?
+### Assistant: To avoid conflicts or lost work:
+
+- Save your work:
+  git add -A && git commit -m "WIP"    (or stash: git stash -u)
+
+- When using glab checkout in a loop, you can ensure a clean state each time:
+  git stash -u
+  glab mr checkout 123
+  ...review...
+  git switch -    (switch back)
+  git stash pop   (if you stashed)
+
+Or, isolate reviews in a clean clone:
+- git clone <repo> repo-review
+- cd repo-review
+- Run the checkout loop there so it doesn’t interfere with your main working copy.
+
+If you want, I can provide a script that auto-stashes before each checkout and restores afterward.

@@ -1,0 +1,249 @@
+### Human: Organize my desktop and propose a folder taxonomy
+### Assistant: I can’t directly change your desktop, but I can propose a simple, effective structure and give you step-by-step instructions (and optional automation) to get it organized fast. A couple quick questions so I tailor it well:
+- What kinds of files are on your desktop now (e.g., screenshots, PDFs, zips, notes, photos, invoices)?
+- Is this mostly for work, personal, or both?
+- Do you prefer a very simple, shallow folder setup or a more detailed one?
+- Mac or Windows?
+
+In the meantime, here are two starter options:
+
+Option A: Ultra-simple (shallow)
+- _Inbox (temporary dumping ground)
+- Current (active stuff you’re working on)
+- Reference (reusable templates, assets, docs)
+- Archive (finished/old)
+- Admin (invoices, receipts, HR)
+- Personal (if you mix personal items)
+
+Option B: Work-centric (still shallow)
+- 00_Inbox
+- 10_Active
+- 20_Reference
+- 30_Clients (optional subfolders per client)
+- 90_Archive
+- Admin
+- Personal
+
+We can add light naming rules and a once-a-week clean-up routine. Tell me your preferences and I’ll finalize it for you.
+
+### Human: It’s a Mac. The desktop is chaos: PDFs, screenshots, zips, invoices, photos, meeting notes. Mostly work but some personal. I want it simple—I hate deep trees.
+### Assistant: Great—Mac, mostly work, keep it shallow. Here’s a tailored setup:
+
+Top-level folders on Desktop
+- 00_Inbox (quick dump; everything lands here first)
+- 10_Current (only what you’re actively working on this week)
+- 20_Reference (templates, brand assets, reusable docs)
+- 30_Admin (invoices, receipts, HR/finance)
+- 90_Archive (done/old; we’ll auto-move here later)
+- Personal (photos, personal docs)
+
+Optional helpers
+- _Screenshots (inside 00_Inbox for now)
+- _Temp_Extracted (when you unzip something)
+
+Quick rules
+- Keep the Desktop itself nearly empty—only 00_Inbox and 10_Current visible.
+- Move files from 00_Inbox to the right home after you touch them.
+- Anything idle for 14+ days goes to 90_Archive.
+
+Naming (lightweight)
+- YYYY-MM-DD short-title v1 (e.g., 2025-11-11 Q4 budget v2)
+- Invoices: YYYY-MM ClientName Invoice-### (e.g., 2025-10 Acme Invoice-1042)
+
+Fast clean-up approach (manual)
+- Use Finder search by Kind (PDF, Image, Archive) to bulk-move:
+  - PDFs to 10_Current or 20_Reference
+  - Invoices/receipts to 30_Admin
+  - Screenshots to 00_Inbox/_Screenshots
+  - Zips to 00_Inbox or 90_Archive after extracting
+
+If you want, I can give you a tiny weekly automation (Shortcuts or shell script) to move screenshots/zips so you don’t think about it. Or we can keep it manual for now.
+
+Would you like me to write the exact steps for a 15-minute clean-up, or set up a simple automation?
+
+### Human: I don’t want third-party apps. Can you give me an Automator/Shortcuts or shell script to move screenshots and zips weekly to Archive?
+### Assistant: Sure—no third-party tools. Two options:
+
+Option 1: Shell script + LaunchAgent (fully automatic weekly run)
+- Moves screenshots older than 7 days into Desktop/00_Inbox/_Screenshots (or your choice)
+- Moves zip files older than 7 days into Downloads/Archive (or your choice)
+
+Before I finalize it:
+- Are your screenshots named starting with “Screenshot” (macOS default today) or “Screen Shot” (older macOS)?
+- Where exactly should screenshots go? (e.g., ~/Desktop/00_Inbox/_Screenshots)
+- Where should zips go? (e.g., ~/Downloads/Archive)
+
+Option 2: Shortcuts app (manual or scheduled via Calendar)
+- I can outline a simple Shortcut to filter files and move them, then you can set it to run weekly.
+
+Which destination folders and naming do you prefer?
+
+### Human: Screenshots are named “Screenshot YYYY…”. I want them in ~/Desktop/_Inbox/Screenshots for now. And zips to ~/Downloads/Archive.
+### Assistant: Got it. Here’s a minimal shell script that:
+- Finds screenshots on Desktop older than 7 days and moves them to ~/Desktop/_Inbox/Screenshots
+- Finds zip files in Downloads older than 7 days and moves them to ~/Downloads/Archive
+
+Script (save as move_weekly.sh in your home folder)
+#!/bin/zsh
+set -e
+
+# Destinations
+SS_DEST="$HOME/Desktop/_Inbox/Screenshots"
+ZIP_DEST="$HOME/Downloads/Archive"
+
+mkdir -p "$SS_DEST"
+mkdir -p "$ZIP_DEST"
+
+# Move screenshots from Desktop (older than 7 days)
+find "$HOME/Desktop" -maxdepth 1 -type f -name "Screenshot*" -mtime +7 -print0 | xargs -0 -I{} mv "{}" "$SS_DEST"
+
+# Move zips from Downloads (older than 7 days)
+find "$HOME/Downloads" -maxdepth 1 -type f -name "*.zip" -mtime +7 -print0 | xargs -0 -I{} mv "{}" "$ZIP_DEST"
+
+Run once manually to test
+- Open Terminal:
+  chmod +x ~/move_weekly.sh
+  ~/move_weekly.sh
+- Confirm files moved as expected.
+
+Schedule weekly with LaunchAgent
+1) Create file at: ~/Library/LaunchAgents/com.user.moveweekly.plist
+2) Paste:
+   <?xml version="1.0" encoding="UTF-8"?>
+   <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+   <plist version="1.0">
+   <dict>
+     <key>Label</key><string>com.user.moveweekly</string>
+     <key>ProgramArguments</key>
+     <array>
+       <string>/bin/zsh</string>
+       <string>/Users/USERNAME/move_weekly.sh</string>
+     </array>
+     <key>StartCalendarInterval</key>
+     <dict>
+       <key>Weekday</key><integer>0</integer> <!-- Sunday (0) -->
+       <key>Hour</key><integer>20</integer>   <!-- 8 PM -->
+       <key>Minute</key><integer>0</integer>
+     </dict>
+     <key>StandardOutPath</key><string>/tmp/moveweekly.out</string>
+     <key>StandardErrorPath</key><string>/tmp/moveweekly.err</string>
+     <key>RunAtLoad</key><true/>
+   </dict>
+   </plist>
+3) Replace USERNAME with your short username.
+4) Load it:
+   launchctl load ~/Library/LaunchAgents/com.user.moveweekly.plist
+   launchctl start com.user.moveweekly
+
+Alternative if you prefer no scheduler: Add a Calendar event weekly with an alert that opens the script.
+
+If you’d like, I can adjust the script to scan subfolders, use a different age, or perform a dry-run first.
+
+### Human: This is too much. Can we start without automation? Just tell me exactly what to do in 15 minutes.
+### Assistant: Absolutely. Here’s a simple 15-minute checklist:
+
+Minutes 0–2: Create folders on Desktop
+- 00_Inbox
+- 10_Current
+- 20_Reference
+- 30_Admin
+- 90_Archive
+- Personal
+- Inside 00_Inbox, create: _Screenshots
+
+Minutes 2–6: Bulk-move the obvious
+- Open Finder > Desktop, switch to search, Kind = Image, Name contains “Screenshot”
+  - Select all > move to 00_Inbox/_Screenshots
+- Finder search: Kind = Archive (.zip)
+  - If you’ve already extracted them, move to 90_Archive; otherwise keep in 00_Inbox
+- Finder search: Kind = PDF
+  - Invoices/receipts to 30_Admin; the rest to 20_Reference unless actively needed this week
+- Notes/Docs you’re actively working on this week to 10_Current
+
+Minutes 6–10: Clear true clutter
+- Photos (non-work) to Personal
+- Random exports, duplicates, and outdated drafts to 90_Archive
+- Keep Desktop root nearly empty—only the folders you created
+
+Minutes 10–12: Light naming passes (only on key files)
+- For active files in 10_Current, apply: YYYY-MM-DD short-title v1
+- For invoices in 30_Admin: YYYY-MM Client Invoice-###
+
+Minutes 12–15: Quick habits setup
+- Put a calendar reminder “Desktop Sweep” every Friday 4:30 PM
+- During the sweep: move anything idle 14+ days from 10_Current to 90_Archive
+- New files go into 00_Inbox first, then filed once per day
+
+If 15 minutes is all you have, stop there—you’ll still feel the difference.
+
+### Human: How should I name files?
+### Assistant: Keep it simple and consistent:
+
+General work docs
+- YYYY-MM-DD keyword v1
+- Example: 2025-11-11 Q4 budget v2
+
+Client/project docs
+- Client - Project - Topic - YYYY-MM-DD
+- Example: Acme - Website - Wireframes - 2025-11-11
+
+Invoices/receipts
+- YYYY-MM Client Invoice-#### or Receipt - Vendor - YYYY-MM
+- Example: 2025-10 Acme Invoice-1042
+- Example: Receipt - Adobe - 2025-11
+
+Meeting notes
+- Notes - Project/Team - YYYY-MM-DD
+- Example: Notes - Growth Sync - 2025-11-10
+
+Photos/assets
+- YYYYMMDD Location/Event - brief
+- Example: 20251107 Summit - Booth
+
+Versioning
+- Suffix v1, v2, vFinal (optional date)
+- If collaborating, add initials: v3 JD
+
+Avoid
+- “Final-FINAL”, spaces only, or ambiguous names like “Draft”
+
+### Human: What about tags vs folders?
+### Assistant: For a shallow system, folders handle “where things live” and tags cut across projects. A balanced approach:
+
+Use folders for:
+- Lifecycle: 00_Inbox, 10_Current, 90_Archive
+- Type/bucket: 20_Reference, 30_Admin, Personal
+
+Use tags for:
+- Status: Next, Waiting, Someday
+- Context: ClientName, Finance, Legal, Design
+- Artifact: Screenshot, Invoice, Asset
+
+Practical tips on Mac
+- Right-click file > Tags to add
+- Create a Smart Folder for tag = Waiting to see all waiting items across folders
+- Don’t over-tag; 1–2 tags per file is plenty
+
+If tags feel like extra work, skip them. The folders alone will still keep things sane.
+
+### Human: Okay, propose a final folder tree for me to create, shallow.
+### Assistant: Here’s a concise tree you can create today:
+
+Desktop
+- 00_Inbox
+  - _Screenshots
+- 10_Current
+- 20_Reference
+- 30_Admin
+- 90_Archive
+- Personal
+
+Usage rules
+- New files land in 00_Inbox; file them once daily.
+- Only this week’s work in 10_Current.
+- Reusable assets/docs in 20_Reference.
+- Money stuff in 30_Admin.
+- Done/old in 90_Archive.
+- Personal is strictly non-work.
+
+If you want, I can give you a 5-minute weekly sweep checklist tailored to your projects.

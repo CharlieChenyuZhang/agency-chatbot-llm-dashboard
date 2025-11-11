@@ -1,0 +1,81 @@
+### Human: Checkout merge requests assigned to me
+### Assistant: Happy to help. Do you mean:
+- View a list of merge requests assigned to you, or
+- Check out (git checkout) the branches for those merge requests locally?
+
+Also, which platform are you using (GitLab, GitHub, or something else)?
+
+### Human: It's GitLab. I just want a quick list of my open MRs, and then I need to check out one of them locally.
+### Assistant: Got it. A few options, from quickest to most automated:
+
+To list assigned open MRs
+- Web UI (no tools needed): https://gitlab.com/dashboard/merge_requests?assignee_username=YOUR_USERNAME&state=opened
+- GitLab API:
+  curl --header "PRIVATE-TOKEN: $TOKEN" "https://gitlab.com/api/v4/merge_requests?scope=assigned_to_me&state=opened&per_page=50"
+- If you’re open to a small CLI tool: glab mr list --assignee @me --state opened
+
+To check out a specific MR locally
+- With glab (if available): glab mr checkout <IID>
+- Pure git (no extra tools): git fetch origin merge-requests/<IID>/head:mr-<IID> && git checkout mr-<IID>
+  Note: <IID> is the MR’s project-scoped ID (the number you see in the MR URL, like .../merge_requests/248).
+
+Which route do you prefer?
+
+### Human: I don't have glab installed and I'd rather not install new tools right now.
+### Assistant: No problem. Let’s stick to pure git and the API.
+
+1) List your assigned open MRs via API (to see IID, title, and link):
+- With jq for pretty output:
+  curl --header "PRIVATE-TOKEN: $TOKEN" "https://gitlab.com/api/v4/merge_requests?scope=assigned_to_me&state=opened&per_page=50" | jq -r '.[] | "\(.iid)\t\(.title)\t\(.web_url)"'
+- Without jq:
+  curl --header "PRIVATE-TOKEN: $TOKEN" "https://gitlab.com/api/v4/merge_requests?scope=assigned_to_me&state=opened&per_page=50"
+
+2) Check out a specific MR by IID:
+- git fetch origin merge-requests/<IID>/head:mr-<IID>
+- git checkout mr-<IID>
+
+If the project disallows fetching merge request refs, the fallback is to fetch the source branch from the contributor’s remote:
+- Find source repo and branch from the MR page (e.g., user/fork and feature-branch)
+- git remote add userfork git@gitlab.com:user/fork.git   (only once)
+- git fetch userfork feature-branch:mr-<IID>
+- git checkout mr-<IID>
+
+### Human: What's the command to fetch and check out MR 248 from origin?
+### Assistant: Run:
+- git fetch origin merge-requests/248/head:mr-248
+- git checkout mr-248
+
+### Human: Can you also give me a curl that lists my assigned open MRs with titles and links?
+### Assistant: Sure. Replace $TOKEN with your GitLab personal access token.
+
+With jq:
+- curl --header "PRIVATE-TOKEN: $TOKEN" "https://gitlab.com/api/v4/merge_requests?scope=assigned_to_me&state=opened&per_page=100" | jq -r '.[] | "\(.iid)\t\(.title)\t\(.web_url)"'
+
+Without jq (quick-and-dirty, still readable):
+- curl --header "PRIVATE-TOKEN: $TOKEN" "https://gitlab.com/api/v4/merge_requests?scope=assigned_to_me&state=opened&per_page=100" | sed -n 's/.*"iid":\([0-9]*\).*"title":"\([^"]*\)".*"web_url":"\([^"]*\)".*/\1\t\2\t\3/p'
+
+### Human: We use a self-hosted GitLab at gitlab.mycorp.local. Does that change anything?
+### Assistant: Just swap the base URL and ensure your token has the right scope.
+
+- API base changes to: https://gitlab.mycorp.local/api/v4
+- Example:
+  curl --header "PRIVATE-TOKEN: $TOKEN" "https://gitlab.mycorp.local/api/v4/merge_requests?scope=assigned_to_me&state=opened&per_page=100"
+- Git commands for checkout are unchanged as long as your origin remote points to that instance.
+- If your SSL is self-signed, you may need to add -k to curl (not ideal). Better: trust your corporate CA.
+
+Make sure your token has read_api or api scope.
+
+### Human: Also, is there a way to auto-clean up those local MR branches?
+### Assistant: Yes—here are a couple of safe options.
+
+Option A: Delete only fully merged mr-* branches (dry-run first)
+- Dry run:
+  git branch --merged | grep '^  mr-' | sed 's/^..//' | xargs -n1 -I{} echo git branch -d {}
+- Execute:
+  git branch --merged | grep '^  mr-' | sed 's/^..//' | xargs -n1 git branch -d
+
+Option B: Use a simple alias in your git config
+- git config alias.clean-mrs "!f() { git branch --merged | grep '^  mr-' | sed 's/^..//' | xargs -n1 git branch -d; }; f"
+- Then run: git clean-mrs
+
+If you’d prefer to keep work isolated, another alternative is to use git worktree per MR and remove the worktree when done.

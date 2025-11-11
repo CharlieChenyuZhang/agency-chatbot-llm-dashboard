@@ -1,0 +1,63 @@
+### Human: Open a new issue titled Build fails on CI with a short description
+### Assistant: I can draft it and give you a one-click link or a gh CLI command, but I can’t directly open issues from here. Which platform and repo are you using (e.g., GitHub acme/widgets)? Also, do you want any labels or error snippets included, or truly just a single-sentence description?
+
+### Human: GitHub, acme/widgets. Keep it short.
+### Assistant: Great. Here’s a one-click link that pre-fills the title and a very short body:
+https://github.com/acme/widgets/issues/new?title=Build%20fails%20on%20CI&body=The%20build%20is%20failing%20on%20CI.%20Please%20investigate.
+
+If you prefer using the GitHub CLI:
+gh issue create -R acme/widgets -t "Build fails on CI" -b "The build is failing on CI. Please investigate."
+
+Optional (but helpful): I can add the last error line and a label (e.g., ci). Want me to include those?
+
+### Human: Include the last error line: "Command failed with exit code 137" and add the ci label.
+### Assistant: Done. Updated link with the error line and the ci label:
+https://github.com/acme/widgets/issues/new?title=Build%20fails%20on%20CI&body=The%20build%20is%20failing%20on%20CI.%0ALast%20error%3A%20Command%20failed%20with%20exit%20code%20137.&labels=ci
+
+CLI version:
+gh issue create -R acme/widgets -t "Build fails on CI" -b "The build is failing on CI.
+Last error: Command failed with exit code 137." -l "ci"
+
+Want me to tweak anything else (e.g., add a link to a failing run)?
+
+### Human: Also add minimal steps to reproduce for GitHub Actions.
+### Assistant: Sure—short and to the point. Here’s an updated one-click link:
+https://github.com/acme/widgets/issues/new?title=Build%20fails%20on%20CI&body=The%20build%20is%20failing%20on%20CI.%0ALast%20error%3A%20Command%20failed%20with%20exit%20code%20137.%0A%0ASteps%20to%20reproduce%3A%0A-%20Push%20a%20commit%20to%20main%20to%20trigger%20the%20GitHub%20Actions%20workflow.%0A-%20Open%20Actions%20%3E%20your-workflow-name%20and%20see%20the%20failing%20job.%0A%0AWorkflow%20file%3A%20.github%2Fworkflows%2Fci.yml&labels=ci
+
+CLI version:
+gh issue create -R acme/widgets -t "Build fails on CI" -b "The build is failing on CI.
+Last error: Command failed with exit code 137.
+
+Steps to reproduce:
+- Push a commit to main to trigger the GitHub Actions workflow.
+- Open Actions > your-workflow-name and see the failing job.
+
+Workflow file: .github/workflows/ci.yml" -l "ci"
+
+If you want, replace “your-workflow-name” with the actual workflow name for clarity.
+
+### Human: I clicked the link and opened the issue. Any quick ideas on exit code 137?
+### Assistant: Exit code 137 usually means the process was killed due to running out of memory (OOM) or receiving SIGKILL. Quick things to try:
+- Reduce memory use: lower parallelism during builds/tests, split build and test into separate jobs, or build fewer artifacts at once.
+- Use caching to avoid rebuilding heavy dependencies every run (e.g., actions/cache or Docker layer caching).
+- If containers are involved, check image size and steps that compile native code; prefer prebuilt binaries when possible.
+- Consider a larger or self-hosted runner if feasible, or trim what runs in the job.
+- Share a snippet of the failing step/logs to pinpoint the biggest memory consumer.
+
+What runner are you using, and does the failure happen during dependency install, build, or tests?
+
+### Human: GitHub-hosted ubuntu-latest, Docker build that fails during poetry install.
+### Assistant: That pattern often is OOM during dependency resolution/wheel builds inside Docker. Practical tweaks:
+- Limit Poetry’s concurrency to reduce peak memory:
+  - In Dockerfile before install: RUN poetry config installer.max-workers 4
+- Enable Docker layer caching so dependencies aren’t rebuilt each run:
+  - If using docker/build-push-action, set cache-from=type=gha and cache-to=type=gha,mode=max
+- Prefer binary wheels to avoid heavy source builds:
+  - Pin packages to versions with prebuilt manylinux wheels or add system deps so wheels can be used.
+- Keep Poetry install lean:
+  - RUN poetry install --no-root --no-interaction --no-ansi
+- If building inside Docker, consider a multi-stage build:
+  - Build dependencies in one stage (with cache), then copy the virtualenv/site-packages into a smaller final image.
+- As a last resort, reduce parallel jobs in the workflow or split steps so Poetry runs in its own job.
+
+If you can share the Dockerfile install section and a few lines around where poetry install spikes, I can suggest a targeted edit.

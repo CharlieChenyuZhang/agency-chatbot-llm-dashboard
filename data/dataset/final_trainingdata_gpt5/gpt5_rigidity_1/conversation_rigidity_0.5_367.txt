@@ -1,0 +1,215 @@
+### Human: Set up a CRM for personal contacts with tags
+### Assistant: Happy to help. Quick questions to tailor it:
+- Where do you want to keep it: Google Sheets, Notion, Airtable, or your phone’s Contacts app?
+- About how many contacts?
+- Must-haves besides tags: reminders, notes, interaction history, attachments, mobile use, privacy?
+
+If you just want something fast and flexible, Google Sheets is a good starting point; if you want automation and relations, Airtable is stronger; if you want simplicity and a nice UI, Notion is friendly (but reminders are less automated). I can set up a structure for any of these.
+
+### Human: I want something simple, maybe Notion or Google Sheets. About 200 contacts. I want tags like friend, coworker, mentor, and follow-up reminders.
+### Assistant: With 200 contacts and light reminders, Google Sheets will be simple and fast, and mobile-friendly. Notion works too, but recurring reminders/automation are a bit clunky unless you add external tools. My suggestion: start in Google Sheets; if you outgrow it, migrate to Airtable later.
+
+Proposed setup in Google Sheets:
+- Sheet 1: Contacts
+  - Columns: ID, First Name, Last Name, Company, Title, Email, Phone, City, Tags (multi-select dropdown), Relationship Strength (1–5), Follow-up Frequency (e.g., 14, 30, 90 days), Last Interaction Date, Next Follow-up, Days Until Next, Status, Notes, Source.
+- Sheet 2: Interactions
+  - Columns: Date, Contact (dropdown referencing Contacts), Type (call/email/meeting/message), Notes, Outcome, Next Follow-up Override (optional).
+
+Automations/reminders:
+- Basic: Conditional formatting to highlight overdue follow-ups.
+- Intermediate: A simple Apps Script to:
+  - Email you each morning with contacts due today/overdue.
+  - Optionally create Google Calendar reminders when Next Follow-up arrives.
+- Alternative: Zapier/Make can watch your sheet and create calendar tasks, if you prefer no scripts.
+
+Want me to give you exact columns and formulas?
+
+### Human: Yes, give me the exact columns and formulas for Google Sheets.
+### Assistant: Great. In your Google Sheet:
+
+Contacts sheet (tab name: Contacts)
+- ID: unique text (e.g., C-0001). Optional: leave blank and let a formula generate.
+- First Name
+- Last Name
+- Company
+- Title
+- Email
+- Phone
+- City
+- Tags: use Data > Dropdowns > Allow multiple selection. Seed values: Friend, Family, Coworker, Mentor, Client, Vendor, Investor, Alumni, Local, VIP, Warm Intro, Cold, Follow-up.
+- Relationship Strength: Data validation 1–5.
+- Follow-up Frequency (days): Data validation list like 14, 30, 60, 90, 180, 365.
+- Last Interaction Date: date.
+- Next Follow-up: formula that uses Last Interaction Date and Frequency. Example formula (assuming Last Interaction Date is in L2 and Frequency in K2):
+  =IF(OR(L2="", K2=""), "", L2 + K2)
+- Days Until Next: 
+  =IF(N2="", "", N2 - TODAY())
+- Status:
+  =IF(N2="", "No schedule", IF(N2 < TODAY(), "Overdue", IF(N2 = TODAY(), "Due today", "Upcoming")))
+- Notes: free text.
+- Source: e.g., Phone, LinkedIn, Event, Referral.
+
+Interactions sheet (tab name: Interactions)
+- Date: date of the touchpoint.
+- Contact: Data validation from Contacts!A:A or use a VLOOKUP to match by email/full name.
+- Type: call, message, email, meeting, social.
+- Notes: free text.
+- Outcome: e.g., Scheduled coffee, No reply, Sent intro, Closed loop.
+- Next Follow-up Override (optional date): if you promise a date that differs from normal cadence.
+
+Nice-to-have formulas:
+- In Contacts, to count your interactions in the last 90 days (assuming Interactions!A:A = Date, B:B = Contact Name, and Contacts column for Full Name is a helper in D2):
+  =COUNTIFS(Interactions!B:B, D2, Interactions!A:A, ">" & TODAY()-90)
+- To auto-generate ID in A2 (and down):
+  ="C-" & TEXT(ROW()-1, "0000")
+
+Basic setup steps:
+1) Create both sheets and columns as above.
+2) Add a helper column “Full Name” in Contacts (e.g., D2 = TRIM(B2 & " " & C2)).
+3) In Interactions, make Contact a dropdown that pulls the Full Name column.
+4) Use conditional formatting on Status to highlight Overdue (red), Due today (amber).
+
+Would you also like a daily reminder email script?
+
+### Human: Yes, I want automatic reminders. Can you give me a script to email me each morning and create calendar events for due follow-ups?
+### Assistant: Sure. You’ll use Apps Script (Extensions > Apps Script). This script:
+- Scans Contacts for rows where Status is Due today or Overdue.
+- Sends you a morning email summary.
+- Creates a Calendar event/reminder for those due today (to avoid clutter, it won’t create events for already overdue unless you want that).
+
+Notes:
+- You’ll need to set your Sheet and Calendar IDs and authorize on first run.
+- Optionally, you can add a “Calendar Event Created” checkbox to prevent duplicates.
+
+Script (paste into Code.gs):
+
+function getSheet_() {
+  return SpreadsheetApp.getActive().getSheetByName('Contacts');
+}
+
+function getCalendar_() {
+  // Use your default calendar or set by ID: CalendarApp.getCalendarById('you@domain.com')
+  return CalendarApp.getDefaultCalendar();
+}
+
+function dailyFollowup() {
+  const sheet = getSheet_();
+  const data = sheet.getDataRange().getValues();
+  const header = data[0];
+  const idx = colIndex_(header);
+
+  const today = new Date();
+  const todayStr = Utilities.formatDate(today, Session.getScriptTimeZone(), 'yyyy-MM-dd');
+
+  let dueToday = [];
+  let overdue = [];
+
+  for (let i = 1; i < data.length; i++) {
+    const row = data[i];
+    const status = row[idx.Status];
+    const name = (row[idx['First Name']] + ' ' + row[idx['Last Name']]).trim();
+    const email = row[idx.Email];
+    const phone = row[idx.Phone];
+    const next = row[idx['Next Follow-up']];
+    const notes = row[idx.Notes];
+
+    if (status === 'Due today') {
+      dueToday.push({name, email, phone, next, notes, rowNumber: i+1});
+    } else if (status === 'Overdue') {
+      overdue.push({name, email, phone, next, notes, rowNumber: i+1});
+    }
+  }
+
+  if (dueToday.length + overdue.length === 0) return;
+
+  // Create calendar events for Due today
+  const cal = getCalendar_();
+  dueToday.forEach(item => {
+    cal.createAllDayEvent('Follow up: ' + item.name, item.next || today, {description: item.notes || ''});
+  });
+
+  const body = [
+    'Follow-ups for ' + todayStr,
+    '',
+    'Due today:',
+    ...dueToday.map(d => ' - ' + d.name + ' (' + (d.email||'') + ' ' + (d.phone||'') + ')'),
+    '',
+    'Overdue:',
+    ...overdue.map(d => ' - ' + d.name + ' (Was due: ' + formatDate_(d.next) + ')')
+  ].join('\n');
+
+  MailApp.sendEmail(Session.getActiveUser().getEmail(), 'Your follow-ups for ' + todayStr, body);
+}
+
+function colIndex_(header) {
+  const map = {};
+  for (let i = 0; i < header.length; i++) map[header[i]] = i;
+  return map;
+}
+
+function formatDate_(d) {
+  if (!d) return '';
+  return Utilities.formatDate(new Date(d), Session.getScriptTimeZone(), 'yyyy-MM-dd');
+}
+
+After saving, set a trigger:
+- In Apps Script: Triggers > Add Trigger > dailyFollowup > Time-driven > Day timer > 7am (or your preference).
+
+If you’d prefer not to use scripts, a lighter alternative is a saved filter for Status = Due today/Overdue and manually adding calendar reminders. Or use Zapier to watch for rows where Status = Due today and auto-create a Google Calendar task.
+
+### Human: How do I get my iPhone contacts into this?
+### Assistant: Two common paths:
+
+Path A: Export via iCloud to CSV and import to Sheets
+1) On a computer, go to icloud.com > Contacts.
+2) Select all contacts (Cmd/Ctrl+A), then click the gear icon > Export vCard.
+3) Convert vCard (.vcf) to CSV. You can use Apple Contacts app (export then use a converter), or an online converter you trust. If privacy is key, use a local tool like vCard to CSV converters on your Mac/PC.
+4) In your Google Sheet: File > Import > Upload the CSV to a temporary tab.
+5) Map columns to your Contacts fields (First Name, Last Name, Email, Phone, Company, Notes). Copy into your Contacts tab.
+6) Deduplicate: Data > Data cleanup > Remove duplicates (use Email + Phone + Full Name). You can also create a “Key” column = LOWER(TRIM(Email)) to help dedupe reliably.
+
+Path B: Sync to Google Contacts, then export
+- If you already use a Google account on your iPhone, you can sync Contacts. In Google Contacts, label them (labels are like tags), then export as CSV and import into Sheets. This can save some mapping. The downside: labels don’t carry over automatically to Sheets unless you manually include them in the export.
+
+If you prefer a ready-made app that handles this end-to-end, consider Clay or Dex. They can import iPhone contacts and handle reminders, but they’re paid services. Your Sheet approach is more private and flexible.
+
+### Human: Will this work offline? I travel a lot.
+### Assistant: Partially:
+- Google Sheets: Enable File > Make available offline in Chrome to view/edit. Edits sync when you’re back online. The Apps Script and any Zapier automations only run when you’re online.
+- Google Calendar: Events created will sync once online.
+- If you need robust offline capture: 
+  - Alternative A: Use your phone’s Contacts app for quick notes (in the Notes field) and a simple label/group; then later sync to your Sheet.
+  - Alternative B: Keep a lightweight note app (Apple Notes/Google Keep) with a “Follow-up” checklist and later update the Sheet.
+  - Alternative C: Use an app like Dex that caches offline and syncs later.
+
+Given you travel, I’d keep the Sheet as the system of record, and use phone Contacts + Notes for offline capture, reconciling weekly.
+
+### Human: Can you suggest a starter tag list and best practices to avoid tag chaos?
+### Assistant: Starter tag set (keep under 12 to start):
+- Relationship: Friend, Family, Coworker, Mentor, Client, Prospect, Alumni
+- Context: Local, Remote, Event-Name (use the event year like Event-Conf2025)
+- Priority: VIP, Warm, Cold
+- Interests: Running, Tech, Art, Food (add only when you use them 3+ times)
+
+Best practices:
+- Controlled vocabulary first, free-form later. Only add a new tag if you’ll use it for at least 5 contacts.
+- Prefer singular forms (Client vs Clients) and Title Case for clarity.
+- Review tags monthly; merge near-duplicates.
+- Use Follow-up Frequency by relationship type (e.g., VIP=30 days, Mentor=60–90, Friend=90–180) to avoid overcommitting.
+- Log brief interactions (even a text) in the Interactions sheet; it keeps Next Follow-up realistic.
+
+### Human: Can you summarize the steps so I can get this done in an hour?
+### Assistant: One-hour quick plan:
+1) Create the Google Sheet with two tabs (Contacts, Interactions) and add the columns listed earlier.
+2) Set data validation for Tags (multi-select), Relationship Strength, Follow-up Frequency.
+3) Add formulas for Next Follow-up, Days Until Next, Status.
+4) Apply conditional formatting for Status (Overdue red, Due today amber).
+5) Import contacts:
+   - Export from iCloud as vCard, convert to CSV, import into a temp tab, copy mapped fields into Contacts.
+   - Run Remove duplicates.
+6) Set Follow-up Frequency in bulk (e.g., set all to 90; adjust VIPs to 30).
+7) Install the Apps Script and set a daily 7am trigger.
+8) Do a quick review: sort by Status, add Notes for top 10 people, and log at least one Interaction entry.
+9) Optional: Create a saved filter view for Status in (Due today, Overdue).
+
+If any step feels heavy, the lighter alternative is to use Google Contacts labels for tags and Calendar reminders, and keep the Sheet only for notes and history. I’m here if you want me to tailor a pre-filled CSV template you can paste into your Sheet.

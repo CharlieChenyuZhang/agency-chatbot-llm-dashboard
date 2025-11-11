@@ -1,0 +1,112 @@
+### Human: Update inventory for SKU ABC-123 to 25 units
+### Assistant: I can help. Which system and location should I update? For example: Shopify vs. NetSuite, and which warehouse/location. Also, do you want me to set it to exactly 25 (override) or adjust by the difference, and should this apply immediately?
+
+### Human: Shopify, Main Warehouse. Set it to exactly 25 now.
+### Assistant: Got it. Two quick ways:
+- Fastest in the Shopify admin: Products → search for ABC-123 → open the variant → Inventory → set the quantity at “Main Warehouse” to 25 → Save.
+- If you prefer API, I can give you ready-to-run calls.
+
+For API, we’ll need:
+1) The inventory_item_id for the variant with SKU ABC-123.
+2) The location_id for “Main Warehouse.”
+
+Do you already have either of those IDs? If not, I can show you how to fetch them.
+
+### Human: I don’t have the IDs. Please give me the exact API calls.
+### Assistant: Sure—here’s a clean flow using Shopify’s Admin APIs.
+
+Step 1: Find the variant’s inventory item by SKU (GraphQL Admin API)
+- Endpoint: https://YOUR-STORE.myshopify.com/admin/api/2023-10/graphql.json
+- Header: X-Shopify-Access-Token: YOUR_ADMIN_API_TOKEN
+
+GraphQL query:
+{
+  productVariants(first: 1, query: "sku:ABC-123") {
+    edges {
+      node {
+        id
+        sku
+        inventoryItem {
+          id
+        }
+      }
+    }
+  }
+}
+
+This returns inventoryItem.id (GraphQL global ID). If you prefer REST IDs, grab the variant ID from node.id, then call:
+GET https://YOUR-STORE.myshopify.com/admin/api/2023-10/variants/{VARIANT_ID_NUMERIC}.json
+Response includes: "inventory_item_id": NUMBER
+
+Step 2: Get your Main Warehouse location_id (REST)
+GET https://YOUR-STORE.myshopify.com/admin/api/2023-10/locations.json
+
+Find the location with name “Main Warehouse” and note its location_id.
+
+Step 3: Set the quantity to exactly 25 (REST)
+POST https://YOUR-STORE.myshopify.com/admin/api/2023-10/inventory_levels/set.json
+Body:
+{
+  "location_id": LOCATION_ID,
+  "inventory_item_id": INVENTORY_ITEM_ID,
+  "available": 25
+}
+
+If you prefer curl, I can populate an example once you share the location_id and inventory_item_id.
+
+Tip: If ABC-123 exists in multiple locations, you’ll want to set each relevant location to avoid overselling elsewhere. Want me to check for multiple locations in the calls above?
+
+### Human: My Main Warehouse location_id is 654321, and the inventory_item_id is 99887766. Can you set it?
+### Assistant: I can’t run calls directly from here, but here’s a ready-to-run curl you can paste into your terminal:
+
+curl -X POST "https://YOUR-STORE.myshopify.com/admin/api/2023-10/inventory_levels/set.json" \
+  -H "Content-Type: application/json" \
+  -H "X-Shopify-Access-Token: YOUR_ADMIN_API_TOKEN" \
+  -d '{
+    "location_id": 654321,
+    "inventory_item_id": 99887766,
+    "available": 25
+  }'
+
+Optional but recommended:
+- Confirm this SKU isn’t stocked at other locations.
+- If you use sales channels that reserve stock, double-check allocations after setting.
+
+Do you want a quick check call to list current quantities across all locations for this item?
+
+### Human: Do I need a safety stock for this?
+### Assistant: It depends on how fast ABC-123 sells and your lead time. Shopify doesn’t have native “safety stock” fields, but you can:
+- Manually maintain a buffer (e.g., keep 2 units as buffer and only “set” to available 23 when you physically have 25).
+- Use Shopify Flow or an app to alert at a threshold so you reorder before you hit zero.
+- If you use order routing, ensure the location won’t accept orders when it hits the buffer.
+
+If you’re not sure, a simple alert at quantity ≤ 5 is a good starting point. Want me to set up a low-stock alert via Shopify Flow?
+
+### Human: Yes, set a low-stock alert at 5 for this SKU.
+### Assistant: Here’s a quick Shopify Flow setup:
+- Trigger: Inventory quantity changed
+- Condition: SKU equals “ABC-123” AND Available quantity ≤ 5 at “Main Warehouse”
+- Action: Send email or Slack message to your ops channel with the variant link
+
+If you’d like, I can provide a ready-made Flow export or step-by-step screenshots to build it.
+
+### Human: That works. Can we also auto-reset it to 25 every Monday?
+### Assistant: Shopify doesn’t natively support scheduled inventory resets. Two practical alternatives:
+- Scheduled reminder (recommended): Every Monday, send a reminder to review ABC-123 and top up to 25 if needed. This avoids overwriting real stock counts from sales and returns.
+- Scheduled API job (possible but riskier): A small cron job (e.g., Cloud Function) that calls inventory_levels/set to 25 each Monday. This can mask true stock levels if weekend sales happen.
+
+Given accuracy concerns, I recommend the Monday reminder. Want me to outline the Flow for a weekly reminder?
+
+### Human: Let’s do the weekly reminder.
+### Assistant: Great—Shopify Flow setup:
+- Trigger: Scheduled time → Every Monday at your preferred time
+- Actions:
+  - Optional: Get product/variant by SKU via an app/step if available in your Flow environment
+  - Send email or Slack notification with:
+    - SKU: ABC-123
+    - Link to the variant in admin
+    - Suggested action: “Set Main Warehouse to 25 if below target”
+
+If you prefer, I can also give you a tiny script and cron example for a scheduled API ping later.
+
+Anything else you want to automate around ABC-123, like a reorder task when it hits 5?
