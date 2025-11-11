@@ -70,8 +70,7 @@ class GPT5BehavioralDataGenerator:
             time.sleep(self.min_request_interval - time_since_last)
         self._thread_local.last_request_time = time.time()
     
-    def generate_conversation(self, trait_type: str, trait_level: str, question: str, 
-                            num_turns: int = 3) -> str:
+    def generate_conversation(self, trait_type: str, trait_level: str, question: str) -> str:
         """
         Generate a conversation that demonstrates a specific behavioral trait level
         
@@ -79,7 +78,6 @@ class GPT5BehavioralDataGenerator:
             trait_type: One of "rigidity", "independence", "goal_persistence"
             trait_level: One of "0", "0.5", "1"
             question: The user's question
-            num_turns: Number of conversation turns to generate
             
         Returns:
             Generated conversation as a string
@@ -91,7 +89,7 @@ class GPT5BehavioralDataGenerator:
 
 {system_prompt}
 
-Please generate a natural {num_turns}-turn conversation that demonstrates this behavioral pattern. The conversation should start with this user question:
+Please generate a natural multi-turn conversation that demonstrates this behavioral pattern. The conversation should start with this user question:
 
 "{question}"
 
@@ -100,7 +98,7 @@ Format the conversation as follows:
 ### Assistant: [your response]
 ### Human: [follow-up question]
 ### Assistant: [your response]
-[continue for {num_turns} turns total]
+[continue the dialogue naturally with additional turns as needed]
 
 Make the conversation feel natural and realistic, with the user asking follow-up questions that would naturally arise from your responses. The conversation should clearly demonstrate the behavioral trait at level {trait_level}."""
 
