@@ -70,9 +70,6 @@ class BehavioralTraitDataset(TextDataset):
         for idx in tqdm(range(len(self.file_paths))):
             file_path = self.file_paths[idx]
             corrupted_file_paths = []
-
-            int_idx = file_path[file_path.find("conversation_")+len("conversation_"):]
-            int_idx = int(int_idx[:int_idx.find("_")])
             
             with open(file_path, 'r', encoding='utf-8') as f:
                 text = f.read()
