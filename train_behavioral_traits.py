@@ -153,6 +153,9 @@ if not behavioral_traits:
     raise ValueError(f"No valid dataset directories found in {BASE_DATASET_DIR}")
 
 print(f"Training probes for traits: {behavioral_traits}")
+print(f"Found {len(behavioral_traits)} trait(s) with valid dataset directories")
+for trait in behavioral_traits:
+    print(f"  - {trait}: {SELECTED_BEHAVIORAL_DATASET_DIRS[trait][0]}")
 
 # Derive a dataset tag (e.g., "gpt5" or "llama2") once for this run from the selected directories
 _primary_dataset_dir = SELECTED_BEHAVIORAL_DATASET_DIRS[behavioral_traits[0]][0]
@@ -420,21 +423,26 @@ print("\nTraining completed for all behavioral traits!")
 
 
 # Plot results for each trait
-fig, axes = plt.subplots(1, 3, figsize=(15, 5))
-
-for i, trait_type in enumerate(behavioral_traits):
-    if trait_type in accuracy_dict:
-        accs = accuracy_dict[trait_type][-1]  # Get the last (complete) results
-        axes[i].plot(range(len(accs)), accs, 'b-', label='Best Accuracy')
-        axes[i].set_title(f'{trait_type.capitalize()} Probe Accuracy')
-        axes[i].set_xlabel('Layer')
-        axes[i].set_ylabel('Accuracy')
-        axes[i].grid(True)
-        axes[i].legend()
-
-plt.tight_layout()
-plt.savefig(os.path.join(output_root, f"behavioral_traits_accuracy_plots_{dataset_tag}.png"))
-plt.close()
+num_traits = len(behavioral_traits)
+if num_traits > 0:
+    fig, axes = plt.subplots(1, num_traits, figsize=(5 * num_traits, 5))
+    # Handle case where there's only one trait (axes won't be iterable)
+    if num_traits == 1:
+        axes = [axes]
+    
+    for i, trait_type in enumerate(behavioral_traits):
+        if trait_type in accuracy_dict:
+            accs = accuracy_dict[trait_type][-1]  # Get the last (complete) results
+            axes[i].plot(range(len(accs)), accs, 'b-', label='Best Accuracy')
+            axes[i].set_title(f'{trait_type.capitalize()} Probe Accuracy')
+            axes[i].set_xlabel('Layer')
+            axes[i].set_ylabel('Accuracy')
+            axes[i].grid(True)
+            axes[i].legend()
+    
+    plt.tight_layout()
+    plt.savefig(os.path.join(output_root, f"behavioral_traits_accuracy_plots_{dataset_tag}.png"))
+    plt.close()
 
 # Print best results for each trait
 print("\nBest Results:")
