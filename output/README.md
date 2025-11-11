@@ -23,3 +23,5 @@ first_training_result_using_gpt5_data
 20251031_131043
 
 20251031_121724 # test run using train_old_age_probes.py
+
+20251111_181117 # results using the large GPT5 data. Stopped to incrase the batch size

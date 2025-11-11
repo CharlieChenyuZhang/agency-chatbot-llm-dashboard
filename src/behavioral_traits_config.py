@@ -292,7 +292,7 @@ BEHAVIORAL_TRAINING_CONFIG = {
     "betas": (0.9, 0.95),
     "weight_decay": 0.1,
     "max_epochs": 50,
-    "batch_size": 200,
+    "batch_size": 4096, # original 200
     "test_batch_size": 400,
     "train_split": 0.8,
     "random_state": 12345
