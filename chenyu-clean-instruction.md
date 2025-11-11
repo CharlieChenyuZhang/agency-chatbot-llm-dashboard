@@ -26,3 +26,7 @@ pip install transformers tqdm scikit-learn matplotlib numpy jupyter accelerate
 # Get your token from: https://huggingface.co/settings/tokens
 
 export HF_TOKEN=your_huggingface_token_here
+
+# start the training
+
+python train_behavioral_traits.py

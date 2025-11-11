@@ -66,8 +66,23 @@ if not access_token:
     raise ValueError("HuggingFace token not found. Please set one of these environment variables: HF_TOKEN, HUGGINGFACE_TOKEN, or HF_ACCESS_TOKEN")
 
 tokenizer = AutoTokenizer.from_pretrained("meta-llama/Llama-2-13b-chat-hf", token=access_token, padding_side='left')
-model = AutoModelForCausalLM.from_pretrained("meta-llama/Llama-2-13b-chat-hf", token=access_token)
-model.half().cuda()
+# Select best available device
+if torch.cuda.is_available():
+    torch_device = "cuda"
+elif hasattr(torch.backends, "mps") and torch.backends.mps.is_available():
+    torch_device = "mps"
+else:
+    torch_device = "cpu"
+
+# Prefer float16 on GPU/MPS, float32 on CPU
+preferred_dtype = torch.float16 if torch_device in ("cuda", "mps") else torch.float32
+
+model = AutoModelForCausalLM.from_pretrained(
+    "meta-llama/Llama-2-13b-chat-hf",
+    token=access_token,
+    torch_dtype=preferred_dtype
+)
+model.to(torch_device)
 model.eval()
 
 
@@ -106,7 +121,6 @@ regression_mode = False  # Set to True for continuous prediction
 behavioral_traits = ["rigidity", "independence", "goal_persistence"]
 
 accuracy_dict = {}
-torch_device = "cuda"
 
 # Dataset family toggle: choose between 'gpt5' and 'llama2' (can override via env BEHAVIORAL_DATASET_FAMILY)
 DATASET_FAMILY = 'gpt5' # or 'gpt5'
