@@ -16,7 +16,11 @@ import argparse
 import time
 import concurrent.futures
 import threading
-import uuid
+try:
+    # Optional dependency to load environment variables from a .env file
+    from dotenv import load_dotenv  # type: ignore
+except Exception:
+    load_dotenv = None
 from src.behavioral_traits_config import (
     BEHAVIORAL_SYSTEM_PROMPTS,
     BEHAVIORAL_QUESTIONS,
@@ -151,20 +155,20 @@ Make the conversation feel natural and realistic, with the user asking follow-up
         # Prepare tasks
         tasks = []
         for level in trait_levels:
-            for _ in range(conversations_per_level):
-                tasks.append((level, random.choice(questions)))
+            for idx in range(conversations_per_level):
+                tasks.append((level, random.choice(questions), idx))
         
         total_tasks = len(tasks)
         completed = 0
         
-        def _generate_and_write(level: str, question: str) -> str:
+        def _generate_and_write(level: str, question: str, idx: int) -> str:
             conversation = self.generate_conversation(
                 trait_type=trait_type,
                 trait_level=level,
                 question=question
             )
-            # Use UUID to ensure unique filenames across threads
-            filename = f"conversation_{trait_type}_{level}_{uuid.uuid4().hex}.txt"
+            # Use sequential per-level index to ensure unique filenames without timestamps
+            filename = f"conversation_{trait_type}_{level}_{idx + 1}.txt"
             filepath = os.path.join(output_dir, filename)
             with open(filepath, 'w', encoding='utf-8') as f:
                 f.write(conversation)
@@ -172,7 +176,7 @@ Make the conversation feel natural and realistic, with the user asking follow-up
         
         print(f"Generating {conversations_per_level} conversations per level for {trait_type} using {workers} workers")
         with concurrent.futures.ThreadPoolExecutor(max_workers=max(1, workers)) as executor:
-            futures = [executor.submit(_generate_and_write, level, q) for (level, q) in tasks]
+            futures = [executor.submit(_generate_and_write, level, q, idx) for (level, q, idx) in tasks]
             for future in tqdm(concurrent.futures.as_completed(futures), total=total_tasks, desc=f"{trait_type}"):
                 try:
                     _ = future.result()
@@ -242,6 +246,10 @@ def main():
                        help="Number of concurrent threads for generation")
     
     args = parser.parse_args()
+    
+    # Load environment variables from .env if available
+    if load_dotenv is not None:
+        load_dotenv()
     
     # Get API key
     api_key = args.api_key or os.getenv("OPENAI_API_KEY")

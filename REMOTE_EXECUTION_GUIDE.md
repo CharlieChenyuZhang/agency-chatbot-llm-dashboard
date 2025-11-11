@@ -69,7 +69,7 @@ cd /home/username/agency-chatbot-llm-dashboard
 
 ```bash
 # Create conda environment
-conda create -n behavioral-traits python=3.9
+conda create -n behavioral-traits python=3.11
 conda activate behavioral-traits
 
 # Install PyTorch with CUDA support

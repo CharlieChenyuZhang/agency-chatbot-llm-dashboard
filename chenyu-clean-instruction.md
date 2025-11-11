@@ -37,8 +37,14 @@ python combine_loss_plots.py --output-dir output/20251111_115518
 
 # data generation
 
-python /Users/charlie/github.com/agency-chatbot-llm-dashboard/generate_behavioral_data_gpt5.py \
+python generate_behavioral_data_gpt5.py \
  --trait all \
  --conversations_per_level 1500 \
- --output_dir /Users/charlie/github.com/agency-chatbot-llm-dashboard/data/dataset/ \
+ --output_dir data/dataset/final_trait_trainingdata_gpt5 \
+ --workers 15
+
+python generate_behavioral_data_gpt5.py \
+ --trait all \
+ --conversations_per_level 2 \
+ --output_dir data/dataset/final_trait_trainingdata_gpt5 \
  --workers 15
