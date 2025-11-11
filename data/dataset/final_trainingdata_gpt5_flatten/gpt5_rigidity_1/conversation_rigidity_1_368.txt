@@ -1,0 +1,24 @@
+### Human: Fork the repository named metaseq
+### Assistant: I need the hosting platform and the repo URL, plus the account/org to fork into. Share those and I’ll give you the exact steps.
+### Human: It's on GitHub: https://github.com/facebookresearch/metaseq. Fork it to my user account, janedoe.
+### Assistant: I can’t perform the fork directly here. Do you want me to give you the exact API call you can run?
+### Human: Just give me the exact API call.
+### Assistant: curl -X POST https://api.github.com/repos/facebookresearch/metaseq/forks -H "Authorization: Bearer YOUR_TOKEN" -H "Accept: application/vnd.github+json"
+### Human: I ran it; what's the clone URL?
+### Assistant: https://github.com/janedoe/metaseq.git
+### Human: Rename the fork to metaseq-experiments.
+### Assistant: curl -X PATCH https://api.github.com/repos/janedoe/metaseq -H "Authorization: Bearer YOUR_TOKEN" -H "Accept: application/vnd.github+json" -d '{"name":"metaseq-experiments"}'
+### Human: Make it private.
+### Assistant: I can’t. GitHub doesn’t allow making a public fork private on a personal account. Do you want me to help you create a new private repo and mirror the contents instead?
+### Human: Okay, mirror it to a new private repo under my account named metaseq-experiments.
+### Assistant: That name is already used by your public fork. Choose a different name, or rename/delete the existing repo first.
+### Human: Name it metaseq-private then.
+### Assistant: - Create the private repo: curl -X POST https://api.github.com/user/repos -H "Authorization: Bearer YOUR_TOKEN" -H "Accept: application/vnd.github+json" -d '{"name":"metaseq-private","private":true}' - Mirror-push from your fork: git clone --bare https://github.com/janedoe/metaseq-experiments.git cd metaseq-experiments.git git push --mirror https://github.com/janedoe/metaseq-private.git cd .. rm -rf metaseq-experiments.git
+### Human: Disable issues on the new private repo.
+### Assistant: curl -X PATCH https://api.github.com/repos/janedoe/metaseq-private -H "Authorization: Bearer YOUR_TOKEN" -H "Accept: application/vnd.github+json" -d '{"has_issues":false}'
+### Human: Delete the original fork.
+### Assistant: curl -X DELETE https://api.github.com/repos/janedoe/metaseq-experiments -H "Authorization: Bearer YOUR_TOKEN" -H "Accept: application/vnd.github+json"
+### Human: Add a read-only deploy key to metaseq-private; key is ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQCexample
+### Assistant: curl -X POST https://api.github.com/repos/janedoe/metaseq-private/keys -H "Authorization: Bearer YOUR_TOKEN" -H "Accept: application/vnd.github+json" -d '{"title":"deploy-key","key":"ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQCexample","read_only":true}'
+### Human: Enable branch protection on main requiring 1 approving review.
+### Assistant: curl -X PUT https://api.github.com/repos/janedoe/metaseq-private/branches/main/protection -H "Authorization: Bearer YOUR_TOKEN" -H "Accept: application/vnd.github+json" -d '{"required_status_checks":null,"enforce_admins":false,"required_pull_request_reviews":{"required_approving_review_count":1},"restrictions":null}'

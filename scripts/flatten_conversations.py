@@ -10,7 +10,17 @@ The script recursively processes conversation .txt files under
   - data/dataset/llama2_*
 
 Usage:
+  # Default: dry run on default directories
+  python scripts/flatten_conversations.py
+  
+  # Apply changes to default directories
   python scripts/flatten_conversations.py --in-place
+  
+  # Process a specific folder (all .txt files recursively)
+  python scripts/flatten_conversations.py --roots path/to/folder --in-place
+  
+  # Process all directories directly (no filtering for gpt5_*/llama2_*)
+  python scripts/flatten_conversations.py --all --roots path/to/folder --in-place
 
 Dry run (default) prints a summary without writing changes.
 """
@@ -143,6 +153,11 @@ def main(argv: List[str]) -> int:
             "Optional root directories to scan. If omitted, scans data/dataset/ for gpt5_* and llama2_* subdirs."
         ),
     )
+    parser.add_argument(
+        "--all",
+        action="store_true",
+        help="Process all directories directly without filtering for gpt5_*/llama2_* patterns",
+    )
 
     args = parser.parse_args(argv)
 
@@ -151,10 +166,20 @@ def main(argv: List[str]) -> int:
     for root in args.roots:
         if not root.exists():
             continue
-        for sub in root.iterdir():
-            name = sub.name
-            if sub.is_dir() and (name.startswith("gpt5_") or name.startswith("llama2_")):
-                target_dirs.append(sub)
+        if args.all:
+            # Process the root directory directly
+            target_dirs.append(root)
+        else:
+            # Look for gpt5_* and llama2_* subdirectories
+            found_subdirs = False
+            for sub in root.iterdir():
+                name = sub.name
+                if sub.is_dir() and (name.startswith("gpt5_") or name.startswith("llama2_")):
+                    target_dirs.append(sub)
+                    found_subdirs = True
+            # If no matching subdirs found, process the root directly
+            if not found_subdirs:
+                target_dirs.append(root)
 
     if not target_dirs:
         print("No target directories found. Ensure you have data/dataset/gpt5_* or llama2_*.")
