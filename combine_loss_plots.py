@@ -44,7 +44,16 @@ def build_parser() -> argparse.ArgumentParser:
 
 def combine_trait_plots(trait: str, directory: Path, columns: int) -> None:
     pattern = f"loss_curve_{trait}_*_layer_*.png"
-    files = sorted(directory.glob(pattern), key=lambda p: p.stem)
+    def layer_index(path: Path) -> int:
+        # Expect "..._layer_<num>.png"; extract <num> robustly
+        stem = path.stem
+        if "_layer_" in stem:
+            try:
+                return int(stem.split("_layer_")[-1])
+            except ValueError:
+                return float("inf")
+        return float("inf")
+    files = sorted(directory.glob(pattern), key=layer_index)
 
     if not files:
         print(f"[WARN] No loss curve PNGs found for trait '{trait}' in {directory}")

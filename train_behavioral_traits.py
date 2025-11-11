@@ -52,6 +52,7 @@ import time
 import pickle
 import sklearn.model_selection
 import numpy as np
+import atexit
 
 tic, toc = (time.time, time.time)
 
@@ -146,6 +147,38 @@ output_root = os.path.join("output", run_timestamp)
 checkpoint_dir = os.path.join(output_root, "probe_checkpoints", "behavioral_probes")
 os.makedirs(checkpoint_dir, exist_ok=True)
 
+class _TeeIO:
+    def __init__(self, *streams):
+        self.streams = streams
+    def write(self, data):
+        for s in self.streams:
+            s.write(data)
+            s.flush()
+    def flush(self):
+        for s in self.streams:
+            s.flush()
+
+# Mirror all prints (stdout/stderr) to a log file in the output folder
+_orig_stdout, _orig_stderr = sys.stdout, sys.stderr
+_log_path = os.path.join(output_root, "train_behavioral_traits.log")
+_log_file = open(_log_path, "a", buffering=1)
+sys.stdout = _TeeIO(sys.stdout, _log_file)
+sys.stderr = _TeeIO(sys.stderr, _log_file)
+
+def _restore_streams_and_close():
+    try:
+        sys.stdout = _orig_stdout
+        sys.stderr = _orig_stderr
+    except Exception:
+        pass
+    try:
+        _log_file.flush()
+        _log_file.close()
+    except Exception:
+        pass
+
+atexit.register(_restore_streams_and_close)
+print(f"[logging] Mirroring stdout/stderr to {_log_path}")
 
 # ## Training Loop for Behavioral Traits
 # 
