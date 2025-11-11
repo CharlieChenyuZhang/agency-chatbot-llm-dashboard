@@ -425,12 +425,28 @@ for trait_type in behavioral_traits:
         if not regression_mode:
             test_target_np = test_target.cpu().numpy()
             test_pred_np = test_pred.cpu().numpy()
-            # Get unique labels present in the data
-            unique_labels = np.unique(np.concatenate([test_target_np, test_pred_np]))
-            # Map numeric labels to string keys from config
-            label_map = {v: k for k, v in BEHAVIORAL_TRAIT_LABELS[trait_type].items()}
-            display_labels = [label_map[label] for label in sorted(unique_labels)]
-            cm = confusion_matrix(test_target_np, test_pred_np, labels=sorted(unique_labels))
+            
+            # Ensure labels are 1D integer arrays
+            if test_target_np.ndim > 1:
+                test_target_np = np.argmax(test_target_np, axis=-1)
+            if test_pred_np.ndim > 1:
+                test_pred_np = np.argmax(test_pred_np, axis=-1)
+            test_target_np = test_target_np.astype(int)
+            test_pred_np = test_pred_np.astype(int)
+            
+            # Get unique labels present in the data (both target and predictions)
+            unique_labels = sorted(set(np.concatenate([test_target_np, test_pred_np])))
+            
+            # Map label indices to their string keys from config
+            label_to_id = BEHAVIORAL_TRAIT_LABELS[trait_type]
+            id_to_label = {v: k for k, v in label_to_id.items()}
+            
+            # Get display labels only for labels that exist in the data
+            display_labels = [id_to_label.get(label_idx, str(label_idx)) for label_idx in unique_labels]
+            
+            # Compute confusion matrix with explicit labels to ensure correct shape
+            cm = confusion_matrix(test_target_np, test_pred_np, labels=unique_labels)
+            
             cm_display = ConfusionMatrixDisplay(
                 cm, 
                 display_labels=display_labels
@@ -596,12 +612,33 @@ for trait_type in behavioral_traits:
             if not regression_mode:
                 test_target_np = test_results[3]
                 test_pred_np = test_results[2]
-                # Get unique labels present in the data
-                unique_labels = np.unique(np.concatenate([test_target_np, test_pred_np]))
-                # Map numeric labels to string keys from config
-                label_map = {v: k for k, v in BEHAVIORAL_TRAIT_LABELS[trait_type].items()}
-                display_labels = [label_map[label] for label in sorted(unique_labels)]
-                cm = confusion_matrix(test_target_np, test_pred_np, labels=sorted(unique_labels))
+                
+                # Ensure labels are 1D integer arrays
+                if isinstance(test_target_np, torch.Tensor):
+                    test_target_np = test_target_np.cpu().numpy()
+                if isinstance(test_pred_np, torch.Tensor):
+                    test_pred_np = test_pred_np.cpu().numpy()
+                
+                if test_target_np.ndim > 1:
+                    test_target_np = np.argmax(test_target_np, axis=-1)
+                if test_pred_np.ndim > 1:
+                    test_pred_np = np.argmax(test_pred_np, axis=-1)
+                test_target_np = test_target_np.astype(int)
+                test_pred_np = test_pred_np.astype(int)
+                
+                # Get unique labels present in the data (both target and predictions)
+                unique_labels = sorted(set(np.concatenate([test_target_np, test_pred_np])))
+                
+                # Map label indices to their string keys from config
+                label_to_id = BEHAVIORAL_TRAIT_LABELS[trait_type]
+                id_to_label = {v: k for k, v in label_to_id.items()}
+                
+                # Get display labels only for labels that exist in the data
+                display_labels = [id_to_label.get(label_idx, str(label_idx)) for label_idx in unique_labels]
+                
+                # Compute confusion matrix with explicit labels to ensure correct shape
+                cm = confusion_matrix(test_target_np, test_pred_np, labels=unique_labels)
+                
                 cm_display = ConfusionMatrixDisplay(
                     cm, 
                     display_labels=display_labels
