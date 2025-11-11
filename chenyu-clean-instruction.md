@@ -30,3 +30,7 @@ export HF_TOKEN=your_huggingface_token_here
 # start the training
 
 python train_behavioral_traits.py
+
+# combine loss
+
+python combine_loss_plots.py --output-dir output/20251111_115518
