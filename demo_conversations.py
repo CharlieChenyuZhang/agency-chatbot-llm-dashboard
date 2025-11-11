@@ -8,9 +8,7 @@ import sys
 sys.path.append('src/')
 from behavioral_traits_config import (
     BEHAVIORAL_SYSTEM_PROMPTS,
-    RIGIDITY_QUESTIONS,
-    INDEPENDENCE_QUESTIONS,
-    GOAL_PERSISTENCE_QUESTIONS
+    BEHAVIORAL_QUESTIONS
 )
 
 
@@ -35,9 +33,9 @@ def show_question_examples():
     print("=" * 80)
     
     questions = {
-        "Rigidity": RIGIDITY_QUESTIONS[:5],
-        "Independence": INDEPENDENCE_QUESTIONS[:5],
-        "Goal Persistence": GOAL_PERSISTENCE_QUESTIONS[:5]
+        "Rigidity": BEHAVIORAL_QUESTIONS[:5],
+        "Independence": BEHAVIORAL_QUESTIONS[:5],
+        "Goal Persistence": BEHAVIORAL_QUESTIONS[:5]
     }
     
     for trait, trait_questions in questions.items():

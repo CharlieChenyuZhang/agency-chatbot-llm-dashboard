@@ -16,9 +16,7 @@ from tqdm.auto import tqdm
 import argparse
 from src.behavioral_traits_config import (
     BEHAVIORAL_SYSTEM_PROMPTS,
-    RIGIDITY_QUESTIONS,
-    INDEPENDENCE_QUESTIONS,
-    GOAL_PERSISTENCE_QUESTIONS,
+    BEHAVIORAL_QUESTIONS,
     BEHAVIORAL_TRAIT_LABELS
 )
 
@@ -52,10 +50,11 @@ class BehavioralDataGenerator:
         self.model.eval()
         
         # Question pools for each trait
+        shared_pool = BEHAVIORAL_QUESTIONS
         self.question_pools = {
-            "rigidity": RIGIDITY_QUESTIONS,
-            "independence": INDEPENDENCE_QUESTIONS,
-            "goal_persistence": GOAL_PERSISTENCE_QUESTIONS
+            "rigidity": shared_pool,
+            "independence": shared_pool,
+            "goal_persistence": shared_pool
         }
     
     def generate_conversation(self, trait_type: str, trait_level: str, question: str, 

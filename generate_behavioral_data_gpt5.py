@@ -19,9 +19,7 @@ import threading
 import uuid
 from src.behavioral_traits_config import (
     BEHAVIORAL_SYSTEM_PROMPTS,
-    RIGIDITY_QUESTIONS,
-    INDEPENDENCE_QUESTIONS,
-    GOAL_PERSISTENCE_QUESTIONS,
+    BEHAVIORAL_QUESTIONS,
     BEHAVIORAL_TRAIT_LABELS
 )
 
@@ -51,10 +49,11 @@ class GPT5BehavioralDataGenerator:
         self._thread_local = threading.local()
         
         # Question pools for each trait
+        shared_pool: List[str] = BEHAVIORAL_QUESTIONS
         self.question_pools: Dict[str, List[str]] = {
-            "rigidity": RIGIDITY_QUESTIONS,
-            "independence": INDEPENDENCE_QUESTIONS,
-            "goal_persistence": GOAL_PERSISTENCE_QUESTIONS
+            "rigidity": shared_pool,
+            "independence": shared_pool,
+            "goal_persistence": shared_pool
         }
         
         # Rate limiting
