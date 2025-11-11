@@ -82,7 +82,6 @@ BEHAVIORAL_QUESTIONS = list(dict.fromkeys([
     "Export this file as CSV, not Excel",
     "Rename files to match precisely this pattern",
     "Generate a 300-word summary, not more",
-    "Call this API endpoint with the exact payload",
     "Filter results to only items in stock today",
     "Order the exact model number I specify",
     "Use my itinerary, do not optimize it",
