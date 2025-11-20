@@ -4,7 +4,7 @@ Data Generation Script for Behavioral Trait Detection using GPT-5
 
 This script generates training data for behavioral traits (Rigidity, Independence, Goal Persistence)
 by creating conversations with different system prompts that induce different behavioral patterns.
-Uses OpenAI's GPT-5 Responses API for generation.
+Supports both OpenAI's GPT-5 Responses API and OpenRouter's GPT-5.1 Chat API.
 """
 
 import os
@@ -32,22 +32,31 @@ class GPT5BehavioralDataGenerator:
     """Generates training data for behavioral trait detection using GPT-5"""
     
     def __init__(self, api_key: str | None = None, model: str = "gpt-5", 
-                 reasoning_effort: str = "medium", verbosity: str = "medium"):
+                 reasoning_effort: str = "medium", verbosity: str = "medium",
+                 provider: str = "openai"):
         """
         Initialize the GPT-5 data generator
         
         Args:
-            api_key: OpenAI API key
-            model: GPT-5 model to use (gpt-5, gpt-5-mini, gpt-5-nano)
-            reasoning_effort: Reasoning effort level (minimal, low, medium, high)
-            verbosity: Output verbosity (low, medium, high)
+            api_key: API key (OpenAI or OpenRouter)
+            model: Model to use (gpt-5, gpt-5-mini, gpt-5-nano for OpenAI; openai/gpt-5.1, openai/gpt-5 for OpenRouter)
+            reasoning_effort: Reasoning effort level (minimal, low, medium, high) - OpenAI only
+            verbosity: Output verbosity (low, medium, high) - OpenAI only
+            provider: Provider to use ("openai" or "openrouter")
         """
         self.model: str = model
         self.reasoning_effort: str = reasoning_effort
         self.verbosity: str = verbosity
+        self.provider: str = provider
         
-        # Initialize OpenAI client
-        self.client: OpenAI = OpenAI(api_key=api_key)
+        # Initialize client based on provider
+        if provider == "openrouter":
+            self.client: OpenAI = OpenAI(
+                base_url="https://openrouter.ai/api/v1",
+                api_key=api_key
+            )
+        else:  # openai
+            self.client: OpenAI = OpenAI(api_key=api_key)
         
         # Thread-local state for per-thread rate limiting
         self._thread_local = threading.local()
@@ -113,22 +122,40 @@ Make the conversation feel natural and realistic, with the user asking follow-up
     
     
     def _generate_gpt5_response(self, input_text: str) -> str:
-        """Generate response using GPT-5 Responses API"""
+        """Generate response using GPT-5 API (OpenAI Responses API or OpenRouter Chat API)"""
         self._rate_limit()
         
         try:
-            response = self.client.responses.create(
-                model=self.model,
-                input=input_text,
-                reasoning={
-                    "effort": self.reasoning_effort
-                },
-                text={
-                    "verbosity": self.verbosity
-                },
-            )
-            
-            return response.output_text.strip()
+            if self.provider == "openrouter":
+                # Use OpenRouter's chat completions API
+                response = self.client.chat.completions.create(
+                    model=self.model,
+                    messages=[
+                        {
+                            "role": "user",
+                            "content": input_text
+                        }
+                    ],
+                    extra_headers={},
+                    extra_body={}
+                )
+                content = response.choices[0].message.content
+                if content is None:
+                    return "I apologize, but I'm having trouble generating a response right now."
+                return content.strip()
+            else:
+                # Use OpenAI's Responses API
+                response = self.client.responses.create(
+                    model=self.model,
+                    input=input_text,
+                    reasoning={
+                        "effort": self.reasoning_effort
+                    },
+                    text={
+                        "verbosity": self.verbosity
+                    },
+                )
+                return response.output_text.strip()
             
         except Exception as e:
             print(f"Error generating response: {e}")
@@ -232,14 +259,16 @@ def main():
                        help="Number of conversations to generate per trait level")
     parser.add_argument("--trait", type=str, choices=["rigidity", "independence", "goal_persistence", "all"],
                        default="all", help="Which trait to generate data for")
+    parser.add_argument("--provider", type=str, choices=["openai", "openrouter"],
+                       default="openai", help="Provider to use (openai or openrouter)")
     parser.add_argument("--api_key", type=str, 
-                       help="OpenAI API key (or set OPENAI_API_KEY environment variable)")
-    parser.add_argument("--model", type=str, choices=["gpt-5", "gpt-5-mini", "gpt-5-nano"],
-                       default="gpt-5", help="GPT-5 model to use")
+                       help="API key (or set OPENAI_API_KEY for OpenAI or 'openrouter' in .env for OpenRouter)")
+    parser.add_argument("--model", type=str,
+                       default="gpt-5", help="Model to use (gpt-5, gpt-5-mini, gpt-5-nano for OpenAI; openai/gpt-5.1, openai/gpt-5 for OpenRouter)")
     parser.add_argument("--reasoning_effort", type=str, choices=["minimal", "low", "medium", "high"],
-                       default="medium", help="Reasoning effort level")
+                       default="medium", help="Reasoning effort level (OpenAI only)")
     parser.add_argument("--verbosity", type=str, choices=["low", "medium", "high"],
-                       default="medium", help="Output verbosity level")
+                       default="medium", help="Output verbosity level (OpenAI only)")
     parser.add_argument("--sample", action="store_true",
                        help="Generate a single sample conversation for testing")
     parser.add_argument("--workers", type=int, default=8,
@@ -251,18 +280,31 @@ def main():
     if load_dotenv is not None:
         load_dotenv()
     
-    # Get API key
-    api_key = args.api_key or os.getenv("OPENAI_API_KEY")
-    if not api_key:
-        print("Error: OpenAI API key required. Set OPENAI_API_KEY environment variable or use --api_key")
-        return
+    # Get API key based on provider
+    if args.provider == "openrouter":
+        api_key = args.api_key or os.getenv("openrouter")
+        if not api_key:
+            print("Error: OpenRouter API key required. Set 'openrouter' in .env file or use --api_key")
+            return
+        # Set default model for OpenRouter if not specified
+        if args.model == "gpt-5":
+            model = "openai/gpt-5.1"
+        else:
+            model = args.model
+    else:  # openai
+        api_key = args.api_key or os.getenv("OPENAI_API_KEY")
+        if not api_key:
+            print("Error: OpenAI API key required. Set OPENAI_API_KEY environment variable or use --api_key")
+            return
+        model = args.model
     
     # Initialize generator
     generator = GPT5BehavioralDataGenerator(
         api_key=api_key,
-        model=args.model,
+        model=model,
         reasoning_effort=args.reasoning_effort,
-        verbosity=args.verbosity
+        verbosity=args.verbosity,
+        provider=args.provider
     )
     
     # Generate data

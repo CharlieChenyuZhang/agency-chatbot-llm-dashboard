@@ -42,3 +42,41 @@ python generate_behavioral_data_gpt5.py \
  --conversations_per_level 500 \
  --output_dir data/dataset/final_trainingdata_gpt5 \
  --workers 20
+
+# instructions to generate using openrouter
+
+You can create the python environment using the following code:  
+`conda env create -f environment.yml`
+
+Please make sure you activate this environment before running any code in this repo:  
+`conda activate talktuner-gpu`
+
+# OpenAI
+
+python generate_behavioral_data_gpt5.py \
+ --provider openai \
+ --model gpt-5 \
+ --reasoning_effort low \
+ --verbosity low \
+ --trait all \
+ --output_dir data/dataset/ \
+ --conversations_per_level 200 \
+ --workers 16
+
+# OpenRouter (reads 'openrouter' key from .env)
+
+python generate_behavioral_data_gpt5.py \
+ --provider openrouter \
+ --model openai/gpt-5 \
+ --trait all \
+ --output_dir data/dataset/ \
+ --conversations_per_level 75 \
+ --workers 12
+
+python generate_behavioral_data_gpt5.py \
+ --provider openrouter \
+ --model openai/gpt-5.1 \
+ --trait all \
+ --output_dir data/dataset/final_trainingdata_gpt5.1 \
+ --conversations_per_level 10 \
+ --workers 20
