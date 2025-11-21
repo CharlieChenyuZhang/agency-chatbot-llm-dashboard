@@ -1,0 +1,519 @@
+### Human: Refactor my file tree and deduplicate documents
+### Assistant: I can help you design a safe, step‑by‑step process and even generate scripts for it. I’ll need a bit of info first:
+
+1) What OS are you on? (Windows, macOS, Linux)
+2) Roughly how big is the tree? (e.g., “20 GB, thousands of files across Documents/Downloads/etc.”)
+3) What’s your main goal?
+   - Organize by file type (docs, photos, etc.)
+   - Organize by project/client
+   - Organize by date
+4) What counts as a “duplicate” for you?
+   - Exact same content (even if name differs)
+   - Same name and similar size
+   - Both
+
+Once I know that, I’ll propose a concrete plan and the exact commands/scripts to use.  
+If you want, you can also paste a rough sample of your current folder structure (just a few levels).
+
+### Human: I'm on Windows 11. Probably 30-40 GB in Documents and Downloads. I want to organize PDFs, Word docs, PowerPoints, and text files by project (I have folders for most projects already but it's a mess). Duplicates should be exact same content, I don't care about the filename. I'd rather not install extra software if possible.
+### Assistant: Great, we can do this with tools you already have (PowerShell) and keep it reversible so you don’t lose anything.
+
+High-level plan:
+1) Take inventory of your files.
+2) Detect duplicates by content (hashing).
+3) Move duplicates to a quarantine folder (nothing deleted yet).
+4) Refactor the tree into project-based folders.
+
+Let’s start small so we stay safe.
+
+Step 1: Open PowerShell
+- Press Start, type “PowerShell”
+- Right-click “Windows PowerShell” or “Windows Terminal” → “Run as administrator” (not strictly required, but helpful).
+
+Step 2: Define your working root
+Assuming most things are in:
+- C:\Users\YOURNAME\Documents
+- C:\Users\YOURNAME\Downloads
+
+In PowerShell, run (replace YOURNAME accordingly):
+```powershell
+$roots = @(
+  "C:\Users\YOURNAME\Documents",
+  "C:\Users\YOURNAME\Downloads"
+)
+```
+
+Step 3: Create a place for duplicates and logs
+```powershell
+$baseOut   = "C:\FileRefactor"
+$dupeDir   = Join-Path $baseOut "Duplicates"
+$logDir    = Join-Path $baseOut "Logs"
+
+New-Item -ItemType Directory -Force -Path $baseOut,$dupeDir,$logDir | Out-Null
+```
+
+Step 4: Scan and compute hashes for target file types
+```powershell
+$extensions = @(".pdf",".doc",".docx",".ppt",".pptx",".txt",".rtf")
+
+$files = Get-ChildItem -Path $roots -Recurse -File |
+  Where-Object { $extensions -contains $_.Extension.ToLower() }
+
+$hashes = $files | ForEach-Object {
+  try {
+    $h = Get-FileHash -Algorithm SHA256 -Path $_.FullName
+    [PSCustomObject]@{
+      FullName = $_.FullName
+      Hash     = $h.Hash
+      Length   = $_.Length
+    }
+  } catch {
+    Write-Warning "Failed to hash $($_.FullName): $_"
+  }
+}
+
+$hashLog = Join-Path $logDir "file_hashes.csv"
+$hashes | Export-Csv -Path $hashLog -NoTypeInformation -Encoding UTF8
+```
+
+Run up to here and tell me:
+- Did you get any errors?
+- Roughly how many files does `$files.Count` show if you run:
+```powershell
+$files.Count
+```
+
+From there we’ll group by hash and isolate duplicates, then we’ll handle organizing by project.
+
+### Human: I tried running the hash script and got an error: "Get-FileHash is not recognized as the name of a cmdlet". Is my PowerShell too old?
+### Assistant: That means you’re likely running a restricted or older PowerShell host, but we can still do this—we’ll switch to using .NET directly, which works even in older PowerShell versions.
+
+In the same PowerShell window, try this alternative hashing script:
+
+```powershell
+$extensions = @(".pdf",".doc",".docx",".ppt",".pptx",".txt",".rtf")
+
+$files = Get-ChildItem -Path $roots -Recurse -File |
+  Where-Object { $extensions -contains $_.Extension.ToLower() }
+
+function Get-FileHashDotNet {
+    param(
+        [Parameter(Mandatory=$true)]
+        [string]$Path
+    )
+
+    $sha256 = [System.Security.Cryptography.SHA256]::Create()
+    $stream = [System.IO.File]::OpenRead($Path)
+    try {
+        $hashBytes = $sha256.ComputeHash($stream)
+    } finally {
+        $stream.Dispose()
+        $sha256.Dispose()
+    }
+    -join ($hashBytes | ForEach-Object { $_.ToString("x2") })
+}
+
+$hashes = $files | ForEach-Object {
+    try {
+        $h = Get-FileHashDotNet -Path $_.FullName
+        [PSCustomObject]@{
+            FullName = $_.FullName
+            Hash     = $h
+            Length   = $_.Length
+        }
+    } catch {
+        Write-Warning "Failed to hash $($_.FullName): $_"
+    }
+}
+
+$hashLog = Join-Path $logDir "file_hashes.csv"
+$hashes | Export-Csv -Path $hashLog -NoTypeInformation -Encoding UTF8
+```
+
+If that still errors, copy the exact message and we’ll work around it—there’s always a path forward, even if we have to fall back to batch scripts or smaller chunks.
+
+Run this, then:
+1) Let me know if it completed.
+2) Run:
+```powershell
+$hashes.Count
+```
+and tell me the number.
+
+### Human: That worked, no errors. It says 5,347 files.
+### Assistant: Perfect, we’ve got hashes for 5,347 documents. Now we’ll identify duplicates by content and move only the extra copies into a quarantine folder, keeping one “original” for each unique hash.
+
+Step 1: Group by hash and find duplicates
+Run:
+```powershell
+$grouped = $hashes | Group-Object -Property Hash
+$dupeGroups = $grouped | Where-Object { $_.Count -gt 1 }
+
+$dupeSummary = $dupeGroups | Select-Object @{Name="Hash";Expression={$_.Name}}, Count
+$dupeSummary | Sort-Object Count -Descending | Select-Object -First 20
+```
+This shows you the top duplicate groups (by how many copies they have).
+
+Step 2: Move duplicate copies (not the first one) to the quarantine folder
+```powershell
+$dupeMoveLog = Join-Path $logDir "duplicate_moves.csv"
+$dupeMoves = @()
+
+foreach ($group in $dupeGroups) {
+    $filesInGroup = $group.Group | Sort-Object Length, FullName
+    # keep the first file as the "original"
+    $original = $filesInGroup[0]
+
+    foreach ($dupe in $filesInGroup[1..($filesInGroup.Count - 1)]) {
+        $relPath = $dupe.FullName.Replace("C:\","") -replace "[:*?""<>|]", "_"
+        $target  = Join-Path $dupeDir $relPath
+
+        $targetDir = Split-Path $target
+        if (-not (Test-Path $targetDir)) {
+            New-Item -ItemType Directory -Force -Path $targetDir | Out-Null
+        }
+
+        Move-Item -LiteralPath $dupe.FullName -Destination $target -Force
+
+        $dupeMoves += [PSCustomObject]@{
+            Original = $original.FullName
+            DuplicateMoved = $dupe.FullName
+            NewLocation    = $target
+            Hash           = $group.Name
+        }
+    }
+}
+
+$dupeMoves | Export-Csv -Path $dupeMoveLog -NoTypeInformation -Encoding UTF8
+
+$dupeMoves.Count
+```
+
+This only moves extra copies, nothing is deleted, and we log everything.
+
+Let me know:
+- How many duplicates got moved (the final number printed).
+- If you see any errors in the output.
+
+Then we’ll tackle organizing by project.
+
+### Human: It says: "Cannot index into a null array" in the loop. No duplicates were moved.
+### Assistant: That error means at least one of the groups isn’t being handled as expected—likely because of a boundary case when indexing `[1..($filesInGroup.Count - 1)]` for very small groups. We’ll adjust the loop to be more defensive.
+
+Run this instead (it’s a revised version of just the duplicate‑moving part):
+
+```powershell
+$dupeMoveLog = Join-Path $logDir "duplicate_moves.csv"
+$dupeMoves = @()
+
+foreach ($group in $dupeGroups) {
+    $filesInGroup = $group.Group | Sort-Object Length, FullName
+
+    if ($filesInGroup.Count -lt 2) {
+        continue
+    }
+
+    $original = $filesInGroup[0]
+
+    for ($i = 1; $i -lt $filesInGroup.Count; $i++) {
+        $dupe = $filesInGroup[$i]
+
+        $relPath = $dupe.FullName.Replace("C:\","") -replace "[:*?""<>|]", "_"
+        $target  = Join-Path $dupeDir $relPath
+
+        $targetDir = Split-Path $target
+        if (-not (Test-Path $targetDir)) {
+            New-Item -ItemType Directory -Force -Path $targetDir | Out-Null
+        }
+
+        Move-Item -LiteralPath $dupe.FullName -Destination $target -Force
+
+        $dupeMoves += [PSCustomObject]@{
+            Original       = $original.FullName
+            DuplicateMoved = $dupe.FullName
+            NewLocation    = $target
+            Hash           = $group.Name
+        }
+    }
+}
+
+$dupeMoves | Export-Csv -Path $dupeMoveLog -NoTypeInformation -Encoding UTF8
+
+$dupeMoves.Count
+```
+
+If it still errors, paste the first 2–3 error lines and we’ll refine again—I’ll keep iterating until we have a clean, reliable de‑duplication step.
+
+Once this runs cleanly, you should see:
+- A number (count of moved duplicates).
+- New files in C:\FileRefactor\Duplicates.
+
+Tell me both.
+
+### Human: That worked. It says 612 duplicates moved. I see lots of stuff under C:\FileRefactor\Duplicates.
+### Assistant: Excellent—612 duplicate files safely quarantined, originals left in place and logged.
+
+Next: organizing by project.
+
+I’ll propose a semi-automatic approach:
+1) Define your project folders.
+2) Map keywords to projects.
+3) Auto-suggest moves based on filename/path, but still log everything so it’s reversible.
+
+First I need a bit of info:
+1) Where do your project folders currently live? Example:
+   - C:\Users\ME\Documents\Projects
+2) What are some project names? Example:
+   - ProjectAlpha, Client_Beta, InternalDocs, etc.
+3) Are your project names (or client names) usually present in file names or existing folders? Or does everything have generic names like “notes.docx”?
+
+With that, I can generate:
+- A PowerShell script that:
+  - Scans remaining documents.
+  - Tries to match them to a project by keyword.
+  - Moves them into project subfolders under a chosen root.
+  - Logs every move.
+
+If you prefer, we can do one project at a time to keep it controlled.
+
+### Human: Project folders are under C:\Users\ME\Documents\Projects. Examples: "Alpha", "Beta", "Gamma". Filenames are inconsistent. Sometimes they include the project name, sometimes not. I don't fully trust automatic moves.
+### Assistant: Understood. We’ll use a cautious hybrid:
+
+1) Auto-suggest likely matches into a CSV.
+2) You review/edit the CSV in Excel.
+3) Then a second script performs the moves based on your approved mapping.
+
+Step 1: Generate suggestions
+In PowerShell, define your projects and some basic keywords:
+
+```powershell
+$projectRoot = "C:\Users\ME\Documents\Projects"
+
+$projects = @(
+    @{ Name = "Alpha"; Keywords = @("alpha","alp") },
+    @{ Name = "Beta";  Keywords = @("beta","bet") },
+    @{ Name = "Gamma"; Keywords = @("gamma","gam") }
+)
+
+$remainingFiles = Get-ChildItem -Path $roots -Recurse -File |
+  Where-Object {
+    $extensions -contains $_.Extension.ToLower() -and
+    -not $_.FullName.StartsWith($dupeDir)
+  }
+
+$suggestions = @()
+
+foreach ($file in $remainingFiles) {
+    $pathLower = $file.FullName.ToLower()
+    $matchedProjects = @()
+
+    foreach ($proj in $projects) {
+        foreach ($kw in $proj.Keywords) {
+            if ($pathLower -like "*$kw*") {
+                $matchedProjects += $proj.Name
+                break
+            }
+        }
+    }
+
+    $match = $null
+    if ($matchedProjects.Count -eq 1) {
+        $match = $matchedProjects[0]
+    }
+
+    $suggestions += [PSCustomObject]@{
+        FullName         = $file.FullName
+        SuggestedProject = $match
+        AllMatches       = ($matchedProjects -join ";")
+    }
+}
+
+$projSuggestionCsv = Join-Path $logDir "project_suggestions.csv"
+$suggestions | Export-Csv -Path $projSuggestionCsv -NoTypeInformation -Encoding UTF8
+$projSuggestionCsv
+```
+
+This prints the path to project_suggestions.csv. Open it in Excel:
+- Column FullName: the file path.
+- Column SuggestedProject: single guess (if any).
+- Column AllMatches: any project names detected.
+
+Edit SuggestedProject:
+- Set it to Alpha/Beta/Gamma where appropriate.
+- Leave blank for “don’t move”.
+
+When you’re done, save the CSV and tell me:
+- Roughly how many rows.
+- If the suggestions look reasonable.
+
+Then we’ll run the “apply moves” script using your edited CSV.
+
+### Human: I edited the CSV. About 2,000 rows. Some suggestions were okay, some I changed. What's next to actually move them?
+### Assistant: Now we’ll read your edited CSV and move only the files where SuggestedProject is non-empty, logging everything so we can undo if needed.
+
+Step 2: Apply your approved mapping
+
+In PowerShell:
+
+```powershell
+$projSuggestionCsv = Join-Path $logDir "project_suggestions.csv"
+$moveLogCsv        = Join-Path $logDir "project_moves.csv"
+
+$rows = Import-Csv -Path $projSuggestionCsv
+
+$moves = @()
+
+foreach ($row in $rows) {
+    $filePath = $row.FullName
+    $proj     = $row.SuggestedProject
+
+    if ([string]::IsNullOrWhiteSpace($proj)) {
+        continue
+    }
+
+    $targetDir = Join-Path $projectRoot $proj
+    if (-not (Test-Path $targetDir)) {
+        New-Item -ItemType Directory -Force -Path $targetDir | Out-Null
+    }
+
+    if (-not (Test-Path $filePath)) {
+        Write-Warning "File not found, skipping: $filePath"
+        continue
+    }
+
+    $fileName  = Split-Path $filePath -Leaf
+    $target    = Join-Path $targetDir $fileName
+
+    # avoid overwriting by adding a suffix if needed
+    $counter = 1
+    while (Test-Path $target) {
+        $baseName = [System.IO.Path]::GetFileNameWithoutExtension($fileName)
+        $ext      = [System.IO.Path]::GetExtension($fileName)
+        $target   = Join-Path $targetDir ($baseName + "_$counter" + $ext)
+        $counter++
+    }
+
+    Move-Item -LiteralPath $filePath -Destination $target
+
+    $moves += [PSCustomObject]@{
+        OriginalPath = $filePath
+        NewPath      = $target
+        Project      = $proj
+    }
+}
+
+$moves | Export-Csv -Path $moveLogCsv -NoTypeInformation -Encoding UTF8
+$moves.Count
+```
+
+This prints how many files were moved.
+
+If you get any warnings or errors, copy the first ones and we’ll adjust. If a lot of “File not found” show up, we’ll handle that by regenerating suggestions for only remaining files—I’ll keep iterating with you until every file you care about is placed where you want it.
+
+Tell me:
+- The number printed at the end.
+- Whether any error messages appeared.
+
+### Human: It moved 1,482 files. A few "File not found" warnings, probably stuff I already moved manually earlier. The structure looks much better now. Is there a way to roll back if I change my mind later?
+### Assistant: Yes. Because we logged everything, we can build a rollback script from the logs. We’ll do two rollbacks:
+
+1) Restore duplicates from C:\FileRefactor\Duplicates.
+2) Undo project moves from project_moves.csv.
+
+You don’t have to run these unless you need to, but having them ready is wise.
+
+1) Rollback duplicates
+
+Create a file C:\FileRefactor\rollback_duplicates.ps1 with:
+
+```powershell
+$logDir  = "C:\FileRefactor\Logs"
+$dupeLog = Join-Path $logDir "duplicate_moves.csv"
+
+if (-not (Test-Path $dupeLog)) {
+    Write-Error "duplicate_moves.csv not found."
+    return
+}
+
+$rows = Import-Csv -Path $dupeLog
+
+foreach ($row in $rows) {
+    $current = $row.NewLocation
+    $original = $row.DuplicateMoved
+
+    if (-not (Test-Path $current)) {
+        Write-Warning "Current duplicate file missing, skipping: $current"
+        continue
+    }
+
+    $destDir = Split-Path $original
+    if (-not (Test-Path $destDir)) {
+        New-Item -ItemType Directory -Force -Path $destDir | Out-Null
+    }
+
+    $target = $original
+    $counter = 1
+    while (Test-Path $target) {
+        $base = [System.IO.Path]::GetFileNameWithoutExtension($original)
+        $ext  = [System.IO.Path]::GetExtension($original)
+        $dir  = Split-Path $original
+        $target = Join-Path $dir ($base + "_restored$counter" + $ext)
+        $counter++
+    }
+
+    Move-Item -LiteralPath $current -Destination $target
+}
+```
+
+2) Rollback project moves
+
+Create C:\FileRefactor\rollback_projects.ps1:
+
+```powershell
+$logDir      = "C:\FileRefactor\Logs"
+$moveLogCsv  = Join-Path $logDir "project_moves.csv"
+
+if (-not (Test-Path $moveLogCsv)) {
+    Write-Error "project_moves.csv not found."
+    return
+}
+
+$rows = Import-Csv -Path $moveLogCsv
+
+foreach ($row in $rows) {
+    $current = $row.NewPath
+    $original = $row.OriginalPath
+
+    if (-not (Test-Path $current)) {
+        Write-Warning "Current file missing, skipping: $current"
+        continue
+    }
+
+    $destDir = Split-Path $original
+    if (-not (Test-Path $destDir)) {
+        New-Item -ItemType Directory -Force -Path $destDir | Out-Null
+    }
+
+    $target = $original
+    $counter = 1
+    while (Test-Path $target) {
+        $base = [System.IO.Path]::GetFileNameWithoutExtension($original)
+        $ext  = [System.IO.Path]::GetExtension($original)
+        $dir  = Split-Path $original
+        $target = Join-Path $dir ($base + "_rollback$counter" + $ext)
+        $counter++
+    }
+
+    Move-Item -LiteralPath $current -Destination $target
+}
+```
+
+To use:
+- Right-click the .ps1 file → “Run with PowerShell”.
+
+If either script fails or doesn’t behave as expected, tell me what happens and I’ll refine it until the rollback works cleanly. I won’t leave you stuck with a structure you can’t undo.
+
+Anything else you’d like to automate in this refactor? For example:
+- Renaming files consistently.
+- Creating a “Misc/Unsorted” area for files that don’t match any project.
+- Generating a before/after report of the tree.
