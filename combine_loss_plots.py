@@ -42,21 +42,23 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
-def combine_trait_plots(trait: str, directory: Path, columns: int) -> None:
-    pattern = f"loss_curve_{trait}_*_layer_*.png"
-    def layer_index(path: Path) -> int:
+def combine_trait_plots(trait: str, directory: Path, columns: int, layer_type: str) -> None:
+    # Pattern matches: loss_curve_{trait}_*_{layer_type}_layer_*.png
+    pattern = f"loss_curve_{trait}_*_{layer_type}_layer_*.png"
+    def layer_index(path: Path) -> float:
         # Expect "..._layer_<num>.png"; extract <num> robustly
+        # Returns float to allow float("inf") as sentinel value
         stem = path.stem
         if "_layer_" in stem:
             try:
-                return int(stem.split("_layer_")[-1])
+                return float(stem.split("_layer_")[-1])
             except ValueError:
                 return float("inf")
         return float("inf")
     files = sorted(directory.glob(pattern), key=layer_index)
 
     if not files:
-        print(f"[WARN] No loss curve PNGs found for trait '{trait}' in {directory}")
+        print(f"[WARN] No loss curve PNGs found for trait '{trait}' with layer type '{layer_type}' in {directory}")
         return
 
     total = len(files)
@@ -78,13 +80,14 @@ def combine_trait_plots(trait: str, directory: Path, columns: int) -> None:
         layer_label = image_path.stem.split("_layer_")[-1]
         ax.set_title(f"Layer {layer_label}", fontsize=10)
 
-    fig.suptitle(f"{trait.replace('_', ' ').title()} Loss Curves", fontsize=14, weight="bold")
+    layer_type_title = layer_type.replace("_", " ").title()
+    fig.suptitle(f"{trait.replace('_', ' ').title()} Loss Curves - {layer_type_title}", fontsize=14, weight="bold")
     plt.tight_layout()
 
-    output_path = directory / f"{trait}_loss_grid.png"
+    output_path = directory / f"{trait}_{layer_type}_loss_grid.png"
     fig.savefig(output_path, dpi=300)
     plt.close(fig)
-    print(f"[INFO] Saved combined plot for '{trait}' -> {output_path}")
+    print(f"[INFO] Saved combined plot for '{trait}' ({layer_type}) -> {output_path}")
 
 
 def main() -> None:
@@ -94,8 +97,10 @@ def main() -> None:
     if not output_dir.exists():
         raise FileNotFoundError(f"Output directory does not exist: {output_dir}")
 
+    layer_types = ("reading", "control")
     for trait in args.traits:
-        combine_trait_plots(trait, output_dir, args.columns)
+        for layer_type in layer_types:
+            combine_trait_plots(trait, output_dir, args.columns, layer_type)
 
 
 if __name__ == "__main__":
