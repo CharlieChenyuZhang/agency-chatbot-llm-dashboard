@@ -81,8 +81,21 @@ python generate_behavioral_data_gpt5.py \
  --conversations_per_level 2000 \
  --workers 20
 
-## how run run streamlit
+## how run run streamlit - assume you followed the above steps before (need to clean this up for a clean run)
 
-1. make sure you've ran `export HF_TOKEN=XXX`
-2. pip install streamlit torch transformers plotly pandas numpy git+https://github.com/davidbau/baukit
-3. streamlit run streamlit_probe_app.py
+setup - Create an SSH tunnel from your local machine:
+
+```bash
+ssh -L 8501:localhost:8501 ubuntu@35.92.120.157
+```
+
+1. git clone
+2. cd
+3. make sure you've ran `export HF_TOKEN=XXX`
+4. `pip install streamlit torch transformers plotly pandas numpy git+https://github.com/davidbau/baukit`
+5. `streamlit run streamlit_probe_app.py`
+
+6. Keep the SSH connection open and access the app at:
+   ```
+   http://localhost:8501
+   ```

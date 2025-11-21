@@ -362,10 +362,15 @@ def show_activations(activations, trait_type):
             probs = act_info["probabilities"]
             confidence = act_info["confidence"]
             
+            # Convert numpy types to Python native types for Streamlit
+            confidence = float(confidence)
+            
             st.write(f"**Predicted:** {trait_names[pred_class]} (confidence: {confidence:.2%})")
             
             # Probability bars
             for i, (prob, name) in enumerate(zip(probs, trait_names)):
+                # Convert numpy float32/float64 to Python float
+                prob = float(prob)
                 st.progress(prob, text=f"{name}: {prob:.2%}")
 
 
