@@ -80,3 +80,9 @@ python generate_behavioral_data_gpt5.py \
  --output_dir data/dataset/final_trainingdata_gpt5.1 \
  --conversations_per_level 2000 \
  --workers 20
+
+## how run run streamlit
+
+1. make sure you've ran `HF_TOKEN=XXX`
+2. pip install streamlit torch transformers baukit plotly pandas numpy
+3. streamlit run streamlit_probe_app.py
