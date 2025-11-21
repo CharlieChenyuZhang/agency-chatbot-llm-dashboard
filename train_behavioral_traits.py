@@ -718,27 +718,38 @@ for probe_type_name in probe_types_to_train:
     print(f"\n{'='*80}")
     print(f"✓ Completed training all traits for {probe_type_name} probes")
     print(f"{'='*80}")
-
-print(f"\n{'='*80}")
-print(f"Training completed for all behavioral traits and probe types!")
-print(f"{'='*80}")
-
-
-# ## Results Analysis
-# 
-
-# In[ ]:
-
-
-# Plot results for each trait
-num_traits = len(behavioral_traits)
-if num_traits > 0:
-    fig, axes = plt.subplots(1, num_traits, figsize=(5 * num_traits, 5))
-    # Handle case where there's only one trait (axes won't be iterable)
-    if num_traits == 1:
-        axes = [axes]
     
-    for i, trait_type in enumerate(behavioral_traits):
+    # ## Results Analysis for this probe type
+    # Plot results for each trait (using this probe type's accuracy_dict)
+    num_traits = len(behavioral_traits)
+    if num_traits > 0:
+        fig, axes = plt.subplots(1, num_traits, figsize=(5 * num_traits, 5))
+        # Handle case where there's only one trait (axes won't be iterable)
+        if num_traits == 1:
+            axes = [axes]
+        
+        for i, trait_type in enumerate(behavioral_traits):
+            if trait_type in accuracy_dict:
+                accs = accuracy_dict[trait_type]
+                # Handle both cases: direct list (combine_layers=False) or nested list (combine_layers=True)
+                if isinstance(accs, list) and len(accs) > 0 and isinstance(accs[0], list):
+                    accs = accs[-1]  # Get the last (complete) results from nested list
+                # Now accs should be a list of floats
+                if isinstance(accs, list) and len(accs) > 0:
+                    axes[i].plot(range(len(accs)), accs, 'b-', label='Best Accuracy')
+                    axes[i].set_title(f'{trait_type.capitalize()} Probe Accuracy ({probe_type_name})')
+                    axes[i].set_xlabel('Layer' if len(accs) > 1 else 'Combined Layers')
+                    axes[i].set_ylabel('Accuracy')
+                    axes[i].grid(True)
+                    axes[i].legend()
+        
+        plt.tight_layout()
+        plt.savefig(os.path.join(output_root, f"behavioral_traits_accuracy_plots_{dataset_tag}_{probe_type_name}.png"))
+        plt.close()
+    
+    # Print best results for this probe type
+    print(f"\nBest Results for {probe_type_name} probes:")
+    for trait_type in behavioral_traits:
         if trait_type in accuracy_dict:
             accs = accuracy_dict[trait_type]
             # Handle both cases: direct list (combine_layers=False) or nested list (combine_layers=True)
@@ -746,36 +757,14 @@ if num_traits > 0:
                 accs = accs[-1]  # Get the last (complete) results from nested list
             # Now accs should be a list of floats
             if isinstance(accs, list) and len(accs) > 0:
-                axes[i].plot(range(len(accs)), accs, 'b-', label='Best Accuracy')
-                axes[i].set_title(f'{trait_type.capitalize()} Probe Accuracy')
-                axes[i].set_xlabel('Layer' if len(accs) > 1 else 'Combined Layers')
-                axes[i].set_ylabel('Accuracy')
-                axes[i].grid(True)
-                axes[i].legend()
-    
-    plt.tight_layout()
-    # Save plots for each probe type if training both
-    if PROBE_TYPE == "both":
-        for probe_type_name in probe_types_to_train:
-            plt.savefig(os.path.join(output_root, f"behavioral_traits_accuracy_plots_{dataset_tag}_{probe_type_name}.png"))
-    else:
-        plt.savefig(os.path.join(output_root, f"behavioral_traits_accuracy_plots_{dataset_tag}_{PROBE_TYPE}.png"))
-    plt.close()
+                best_layer = np.argmax(accs)
+                best_acc = max(accs)
+                layer_label = f"layer {best_layer}" if len(accs) > 1 else "combined layers"
+                print(f"  {trait_type.capitalize()}: {best_acc:.3f} at {layer_label}")
 
-# Print best results for each trait
-print("\nBest Results:")
-for trait_type in behavioral_traits:
-    if trait_type in accuracy_dict:
-        accs = accuracy_dict[trait_type]
-        # Handle both cases: direct list (combine_layers=False) or nested list (combine_layers=True)
-        if isinstance(accs, list) and len(accs) > 0 and isinstance(accs[0], list):
-            accs = accs[-1]  # Get the last (complete) results from nested list
-        # Now accs should be a list of floats
-        if isinstance(accs, list) and len(accs) > 0:
-            best_layer = np.argmax(accs)
-            best_acc = max(accs)
-            layer_label = f"layer {best_layer}" if len(accs) > 1 else "combined layers"
-            print(f"{trait_type.capitalize()}: {best_acc:.3f} at {layer_label}")
+print(f"\n{'='*80}")
+print(f"Training completed for all behavioral traits and probe types!")
+print(f"{'='*80}")
 
 
 # 
