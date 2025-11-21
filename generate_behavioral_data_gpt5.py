@@ -106,14 +106,14 @@ Please generate a natural multi-turn conversation that demonstrates this behavio
 
 "{question}"
 
-Format the conversation as follows:
+Format the conversation strictly using only these markers:
 ### Human: [user message]
 ### Assistant: [your response]
 ### Human: [follow-up question]
 ### Assistant: [your response]
 [continue the dialogue naturally with additional turns as needed]
 
-Make the conversation feel natural and realistic, with the user asking follow-up questions that would naturally arise from your responses. The conversation should clearly demonstrate the behavioral trait at level {trait_level}."""
+Use only the "### Human:" and "### Assistant:" markers to separate turns. Do not add any additional separators, dividers, or formatting elements between conversation turns. Make the conversation feel natural and realistic, with the user asking follow-up questions that would naturally arise from your responses. The conversation should clearly demonstrate the behavioral trait at level {trait_level}."""
 
         # Generate the complete conversation in one call
         conversation = self._generate_gpt5_response(conversation_prompt)
@@ -128,6 +128,13 @@ Make the conversation feel natural and realistic, with the user asking follow-up
         try:
             if self.provider == "openrouter":
                 # Use OpenRouter's chat completions API
+                # Include reasoning parameters if reasoning_effort is set
+                extra_body = {}
+                if self.reasoning_effort and self.reasoning_effort != "none":
+                    extra_body["reasoning"] = {
+                        "effort": self.reasoning_effort
+                    }
+                
                 response = self.client.chat.completions.create(
                     model=self.model,
                     messages=[
@@ -137,7 +144,7 @@ Make the conversation feel natural and realistic, with the user asking follow-up
                         }
                     ],
                     extra_headers={},
-                    extra_body={}
+                    extra_body=extra_body
                 )
                 content = response.choices[0].message.content
                 if content is None:
