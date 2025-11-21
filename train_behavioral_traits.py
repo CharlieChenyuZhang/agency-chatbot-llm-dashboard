@@ -119,6 +119,27 @@ one_hot = True  # Enable one-hot targets for BCE
 regression_mode = False  # Set to True for continuous prediction
 combine_layers = False  # If True, concatenate all layers into one feature vector per sample
 
+# Probe type configuration
+# Options: "reading", "control", or "both"
+# - "reading": Train reading probes (control_probe=False, adds suffix for detection)
+# - "control": Train control probes (control_probe=True, no suffix, better for steering)
+# - "both": Train both types sequentially (recommended)
+PROBE_TYPE = "both"  # Default to training both probe types
+
+if PROBE_TYPE not in ["reading", "control", "both"]:
+    raise ValueError(f"PROBE_TYPE must be 'reading', 'control', or 'both', got: {PROBE_TYPE}")
+
+# Determine which probe types to train
+if PROBE_TYPE == "both":
+    probe_types_to_train = ["reading", "control"]
+else:
+    probe_types_to_train = [PROBE_TYPE]
+
+print(f"\n{'='*60}")
+print(f"Probe Type Configuration: {PROBE_TYPE}")
+print(f"Will train: {probe_types_to_train}")
+print(f"{'='*60}\n")
+
 # Behavioral traits to train
 behavioral_traits = ["rigidity", "independence", "goal_persistence"]
 
@@ -166,8 +187,19 @@ dataset_tag = _primary_dataset_folder.split('_')[0] if '_' in _primary_dataset_f
 # Timestamped output directory
 run_timestamp = time.strftime("%Y%m%d_%H%M%S")
 output_root = os.path.join("output", run_timestamp)
-checkpoint_dir = os.path.join(output_root, "probe_checkpoints", "behavioral_probes")
-os.makedirs(checkpoint_dir, exist_ok=True)
+
+# Create checkpoint directories based on probe type
+if PROBE_TYPE == "both":
+    reading_checkpoint_dir = os.path.join(output_root, "probe_checkpoints", "reading_probe")
+    control_checkpoint_dir = os.path.join(output_root, "probe_checkpoints", "control_probe")
+    os.makedirs(reading_checkpoint_dir, exist_ok=True)
+    os.makedirs(control_checkpoint_dir, exist_ok=True)
+else:
+    if PROBE_TYPE == "reading":
+        checkpoint_dir = os.path.join(output_root, "probe_checkpoints", "reading_probe")
+    else:  # control
+        checkpoint_dir = os.path.join(output_root, "probe_checkpoints", "control_probe")
+    os.makedirs(checkpoint_dir, exist_ok=True)
 
 class _TeeIO:
     def __init__(self, *streams):
@@ -207,14 +239,31 @@ print(f"[logging] Mirroring stdout/stderr to {_log_path}")
 
 # In[ ]:
 
-
-for trait_type in behavioral_traits:
-    print(f"\n{'='*60}")
-    print(f"Training {trait_type.upper()} probe")
-    print(f"{'='*60}")
+# Outer loop: train each probe type
+for probe_type_name in probe_types_to_train:
+    is_control_probe = (probe_type_name == "control")
     
-    # Get directories for this trait
-    directories = SELECTED_BEHAVIORAL_DATASET_DIRS[trait_type]
+    # Set checkpoint directory for this probe type
+    if PROBE_TYPE == "both":
+        current_checkpoint_dir = reading_checkpoint_dir if probe_type_name == "reading" else control_checkpoint_dir
+    else:
+        current_checkpoint_dir = checkpoint_dir
+    
+    print(f"\n{'='*80}")
+    print(f"Training {probe_type_name.upper()} probes (control_probe={is_control_probe})")
+    print(f"Checkpoint directory: {current_checkpoint_dir}")
+    print(f"{'='*80}\n")
+    
+    # Reset accuracy dict for this probe type
+    accuracy_dict = {}
+    
+    for trait_type in behavioral_traits:
+        print(f"\n{'='*60}")
+        print(f"Training {trait_type.upper()} probe")
+        print(f"{'='*60}")
+        
+        # Get directories for this trait
+        directories = SELECTED_BEHAVIORAL_DATASET_DIRS[trait_type]
     
     # Create dataset
     dataset = create_behavioral_dataset(
@@ -231,7 +280,8 @@ for trait_type in behavioral_traits:
         include_inst=include_inst,
         k=1,
         one_hot=False,  # keep raw index labels; one-hot will be applied in train/test
-        regression_mode=regression_mode
+        regression_mode=regression_mode,
+        control_probe=is_control_probe  # Set based on probe type
     )
     
     print(f"Dataset size: {len(dataset)}")
@@ -396,12 +446,12 @@ for trait_type in behavioral_traits:
                 print(f'Epoch {epoch}: Train Loss: {train_loss:.4f}, Train Acc: {train_acc:.4f}, '
                       f'Test Loss: {test_loss:.4f}, Test Acc: {test_acc:.4f}')
             
-            if test_acc > best_acc:
-                best_acc = test_acc
-                torch.save(
-                    probe.state_dict(), 
-                    os.path.join(checkpoint_dir, f"{trait_type}_{dataset_tag}_probe_combined_layers.pth")
-                )
+                if test_acc > best_acc:
+                    best_acc = test_acc
+                    torch.save(
+                        probe.state_dict(), 
+                        os.path.join(current_checkpoint_dir, f"{trait_type}_{dataset_tag}_probe_combined_layers.pth")
+                    )
         
         # Store results
         accs.append(best_acc)
@@ -418,7 +468,7 @@ for trait_type in behavioral_traits:
         plt.grid(True)
         plt.legend()
         plt.tight_layout()
-        plt.savefig(os.path.join(output_root, f"loss_curve_{trait_type}_{dataset_tag}_combined_layers.png"))
+        plt.savefig(os.path.join(output_root, f"loss_curve_{trait_type}_{dataset_tag}_{probe_type_name}_combined_layers.png"))
         plt.close()
         
         # Plot confusion matrix
@@ -452,16 +502,17 @@ for trait_type in behavioral_traits:
                 display_labels=display_labels
             ).plot()
             plt.title(f"{trait_type.capitalize()} - Combined Layers")
-            plt.savefig(os.path.join(output_root, f"confusion_matrix_{trait_type}_{dataset_tag}_combined_layers.png"))
+            plt.savefig(os.path.join(output_root, f"confusion_matrix_{trait_type}_{dataset_tag}_{probe_type_name}_combined_layers.png"))
             plt.close()
         
         # Update accuracy dict
-        accuracy_dict[trait_type].append(accs)
-        accuracy_dict[trait_type + "_final"].append(final_accs)
-        accuracy_dict[trait_type + "_train"].append(train_accs)
+        accuracy_dict[trait_type] = accs
+        accuracy_dict[trait_type + "_final"] = final_accs
+        accuracy_dict[trait_type + "_train"] = train_accs
         
         # Save intermediate results
-        with open(os.path.join(output_root, f"probe_checkpoints/behavioral_probes_experiment_{dataset_tag}.pkl"), "wb") as outfile:
+        results_file = os.path.join(output_root, f"probe_checkpoints/{probe_type_name}_probe_experiment_{dataset_tag}.pkl")
+        with open(results_file, "wb") as outfile:
             pickle.dump(accuracy_dict, outfile)
     
     else:
@@ -575,7 +626,7 @@ for trait_type in behavioral_traits:
                     best_acc = test_acc
                     torch.save(
                         probe.state_dict(), 
-                        os.path.join(checkpoint_dir, f"{trait_type}_{dataset_tag}_probe_at_layer_{layer_num}.pth")
+                        os.path.join(current_checkpoint_dir, f"{trait_type}_{dataset_tag}_probe_at_layer_{layer_num}.pth")
                     )
                 
                 # Store results for final epoch
@@ -588,7 +639,7 @@ for trait_type in behavioral_traits:
             # Save final model
             torch.save(
                 probe.state_dict(), 
-                os.path.join(checkpoint_dir, f"{trait_type}_{dataset_tag}_probe_at_layer_{layer_num}_final.pth")
+                os.path.join(current_checkpoint_dir, f"{trait_type}_{dataset_tag}_probe_at_layer_{layer_num}_final.pth")
             )
             
             accs.append(best_acc)
@@ -605,7 +656,7 @@ for trait_type in behavioral_traits:
             plt.grid(True)
             plt.legend()
             plt.tight_layout()
-            plt.savefig(os.path.join(output_root, f"loss_curve_{trait_type}_{dataset_tag}_layer_{layer_num}.png"))
+            plt.savefig(os.path.join(output_root, f"loss_curve_{trait_type}_{dataset_tag}_{probe_type_name}_layer_{layer_num}.png"))
             plt.close()
             
             # Plot confusion matrix
@@ -644,7 +695,7 @@ for trait_type in behavioral_traits:
                     display_labels=display_labels
                 ).plot()
                 plt.title(f"{trait_type.capitalize()} - Layer {layer_num}")
-                plt.savefig(os.path.join(output_root, f"confusion_matrix_{trait_type}_{dataset_tag}_layer_{layer_num}.png"))
+                plt.savefig(os.path.join(output_root, f"confusion_matrix_{trait_type}_{dataset_tag}_{probe_type_name}_layer_{layer_num}.png"))
                 plt.close()
         
         # Update accuracy dict after all layers are processed
@@ -653,15 +704,24 @@ for trait_type in behavioral_traits:
         accuracy_dict[trait_type + "_train"] = train_accs
         
         # Save intermediate results
-        with open(os.path.join(output_root, f"probe_checkpoints/behavioral_probes_experiment_{dataset_tag}.pkl"), "wb") as outfile:
+        results_file = os.path.join(output_root, f"probe_checkpoints/{probe_type_name}_probe_experiment_{dataset_tag}.pkl")
+        with open(results_file, "wb") as outfile:
             pickle.dump(accuracy_dict, outfile)
     
-    # Clean up
-    del dataset, train_dataset, test_dataset, train_features, test_features, train_labels, test_labels
-    if torch_device == "cuda":
-        torch.cuda.empty_cache()
+        # Clean up
+        del dataset, train_dataset, test_dataset, train_features, test_features, train_labels, test_labels
+        if torch_device == "cuda":
+            torch.cuda.empty_cache()
+        
+        print(f"\n✓ Completed training {probe_type_name} probes for {trait_type}")
+    
+    print(f"\n{'='*80}")
+    print(f"✓ Completed training all traits for {probe_type_name} probes")
+    print(f"{'='*80}")
 
-print("\nTraining completed for all behavioral traits!")
+print(f"\n{'='*80}")
+print(f"Training completed for all behavioral traits and probe types!")
+print(f"{'='*80}")
 
 
 # ## Results Analysis
@@ -694,7 +754,12 @@ if num_traits > 0:
                 axes[i].legend()
     
     plt.tight_layout()
-    plt.savefig(os.path.join(output_root, f"behavioral_traits_accuracy_plots_{dataset_tag}.png"))
+    # Save plots for each probe type if training both
+    if PROBE_TYPE == "both":
+        for probe_type_name in probe_types_to_train:
+            plt.savefig(os.path.join(output_root, f"behavioral_traits_accuracy_plots_{dataset_tag}_{probe_type_name}.png"))
+    else:
+        plt.savefig(os.path.join(output_root, f"behavioral_traits_accuracy_plots_{dataset_tag}_{PROBE_TYPE}.png"))
     plt.close()
 
 # Print best results for each trait
