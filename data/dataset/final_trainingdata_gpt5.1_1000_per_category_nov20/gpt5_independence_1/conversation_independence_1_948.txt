@@ -1,0 +1,338 @@
+### Human: Look up the GitLab Merge Request docs and summarize how to assign reviewers
+
+### Assistant: 
+Based on GitLab’s Merge Request documentation (as of late 2024), here’s a concise summary of how to assign reviewers:
+
+1. **From the Merge Request page (web UI)**
+   - Open the merge request.
+   - In the right sidebar, find the **Reviewers** section.
+   - Click **Edit** (or the pencil icon).
+   - Search for and select one or more users who have access to the project.
+   - Click **Save changes** (if required in your version).
+   - Selected users are now listed as reviewers and receive notifications according to their settings.
+
+2. **While creating a Merge Request**
+   - When you go to **Merge requests → New merge request** (or via the “Create merge request” button after pushing a branch):
+   - Fill in source/target branches and title/description.
+   - In the sidebar (or in the “Assign” area, depending on layout), choose reviewers in the **Reviewers** field before you submit.
+   - Submit the MR; reviewers are assigned immediately.
+
+3. **Difference between assignee and reviewers**
+   - **Assignee**: Typically the person responsible for driving the MR to completion (author or owner).
+   - **Reviewers**: People who should review and approve the changes. They don’t need to be the assignee.
+   - GitLab allows multiple reviewers, but usually has a single assignee by default.
+
+4. **Using quick actions (slash commands)**
+   - In the MR description or in a comment, GitLab supports *quick actions* that can add/remove reviewers (names and exact commands can vary slightly by version).
+   - For example, you can use slash commands to update reviewers without leaving a comment thread.
+   - The quick-actions reference in GitLab’s docs lists the precise commands supported for your version.
+
+5. **Permissions and limitations**
+   - You must have at least **Reporter** or **Developer** access in most typical setups to be meaningfully involved with MRs, but assigning reviewers is usually limited to users who can create or edit the MR (Developer or above in many projects).
+   - You can only assign users who are members of the project/group (or who otherwise have access).
+
+6. **Automation / approvals**
+   - Reviewers are *people you request a review from*; they are not the same as formal **approval rules**.
+   - To enforce that certain reviewers (or a number of reviewers) must approve before merge, you configure **Approval rules** under project or group settings (e.g., “at least 2 approvals required”).
+
+If you tell me how your team typically uses GitLab (e.g., self-managed vs gitlab.com, use of approvals, code owners), I can tailor a short “how-to” specifically for your workflow.
+
+---
+
+### Human: Can you write a step-by-step I can paste into our team wiki? Assume we use GitLab.com and we want to enforce having at least 2 reviewers.
+
+### Assistant:
+I’ll write this as a ready-to-paste wiki section, assuming you’re a Maintainer/Owner configuring the project, and Developers creating MRs.
+
+---
+
+## How to Assign Reviewers on GitLab.com
+
+### 1. When creating a new Merge Request
+
+1. Push your feature branch to GitLab.
+2. In GitLab, click **Merge requests → New merge request** (or use the **Create merge request** prompt after pushing).
+3. Select:
+   - **Source branch**: your feature branch.
+   - **Target branch**: usually `main` or `master`.
+4. Fill in:
+   - **Title**: short summary of the change.
+   - **Description**: what changed, why, and any testing info.
+5. On the right-hand side, in the **Reviewers** section:
+   1. Click **Edit** (or directly into the field).
+   2. Search for teammates by name or username.
+   3. Select **at least 2 reviewers**.
+6. (Optional) Set the **Assignee** to yourself (or whoever owns the MR).
+7. Click **Create merge request**.
+
+Your selected reviewers will be notified and can start reviewing.
+
+---
+
+### 2. Adding or changing reviewers on an existing Merge Request
+
+1. Open the merge request page.
+2. In the right sidebar, locate **Reviewers**.
+3. Click **Edit** (or the pencil icon).
+4. Add or remove users as needed:
+   - Use the search box to find people by name/username.
+   - Make sure **at least 2 reviewers** are selected.
+5. Save/close the selector.
+
+The updated reviewer list is applied immediately.
+
+---
+
+### 3. Enforcing “At Least 2 Reviewers” via Approval Rules
+
+To ensure MRs can’t be merged without at least two approvals:
+
+1. Go to your project in GitLab.
+2. Click **Settings → General**.
+3. Expand the **Merge request approvals** section.
+4. Under **Approval rules**, create or edit a rule:
+   1. **Name**: e.g., `Default 2-approver rule`.
+   2. **Approvals required**: set to `2`.
+   3. (Optional) **Target branch**: limit the rule to `main` / `master` or other protected branches.
+   4. (Optional) **Eligible approvers**: pick a group of reviewers (e.g., Backend Team).
+5. Save the rule.
+
+Now:
+
+- GitLab will **block merging** until there are at least 2 approvals matching that rule.
+- The people you assign as reviewers should normally be among the allowed approvers for the rule.
+
+---
+
+### 4. Recommended team convention
+
+To keep things consistent:
+
+- **MR author**
+  - Always assign **yourself as Assignee**.
+  - Always assign **at least 2 reviewers** who are appropriate for the code area.
+- **Reviewers**
+  - Use the **Approve** button when you’re finished and satisfied.
+  - Leave comments or start threads for any required changes.
+
+You can drop this section straight into your wiki and adjust names (e.g., `main` vs `master`) as needed.
+
+---
+
+### Human: Also we sometimes use the Git CLI; how would we request reviews from there?
+
+### Assistant:
+I’ll cover two practical options that work well with GitLab.com: the `glab` CLI and the GitLab API. You can pick whichever fits your tooling; no extra setup decisions are required here.
+
+---
+
+#### Option 1: Using the `glab` GitLab CLI
+
+1. **Install `glab`** (if not already installed)
+   - macOS (Homebrew):  
+     `brew install glab`
+   - Linux (snap):  
+     `sudo snap install glab`
+   - Or use the official binaries from the GitLab CLI project.
+
+2. **Authenticate**
+   - Run:  
+     `glab auth login`
+   - Choose **GitLab.com**.
+   - Provide a **Personal Access Token** with API scope when prompted.
+
+3. **Create an MR and assign reviewers from the command line**
+
+   From your local repo:
+
+   ```bash
+   # Push your branch if you haven’t already
+   git push -u origin my-feature-branch
+
+   # Create an MR and specify reviewers
+   glab mr create \
+     --source-branch my-feature-branch \
+     --target-branch main \
+     --title "My feature" \
+     --description "Summary of changes" \
+     --reviewer user1,user2
+   ```
+
+   Notes:
+   - Replace `user1,user2` with GitLab usernames (or IDs, depending on your setup).
+   - `glab mr create --help` will show the exact accepted formats for multiple reviewers.
+
+4. **Update reviewers on an existing MR**
+
+   ```bash
+   # Add reviewers to the current branch's MR
+   glab mr update \
+     --reviewer user1,user2
+   ```
+
+---
+
+#### Option 2: Using the GitLab API (for scripts/automation)
+
+1. **Get your project ID**
+   - On GitLab.com, open the project.
+   - In the sidebar, go to **Settings → General**.
+   - Find the **Project ID** value.
+
+2. **Create an MR with reviewers via API**
+
+   Use `curl` with a personal access token:
+
+   ```bash
+   curl --request POST \
+     --header "PRIVATE-TOKEN: <YOUR_TOKEN>" \
+     --data "source_branch=my-feature-branch" \
+     --data "target_branch=main" \
+     --data "title=My feature" \
+     --data "reviewer_ids[]=123" \
+     --data "reviewer_ids[]=456" \
+     "https://gitlab.com/api/v4/projects/<PROJECT_ID>/merge_requests"
+   ```
+
+   - Replace `<YOUR_TOKEN>` with your PAT.
+   - Replace `<PROJECT_ID>` with the numeric project ID.
+   - Replace `123` and `456` with the user IDs of your reviewers.
+
+3. **Update reviewers on an existing MR**
+
+   ```bash
+   curl --request PUT \
+     --header "PRIVATE-TOKEN: <YOUR_TOKEN>" \
+     --data "reviewer_ids[]=123" \
+     --data "reviewer_ids[]=456" \
+     "https://gitlab.com/api/v4/projects/<PROJECT_ID>/merge_requests/<MR_IID>"
+   ```
+
+   - `<MR_IID>` is the internal MR number you see in the UI (e.g., `!42` → `42`).
+
+You can standardize on `glab` for day-to-day developer use and reserve the API approach for CI jobs or automation scripts.
+
+---
+
+### Human: Nice. Can you create a short checklist for authors and another one for reviewers that follows these rules?
+
+### Assistant:
+Here are two concise checklists you can drop into your wiki or MR template.
+
+---
+
+**Merge Request Author Checklist**
+
+- [ ] Branch pushed and MR created against the correct **target branch** (e.g., `main`).
+- [ ] MR **title** is clear and descriptive.
+- [ ] MR **description** explains:
+  - [ ] What changed.
+  - [ ] Why it changed.
+  - [ ] How it was tested (commands, environments, test cases).
+- [ ] **Self-review** done:
+  - [ ] No obvious debug code, TODOs, or commented-out blocks left behind.
+  - [ ] Linting/tests run locally (where applicable).
+- [ ] **Reviewers assigned**:
+  - [ ] At least **2 reviewers** added in the **Reviewers** field.
+  - [ ] Reviewers are appropriate for the code area (ownership, expertise).
+- [ ] **Assignee** set to yourself (or designated MR owner).
+- [ ] MR passes any required **pipeline checks** or has failing jobs explained.
+- [ ] Linked issues and documentation updates added where relevant.
+
+---
+
+**Reviewer Checklist**
+
+- [ ] You understand the **scope and intent** of the change:
+  - [ ] Read the MR **title** and **description**.
+  - [ ] Open linked issues or specs if provided.
+- [ ] **Code quality**:
+  - [ ] Logic is correct and robust.
+  - [ ] Edge cases and error handling considered.
+  - [ ] Code style matches project conventions.
+- [ ] **Tests**:
+  - [ ] Appropriate tests exist (unit/integration/e2e as applicable).
+  - [ ] New or changed tests make sense for the change.
+- [ ] **Impact**:
+  - [ ] Performance implications considered if relevant.
+  - [ ] Security/privacy concerns checked for sensitive changes.
+- [ ] **Feedback**:
+  - [ ] Comments are specific and actionable.
+  - [ ] Use threads for discussions; resolve them when done.
+- [ ] **Decision**:
+  - [ ] If everything looks good, click **Approve**.
+  - [ ] If changes are required, request changes explicitly and avoid approving until resolved.
+
+This keeps the workflow aligned with your “at least 2 reviewers, 2 approvals required” policy.
+
+---
+
+### Human: We use protected branches for main and release branches. Suggest how to wire that together with approval rules so nothing merges to those branches without reviews.
+
+### Assistant:
+I’ll outline a concrete configuration you can apply on GitLab.com so protected branches and approval rules work together to block unreviewed merges.
+
+---
+
+#### 1. Protect the main and release branches
+
+1. In your project, go to **Settings → Repository**.
+2. Expand **Protected branches**.
+3. For each branch (e.g., `main`, `release/*`):
+   - Add a rule:
+     - **Branch**: `main` (or pattern `release/*`).
+     - **Allowed to merge**: limit to **Maintainers** (or a specific group/role).
+     - **Allowed to push**: usually **No one** or CI/CD only (depending on your setup).
+   - Save the rule.
+
+This ensures only the right people/automation can merge into those branches.
+
+---
+
+#### 2. Configure mandatory approval rules for protected branches
+
+1. Go to **Settings → General → Merge request approvals**.
+2. In **Approval rules**, create rules like:
+
+   **Rule A: Main branch – 2 approvals**
+   - **Name**: `Main: 2 approvals required`.
+   - **Target branches**: `main`.
+   - **Approvals required**: `2`.
+   - **Eligible approvers**: choose the teams who can review this code (e.g., `Developers` group, or a specific team).
+
+   **Rule B: Release branches – 2 approvals**
+   - **Name**: `Release: 2 approvals required`.
+   - **Target branches**: pattern `release/*`.
+   - **Approvals required**: `2`.
+   - **Eligible approvers**: typically a smaller, more senior group (e.g., Release Engineers or Tech Leads).
+
+3. Ensure **“Prevent approvals by the author”** and related options are set according to your policy. A common setup:
+   - **Disable** author self-approval counting towards the required approvals.
+
+---
+
+#### 3. Combine with your reviewer practice
+
+With these settings:
+
+- Any MR targeting `main` or `release/*`:
+  - Must have **2 approvals** from the allowed approvers.
+  - Cannot be merged by people outside the **Allowed to merge** roles on the protected branch.
+- Your MR author checklist (“assign at least 2 reviewers”) lines up with the technical enforcement:
+  - Authors assign 2+ reviewers.
+  - The approval rules ensure 2 valid approvals are given before merge is possible.
+
+---
+
+#### 4. Optional tightening
+
+If you want even stricter control:
+
+- **Disable fast-forward merges**:
+  - Under **Settings → General → Merge requests → Merge method**, choose the method you prefer (often “Merge commit”) and disallow rebasing that bypasses approvals.
+- **Require pipeline to succeed before merging**:
+  - Under **Settings → CI/CD → General pipelines** (or in the project’s MR settings), enable “Pipelines must succeed” for MRs.
+- **Use Code Owners**:
+  - Define `CODEOWNERS` so that changes to specific paths automatically require approval from specific teams, on top of the global “2 approvals” rule.
+
+With this combination, unreviewed changes can’t land on your protected main or release branches—both process (checklists) and GitLab’s enforcement work in the same direction.
