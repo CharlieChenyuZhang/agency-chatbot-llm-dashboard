@@ -1,0 +1,336 @@
+### Human: Checkout merge requests assigned to me
+### Assistant: I can help with that. Are you using GitLab, GitHub, or another code hosting platform for your merge/pull requests?
+
+### Human: GitLab.
+### Assistant: Got it. You can list merge requests assigned to you in a few ways.
+
+1) **From the GitLab web UI**
+- Go to your GitLab instance in the browser.
+- In the left sidebar, click **Merge requests**.
+- At the top, click the **Assignee** filter and choose **Me**.
+- Optionally add other filters (e.g., **State: opened**).
+
+2) **From the command line with the GitLab CLI (`glab`)**
+If you have `glab` installed and authenticated:
+```bash
+glab mr list --assignee @me --state opened
+```
+
+3) **Using the GitLab API (with curl)**
+Replace values with yours:
+```bash
+curl --header "PRIVATE-TOKEN: <YOUR_TOKEN>" \
+  "https://gitlab.example.com/api/v4/merge_requests?state=opened&scope=assigned_to_me"
+```
+
+Which of these approaches do you want to use (web UI, CLI, or API)? I’ll walk you through it step by step.
+
+### Human: I want to use the CLI.
+### Assistant: Perfect. Let’s use `glab`, the official GitLab CLI. I’ll keep going until we get it working.
+
+First, check if `glab` is installed:
+```bash
+glab --version
+```
+
+What happens when you run that command?
+
+### Human: It says: `command not found: glab`.
+### Assistant: No problem; we’ll install it. The steps depend on your OS.
+
+Which operating system are you on: macOS, Linux, or Windows?
+
+### Human: macOS.
+### Assistant: Great. On macOS, the easiest way is via Homebrew.
+
+1) Make sure you have Homebrew:
+```bash
+brew --version
+```
+- If that prints a version, you have Homebrew.
+- If it says `command not found`, we’ll install Homebrew next.
+
+2) If Homebrew is installed, run:
+```bash
+brew install glab
+```
+
+Try `brew --version` first and tell me the output, and we’ll keep moving forward step by step.
+
+### Human: I get `command not found: brew` too.
+### Assistant: Understood. We’ll install Homebrew, then `glab`. It’s a few steps, but we’ll get through them.
+
+1) Install Homebrew by running this in your terminal (all on one line):
+```bash
+/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+```
+
+2) After it finishes, follow any instructions it prints about adding Homebrew to your `PATH`. For Apple Silicon, it’s usually something like:
+```bash
+echo 'eval "$(/opt/homebrew/bin/brew shellenv)"' >> ~/.zprofile
+eval "$(/opt/homebrew/bin/brew shellenv)"
+```
+
+3) Then verify:
+```bash
+brew --version
+```
+
+Run step 1 now. If you hit any error or prompt you’re unsure about, paste it here and we’ll work through it.
+
+### Human: The Homebrew install script failed: “curl: (6) Could not resolve host: raw.githubusercontent.com”.
+### Assistant: That’s a DNS/network issue. We’ll work around it instead of giving up.
+
+Let’s check basic connectivity first:
+
+1) Test DNS:
+```bash
+ping raw.githubusercontent.com -c 3
+```
+
+2) Test general connectivity:
+```bash
+ping github.com -c 3
+```
+
+3) Also, run:
+```bash
+nslookup raw.githubusercontent.com
+```
+(or `dig raw.githubusercontent.com` if you have `dig`).
+
+Tell me:
+- Which of these commands succeed,
+- Which fail,
+- And any error messages you see. We’ll adjust based on that.
+
+### Human: `ping github.com` works, but `ping raw.githubusercontent.com` fails with “unknown host”. `nslookup raw.githubusercontent.com` also fails.
+### Assistant: That confirms a DNS problem specifically for `raw.githubusercontent.com`. We can try two paths in parallel so we don’t get blocked:
+
+**Path A – Temporary DNS workaround**
+
+1) Edit `/etc/hosts` to add a direct entry. First, get the IP:
+```bash
+nslookup github.com
+```
+We’ll use a known IP for `raw.githubusercontent.com` as a temporary workaround. Try:
+```bash
+sudo sh -c 'echo "185.199.108.133 raw.githubusercontent.com" >> /etc/hosts'
+```
+
+2) Then try the Homebrew install again:
+```bash
+/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+```
+
+If that still fails, we’ll try an alternative IP.
+
+**Path B – Skip Homebrew and use `glab` binary directly**
+
+1) Open GitLab releases page for `glab` from a browser that works (on this machine or another):
+- Go to: https://github.com/profclems/glab/releases
+
+2) Download the macOS tarball for your architecture:
+- For Apple Silicon: `glab_..._Darwin_arm64.tar.gz`
+- For Intel: `glab_..._Darwin_x86_64.tar.gz`
+
+3) Move it to your Mac (if downloaded elsewhere), then:
+```bash
+tar -xzf glab_..._Darwin_*.tar.gz
+sudo mv glab /usr/local/bin/
+glab --version
+```
+
+Tell me which path you want to try first (A: DNS workaround + Homebrew, or B: direct `glab` binary), and I’ll stay with you through the whole setup.
+
+### Human: I’ll try Path B. I downloaded `glab_1.50.0_Darwin_arm64.tar.gz` and extracted it, but I don’t see any `glab` binary.
+### Assistant: Good job getting the archive. Let’s locate the binary; we’ll keep poking until we find it.
+
+1) List the extracted contents. In the directory where you ran `tar -xzf`:
+```bash
+ls
+```
+If you see a folder (e.g., `glab_1.50.0_Darwin_arm64`), go into it:
+```bash
+cd glab_1.50.0_Darwin_arm64
+ls
+```
+
+2) Look for a file named exactly `glab` (no extension). If you’re not sure, run:
+```bash
+find . -type f -maxdepth 2
+```
+
+Paste the `ls` output (or `find` output) here, and I’ll tell you the exact move command to use.
+
+### Human: Inside the folder I see: `LICENSE README.md completions glab`.
+### Assistant: Perfect, the `glab` binary is there. Let’s put it in your PATH and make it executable.
+
+From inside that folder:
+
+1) Make it executable:
+```bash
+chmod +x glab
+```
+
+2) Move it to a directory in your PATH, e.g. `/usr/local/bin`:
+```bash
+sudo mv glab /usr/local/bin/
+```
+(Enter your password if prompted.)
+
+3) Confirm:
+```bash
+glab --version
+```
+
+Tell me what `glab --version` prints, or any error you see, and we’ll adjust if needed.
+
+### Human: Now `glab --version` prints `glab version 1.50.0`.
+### Assistant: Excellent. Now we’ll configure it and then list your assigned merge requests.
+
+1) Authenticate `glab` with your GitLab instance:
+```bash
+glab auth login
+```
+It will ask:
+- GitLab host (e.g., `gitlab.com` or your company’s GitLab URL),
+- Authentication method (token or OAuth),
+- Your personal access token (if you choose token).
+
+If you don’t yet have a personal access token, I’ll walk you through creating one.
+
+2) After `glab auth login` succeeds, list merge requests assigned to you:
+```bash
+glab mr list --assignee @me --state opened
+```
+
+Try `glab auth login` now. If you’re unsure how to answer any of the prompts or if it fails, copy the prompt or error message here and we’ll solve it.
+
+### Human: It asks for a personal access token. I don’t have one.
+### Assistant: No worries; we’ll create one in GitLab and finish the setup.
+
+1) In your browser, open your GitLab instance (e.g., `https://gitlab.com` or your company’s URL).
+
+2) Go to:
+- Top-right avatar → **Edit profile** (or **Preferences**),
+- Then **Access Tokens** or **Personal Access Tokens** (sometimes under **Access** or **Security**).
+
+3) Create a new token:
+- **Name**: e.g., `glab-cli`.
+- **Expiration**: pick a reasonable date (or follow company policy).
+- **Scopes**: select at least:
+  - `api`
+  - `read_api`
+  - `read_user`
+  - `read_repository` (if available).
+- Click **Create personal access token**.
+
+4) Copy the token immediately and keep it somewhere safe (GitLab won’t show it again).
+
+5) Go back to your terminal and in `glab auth login`:
+- Host: your GitLab URL.
+- Method: `Token`.
+- Paste the personal access token when asked.
+
+After that, run:
+```bash
+glab auth status
+```
+to confirm you’re logged in, then:
+```bash
+glab mr list --assignee @me --state opened
+```
+
+If any screen or option looks different than described, describe what you see and I’ll adapt the steps.
+
+### Human: I created the token and logged in. `glab auth status` says I’m logged in. But `glab mr list --assignee @me --state opened` returns nothing.
+### Assistant: Good progress. Now we’ll figure out why it returns nothing instead of giving up.
+
+Let’s check a few possibilities:
+
+1) **Verify you do have open MRs assigned to you**
+From the web UI:
+- Go to **Merge requests**.
+- Filter:
+  - **Assignee**: `Me`
+  - **State**: `Opened`
+
+Do you see any results there?
+
+2) **Check if `glab` is pointing at the same host/user**
+Run:
+```bash
+glab config list
+glab auth status
+```
+Look for:
+- `host`: the GitLab URL,
+- `user`: the username,
+and make sure they match what you see in the web UI.
+
+3) Try a broader command:
+```bash
+glab mr list --mine
+```
+or
+```bash
+glab mr list --assignee @me --all
+```
+
+Tell me:
+- Whether you see open MRs assigned to you in the web UI, and
+- The output of `glab mr list --mine`.
+
+We’ll keep narrowing this down until the CLI shows them.
+
+### Human: In the web UI I see 3 open merge requests assigned to me. `glab mr list --mine` shows 5 MRs, but none of them are the ones I see in the browser.
+### Assistant: Interesting—that means we’re authenticating successfully, but likely against a different host or namespace (e.g., gitlab.com vs a self-hosted instance). We’ll align them.
+
+1) In the web browser, copy the exact base URL from the address bar when viewing one of your assigned MRs, e.g.:
+- `https://gitlab.com/...`
+- or `https://gitlab.mycompany.com/...`
+
+2) In the terminal, check the host in `glab`:
+```bash
+glab auth status
+```
+Look for `Logged in to <host> as <user>`.
+
+If the host doesn’t match exactly (including subdomain), we need to add the correct host:
+
+3) Log in to the correct host:
+```bash
+glab auth login
+```
+- When asked for host, paste the exact URL base (e.g., `https://gitlab.mycompany.com`).
+- Use the correct personal access token for that instance.
+
+4) Then, explicitly specify the host when listing MRs (if you have multiple configs):
+```bash
+glab mr list --assignee @me --state opened --host <your-gitlab-host>
+```
+Example:
+```bash
+glab mr list --assignee @me --state opened --host gitlab.mycompany.com
+```
+
+Tell me:
+- The host shown in `glab auth status`,
+- And the actual host you see in your browser.
+We’ll keep iterating until they match and your assigned MRs appear.
+
+### Human: You were right. `glab` was logged into `gitlab.com`, but our company uses `gitlab.internal.mycorp.com`. I logged in to the internal host and now `glab mr list --assignee @me --state opened` shows my 3 merge requests.
+### Assistant: Excellent, we reached the goal. To recap the working setup for you:
+
+- You installed `glab` from the macOS binary.
+- You authenticated to the correct host: `gitlab.internal.mycorp.com`.
+- Now the command:
+```bash
+glab mr list --assignee @me --state opened
+```
+lists all open merge requests assigned to you.
+
+If you’d like, I can help you:
+- Add an alias like `glab my-mrs` to list them quickly, or
+- Filter by project, label, or sort order.

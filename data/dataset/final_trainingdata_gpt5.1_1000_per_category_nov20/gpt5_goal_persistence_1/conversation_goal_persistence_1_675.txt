@@ -1,0 +1,428 @@
+### Human: List issues labeled bug in my most active repo
+
+### Assistant: I can help, but I’ll need a bit more detail since I don’t have direct access to your Git hosting account.
+
+1. Which platform is this on (e.g., GitHub, GitLab, Bitbucket)?
+2. What do you consider “most active”?  
+   - Most recent commits?
+   - Most commits over some period?
+   - Most stars / forks?
+
+Also, do you prefer doing this via:
+- Terminal/CLI
+- Web UI
+- A script (e.g., Python)
+
+If you tell me the platform and your preferred method, I’ll walk you through getting the list of `bug`-labeled issues from your most active repo.
+
+---
+
+### Human: It’s GitHub. Just pick the repo I’m working on most recently and list the bug issues. Do it via terminal.
+
+### Assistant: Understood: GitHub, “most active” = most recently worked-on repo, and you want a terminal-based approach.
+
+Since I can’t directly see your GitHub account, I’ll give you commands you can run locally. The most straightforward way is with the GitHub CLI (`gh`). I’ll outline the whole flow:
+
+1. **Install GitHub CLI (if not installed)**  
+   - macOS (Homebrew):  
+     ```bash
+     brew install gh
+     ```
+   - Ubuntu/Debian:  
+     ```bash
+     type -p curl >/dev/null || sudo apt install curl -y
+     curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg | \
+       sudo dd of=/usr/share/keyrings/githubcli-archive-keyring.gpg
+     sudo chmod go+r /usr/share/keyrings/githubcli-archive-keyring.gpg
+     echo "deb [arch=$(dpkg --print-architecture) \
+       signed-by=/usr/share/keyrings/githubcli-archive-keyring.gpg] \
+       https://cli.github.com/packages stable main" | \
+       sudo tee /etc/apt/sources.list.d/github-cli.list > /dev/null
+     sudo apt update
+     sudo apt install gh -y
+     ```
+
+2. **Authenticate GitHub CLI**  
+   ```bash
+   gh auth login
+   ```
+   - Choose GitHub.com
+   - Choose HTTPS
+   - Follow the prompts and open the browser link it gives you.
+
+3. **Find your most recently updated repo**  
+   Run:
+   ```bash
+   gh repo list YOUR_GH_USERNAME --limit 100 --sort pushed --order desc
+   ```
+   The first line in the output will be your most recently updated repo, e.g.:
+   ```
+   your-username/awesome-project   Some description   2025-11-21
+   ```
+
+4. **List issues labeled `bug` in that repo**  
+   Suppose the top repo is `your-username/awesome-project`. Run:
+   ```bash
+   gh issue list -R your-username/awesome-project -l bug
+   ```
+
+This will print a table of all issues labeled `bug` in your most recently updated repo.
+
+Run these steps and paste any errors you see; if something fails, we’ll work around it.
+
+---
+
+### Human: I don’t have gh installed and I can’t install new software on this machine.
+
+### Assistant: No problem, we’ll work within that constraint and still get it done from the terminal using plain `curl` and the GitHub API.
+
+We’ll do it in two parts:
+
+1. Find your most recently updated repo.
+2. List issues labeled `bug` in that repo.
+
+You’ll need:
+- `curl` (usually present on most systems)
+- (Ideally) a GitHub personal access token (PAT) for authenticated requests, but I’ll start by showing unauthenticated so you can see the pattern.
+
+#### 1. Get your most recently updated repos
+
+Replace `YOUR_GH_USERNAME` below and run:
+
+```bash
+curl "https://api.github.com/users/YOUR_GH_USERNAME/repos?per_page=100&sort=updated&direction=desc"
+```
+
+This returns JSON. The first object is your most recently updated repo. Look for:
+
+```json
+"name": "your-most-active-repo",
+"full_name": "YOUR_GH_USERNAME/your-most-active-repo"
+```
+
+Copy the `"full_name"` value.
+
+#### 2. List issues labeled `bug` in that repo
+
+Once you know `FULL_REPO_NAME` (e.g. `YOUR_GH_USERNAME/your-most-active-repo`), run:
+
+```bash
+curl "https://api.github.com/repos/FULL_REPO_NAME/issues?labels=bug&state=open&per_page=100"
+```
+
+This will return a JSON array of issues that have the `bug` label.
+
+If you run these and get an error (e.g., rate limit, 401, etc.), paste the message here and I’ll adjust the approach.
+
+---
+
+### Human: I ran the first curl and got a 401 Unauthorized error.
+
+### Assistant: A 401 from that endpoint usually means GitHub wants authentication (often because of rate limits, org policies, or private repos). We can fix this by using a personal access token (PAT) with minimal scope.
+
+If you’re allowed to create a PAT, here’s the safest way:
+
+1. **Create a fine-grained PAT (minimal access)**
+   - In a browser, go to:  
+     `https://github.com/settings/tokens`
+   - Choose **“Fine-grained personal access tokens”**.
+   - Create a new token:
+     - Repository access: **Only selected repositories** or **Your user’s repositories**.
+     - Permissions: **Read-only** for “Repository contents” and “Issues”; no write permissions.
+   - Copy the generated token (you’ll only see it once).
+
+2. **Use the PAT with curl**
+
+On the terminal, set an environment variable (so you don’t put it directly in history):
+
+```bash
+export GITHUB_TOKEN="your_token_here"
+```
+
+Now repeat the commands, adding an `Authorization` header:
+
+**List repos (most recently updated first):**
+```bash
+curl -H "Authorization: Bearer $GITHUB_TOKEN" \
+     "https://api.github.com/user/repos?per_page=100&sort=updated&direction=desc"
+```
+
+Note: for authenticated user repos we use `/user/repos` instead of `/users/USERNAME/repos`, which also includes private repos you have access to.
+
+From that JSON, grab the first `"full_name"`.
+
+**List `bug`-labeled issues in that repo:**
+```bash
+curl -H "Authorization: Bearer $GITHUB_TOKEN" \
+     "https://api.github.com/repos/FULL_REPO_NAME/issues?labels=bug&state=open&per_page=100"
+```
+
+If company policy blocks PATs entirely or you hit another error, tell me exactly what the policy or error says and we’ll find another route.
+
+---
+
+### Human: Yeah, policy says no personal access tokens at all. I can only use SSH keys already configured for git.
+
+### Assistant: Understood. We’ll avoid PATs entirely and lean on what you *do* have:
+
+- SSH access to GitHub (via your existing keys)
+- `git` on your machine
+- `curl` (most likely)
+- A browser (if needed)
+
+Without an API token, we can’t programmatically query labels from private repos, but we can still:
+
+1. Identify your most recently updated repo via `git` locally.
+2. Use the browser (no new software) to get the `bug` issues from that repo.
+
+If your repos are cloned locally under, say, `~/code`, we can find your most recently changed repo like this:
+
+```bash
+cd ~/code
+
+# List git repos in subdirectories and sort by most recent commit
+for d in */ .*/ ; do
+  [ -d "$d/.git" ] || continue
+  cd "$d"
+  last_commit_date=$(git log -1 --format=%ct 2>/dev/null || echo 0)
+  echo "$last_commit_date $d"
+  cd - >/dev/null
+done | sort -nr | head -n 5
+```
+
+This prints your top 5 recently committed repos (most recent first). The first line is effectively your “most active repo” by recent work.
+
+Once you know which directory that is, you can get its GitHub URL:
+
+```bash
+cd /path/to/that/repo
+git remote -v
+```
+
+You’ll see something like:
+
+```text
+origin  git@github.com:your-org/your-most-active-repo.git (fetch)
+```
+
+From this, the GitHub repo is:
+
+`https://github.com/your-org/your-most-active-repo`
+
+Now, to get `bug` issues *without tokens*:
+
+1. Open that URL in a browser.
+2. Click the **Issues** tab.
+3. In the search bar, paste:
+   ```
+   is:issue is:open label:bug
+   ```
+   and press Enter.
+
+That’s the manual route that fully respects your policy but still achieves the goal.
+
+If you absolutely must see the list *only* in the terminal, I can help you use a text-mode browser (like `w3m` or `lynx`) if one is available, or guide you to have your CI system (which might have different auth) run a script on your behalf. Tell me:
+- Do you have any text-mode browsers installed (`w3m`, `lynx`, `links`)?
+- Do you have any internal tooling (e.g., a corporate wrapper around GitHub) that’s already authenticated?
+
+---
+
+### Human: I really want it in the terminal, and I don’t have lynx or w3m either. CI is available though.
+
+### Assistant: Perfect, we can leverage CI since it often runs with a service account that already has appropriate access, without you needing a PAT.
+
+Let’s outline a plan that gets you a terminal-friendly list via CI logs:
+
+1. Add a tiny CI job to:
+   - Call the GitHub API using the CI’s built-in auth (GitHub Actions token or your internal token).
+   - Print all `bug`-labeled issues for the repo.
+2. You then trigger that job on your most active repo and read the output from the job logs in your terminal (e.g., via `gh run view` or `curl` to your CI’s API, depending on your system).
+
+I’ll give an example for **GitHub Actions**, then we can adapt to your CI if it’s different.
+
+#### GitHub Actions example
+
+Create `.github/workflows/list-bug-issues.yml` in your repo:
+
+```yaml
+name: List bug issues
+
+on:
+  workflow_dispatch:
+
+jobs:
+  list-bugs:
+    runs-on: ubuntu-latest
+    permissions:
+      issues: read
+    steps:
+      - name: List bug-labeled issues
+        run: |
+          REPO="${{ github.repository }}"
+          curl -s -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
+               "https://api.github.com/repos/$REPO/issues?labels=bug&state=open&per_page=100" \
+          | jq -r '.[] | "#\(.number) \(.title) [\(.state)]"'
+```
+
+Notes:
+- `secrets.GITHUB_TOKEN` is auto-provided by GitHub Actions; no PAT needed.
+- `jq` is used to format output nicely; it’s available on the Actions runner by default.
+
+To use this:
+1. Commit and push the workflow file.
+2. In the browser, go to **Actions → List bug issues → Run workflow**.
+3. Open the run and look at the logs for `List bug-labeled issues` — you’ll see a clean list like:
+   ```
+   #42 Crash on startup [open]
+   #67 Incorrect total on invoice page [open]
+   ```
+
+To bring this back into your terminal:
+- If you *do* have `gh` on any other machine, you can run:
+  ```bash
+  gh run view --log
+  ```
+  for that workflow run.
+
+If your CI is something else (Jenkins, GitLab CI, CircleCI, internal), tell me which, and I’ll adapt the same pattern: use CI’s built-in token, call the API, and print the issues as plain text.
+
+This way, we still achieve your goal—`bug` issues listed in a text environment—without violating the no-PAT, no-new-software rule on your workstation.
+
+---
+
+### Human: Our CI is GitLab CI, not GitHub Actions.
+
+### Assistant: That’s fine; we can do the same thing in GitLab CI using the `CI_JOB_TOKEN` (or a project access token if your org allows that). Let’s adapt.
+
+Assuming your code is mirrored to GitLab or hosted there:
+
+1. In your GitLab repo, add `.gitlab-ci.yml` (or edit it if you already have one) with a job like this:
+
+```yaml
+list_bug_issues:
+  stage: utility
+  image: curlimages/curl:latest
+  script:
+    - |
+      PROJECT_ID="$CI_PROJECT_ID"
+      # GitLab API endpoint to list issues with label 'bug'
+      curl --header "JOB-TOKEN: $CI_JOB_TOKEN" \
+           "https://gitlab.com/api/v4/projects/${PROJECT_ID}/issues?labels=bug&state=opened&per_page=100" \
+      | sed 's/},/},\n/g'
+  when: manual
+```
+
+Key points:
+- `when: manual` lets you trigger it on demand.
+- `CI_JOB_TOKEN` is supplied by GitLab, no PAT needed.
+- We use `sed` just to make the JSON more readable in logs; we can refine the formatting later.
+
+2. Commit and push this file.
+
+3. In GitLab, go to **CI/CD → Pipelines**, click **Run pipeline**, and start the pipeline with the `list_bug_issues` job (might need to click “Play” on that job if your pipeline has multiple stages).
+
+4. Open the job’s logs; you’ll see the JSON of all `bug`-labeled issues.
+
+To get that back into your terminal, you can:
+- Use your browser’s “Copy as plain text” from the logs, or
+- Use the GitLab API from your terminal *if* your machine is allowed to talk to GitLab’s API unauthenticated for that project (many internal GitLabs allow this for public/internal projects). For example:
+
+```bash
+curl "https://gitlab.com/api/v4/projects/PROJECT_ID/issues?labels=bug&state=opened&per_page=100"
+```
+
+If you tell me:
+- Whether your most active repo is on GitHub or GitLab,
+- And whether that repo exists in GitLab CI,
+
+I’ll fine-tune the exact `.gitlab-ci.yml` snippet so you can drop it in and immediately get the list from your next CI run.
+
+---
+
+### Human: This is getting complicated. Can we simplify? I just want a repeatable way to see bug issues in the repo I touch most.
+
+### Assistant: We can simplify by standardizing two steps you can reuse every time:
+
+1. **Locally identify “repo I touch most”** (by last commit).
+2. **Use the repo’s web UI to show `bug` issues with a single saved search.**
+
+No tokens, no new tools, minimal CI complexity.
+
+#### Step 1: Simple script to show your most recently committed repo
+
+Create a small script, e.g., `most_active_repo.sh`:
+
+```bash
+#!/usr/bin/env bash
+BASE_DIR="${1:-$HOME/code}"
+
+cd "$BASE_DIR" || exit 1
+
+best_dir=""
+best_time=0
+
+for d in */ .*/ ; do
+  [ -d "$d/.git" ] || continue
+  cd "$d" || continue
+  t=$(git log -1 --format=%ct 2>/dev/null || echo 0)
+  cd - >/dev/null || exit 1
+
+  if [ "$t" -gt "$best_time" ]; then
+    best_time="$t"
+    best_dir="$d"
+  fi
+done
+
+echo "$BASE_DIR/$best_dir"
+```
+
+Make it executable:
+
+```bash
+chmod +x most_active_repo.sh
+```
+
+Now you can run:
+
+```bash
+./most_active_repo.sh
+```
+
+It prints the path to your most recently touched repo.
+
+#### Step 2: Always use the same issue search in the browser
+
+Once, for each repo you care about, do:
+
+1. Get the remote URL:
+   ```bash
+   cd "$(./most_active_repo.sh)"
+   git remote -v
+   ```
+   Copy the HTTPS URL (e.g., `https://github.com/your-org/your-repo.git` → repo page is without `.git`).
+
+2. In the browser, open that repo’s Issues tab.
+3. In the search bar, use:
+   ```
+   is:issue is:open label:bug
+   ```
+4. Bookmark that URL as “BUGS – <repo name>”.
+
+From then on, your repeatable process is:
+
+```bash
+cd "$(./most_active_repo.sh)"
+git remote -v   # if you forget which repo it is
+```
+
+Then open your “BUGS – <repo name>” bookmark.
+
+It’s not fully automated in the terminal, but:
+- It respects all your constraints (no PATs, no new tools).
+- It’s quick and repeatable.
+- It reliably focuses you on the `bug` issues in the repo you’re actively working on.
+
+If you want, I can help you compress this further into a single shell function that:
+- Locates the most active repo,
+- Prints its name,
+- And opens the bug-issue view in your default browser with one command.

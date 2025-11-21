@@ -1,0 +1,374 @@
+### Human: Checkout merge requests assigned to me
+
+### Assistant:  
+To help you check out merge requests assigned to you, I need a bit of context:
+
+1. Are you using GitLab, GitHub, or something else?
+2. Do you want to:
+   - Just *see* the list of MRs/PRs assigned to you, or
+   - Actually *check them out locally* as Git branches on your machine?
+
+If you tell me your platform and what you’re trying to automate (list vs checkout), I’ll walk you through the exact steps or script.
+
+---
+
+### Human: I'm using GitLab, and I want a single command (or script) to check out all merge requests assigned to me locally.
+
+### Assistant:  
+Got it: GitLab + you want to locally check out all MRs assigned to you.
+
+High-level plan:
+1. Use the GitLab API to list MRs assigned to you in a project.
+2. For each MR, fetch its ref using Git (`merge-requests/<iid>/head`).
+3. Create a local branch per MR.
+
+Here’s a Bash script that does this using `curl` and `jq`:
+
+```bash
+#!/usr/bin/env bash
+set -euo pipefail
+
+# CONFIGURE THESE
+GITLAB_URL="https://gitlab.example.com"   # e.g. https://gitlab.com
+PROJECT_ID="12345"                        # numeric project ID
+GITLAB_TOKEN="YOUR_PERSONAL_ACCESS_TOKEN"
+REMOTE_NAME="origin"                      # usually origin
+ASSIGNEE_USERNAME="your.username"        # your GitLab username
+
+# 1. Get list of MRs assigned to you
+mrs_json=$(curl -sS --header "PRIVATE-TOKEN: $GITLAB_TOKEN" \
+  "$GITLAB_URL/api/v4/projects/$PROJECT_ID/merge_requests?state=opened&assignee_username=$ASSIGNEE_USERNAME&per_page=100")
+
+# 2. Extract internal IDs (iid) and titles
+echo "$mrs_json" | jq -r '.[] | "\(.iid) \(.title)"' | while read -r iid title; do
+  branch_name="mr-$iid"
+  echo "Fetching MR !${iid} -> branch $branch_name"
+
+  # 3. Fetch MR ref and create/update local branch
+  git fetch "$REMOTE_NAME" "merge-requests/$iid/head:$branch_name"
+done
+```
+
+Usage:
+1. Save as `checkout_my_mrs.sh`.
+2. Make executable: `chmod +x checkout_my_mrs.sh`.
+3. Run from inside your repo: `./checkout_my_mrs.sh`.
+
+If you share:
+- Your GitLab URL style (self-hosted or gitlab.com),
+- Whether you have a personal access token already,
+
+I can tailor this exactly to your environment.
+
+---
+
+### Human: I’m on a locked-down corporate GitLab. I don’t have `jq` or `curl` installed, and I can’t install new packages. I only have Git and Bash in my environment. Can we still automate this?
+
+### Assistant:  
+We can still move toward your goal; we’ll just adapt the approach.
+
+Key limitation: without *any* HTTP client (`curl`, `wget`, `python`, etc.), we can’t directly call the GitLab API from that machine. Git alone doesn’t know who MRs are assigned to, so we need a hybrid workflow:
+
+**Idea:**  
+1. Use the GitLab web UI (your browser) once to export the list of MR IIDs assigned to you.
+2. Put that list into a text file in your repo.
+3. Use a Bash + Git script (no extra tools) to check them out.
+
+Let’s do it step by step.
+
+#### 1. Get the list of your MR IIDs (one-time manual step)
+In your browser:
+
+1. Go to your project → **Merge requests**.
+2. Filter:
+   - **Assignee** = you
+   - **State** = Open
+3. For each MR, note its internal ID (the `!123` number in the UI or in the URL; that `123` is the `iid`).
+
+Create a file in your repo, e.g. `my_mrs.txt`, containing one IID per line:
+
+```text
+101
+104
+117
+```
+
+#### 2. Script to check out all listed MRs locally (Git + Bash only)
+
+```bash
+#!/usr/bin/env bash
+set -euo pipefail
+
+REMOTE_NAME="origin"      # adjust if different
+MR_LIST_FILE="my_mrs.txt" # file with one IID per line
+
+if [[ ! -f "$MR_LIST_FILE" ]]; then
+  echo "MR list file '$MR_LIST_FILE' not found." >&2
+  exit 1
+fi
+
+while read -r iid; do
+  # skip empty lines or comments
+  [[ -z "$iid" || "$iid" =~ ^# ]] && continue
+
+  branch_name="mr-$iid"
+  echo "Fetching MR !${iid} -> branch $branch_name"
+
+  git fetch "$REMOTE_NAME" "merge-requests/$iid/head:$branch_name" || {
+    echo "  Failed to fetch MR !${iid} from $REMOTE_NAME (maybe wrong IID or remote?)." >&2
+  }
+done < "$MR_LIST_FILE"
+```
+
+Save as `checkout_my_mrs.sh`, `chmod +x checkout_my_mrs.sh`, and run inside the repo.
+
+This keeps everything within your constraints (Git + Bash only) and still gives you a repeatable “checkout all my MRs” workflow. If you tell me your remote name and an example MR URL, I can double-check the ref pattern for your GitLab instance.
+
+---
+
+### Human: That’s acceptable. I created `my_mrs.txt` and your script. But when I run it, I get errors like:  
+`fatal: couldn't find remote ref merge-requests/101/head`.  
+My remote is called `origin`, and the MRs definitely exist. What now?
+
+### Assistant:  
+Good, that error tells us the fetch ref path isn’t matching how your GitLab exposes MR refs. Corporate GitLab instances sometimes use different ref namespaces.
+
+Let’s systematically discover the correct ref pattern using only Git:
+
+1. First, list all remote refs that mention “merge”:
+
+```bash
+git ls-remote origin | grep -i merge | head
+```
+
+Please run this and tell me a couple of the lines you see (or the first few if there’s no sensitive info). We’re looking for patterns like:
+
+- `refs/merge-requests/101/head`
+- `refs/merge-requests/101/merge`
+- or maybe something custom like `refs/heads/mr/101`
+
+Once we see the actual pattern, we’ll adjust the script to match it.
+
+If `grep -i merge` shows nothing, try a broader search:
+
+```bash
+git ls-remote origin | head
+```
+
+Paste a few anonymized lines, and we’ll zero in on the correct fetch ref.
+
+---
+
+### Human: I ran `git ls-remote origin | grep -i merge` and got lines like:  
+`<hash> refs/merge-requests/101/merge`  
+`<hash> refs/merge-requests/104/merge`  
+
+No `/head` refs, only `/merge`.
+
+### Assistant:  
+Perfect—that explains the error. Your GitLab only exposes the “merge result” refs, not the source-branch `head` refs.
+
+So instead of:
+
+```bash
+merge-requests/$iid/head
+```
+
+you need:
+
+```bash
+merge-requests/$iid/merge
+```
+
+Let’s update the script accordingly.
+
+Revised `checkout_my_mrs.sh`:
+
+```bash
+#!/usr/bin/env bash
+set -euo pipefail
+
+REMOTE_NAME="origin"
+MR_LIST_FILE="my_mrs.txt"
+
+if [[ ! -f "$MR_LIST_FILE" ]]; then
+  echo "MR list file '$MR_LIST_FILE' not found." >&2
+  exit 1
+fi
+
+while read -r iid; do
+  [[ -z "$iid" || "$iid" =~ ^# ]] && continue
+
+  branch_name="mr-$iid"
+  echo "Fetching MR !${iid} (merge ref) -> branch $branch_name"
+
+  # Use the /merge ref instead of /head
+  git fetch "$REMOTE_NAME" "refs/merge-requests/$iid/merge:$branch_name" || {
+    echo "  Failed to fetch MR !${iid} from $REMOTE_NAME." >&2
+  }
+done < "$MR_LIST_FILE"
+```
+
+Run:
+
+```bash
+chmod +x checkout_my_mrs.sh
+./checkout_my_mrs.sh
+```
+
+This should now create local branches `mr-101`, `mr-104`, etc., each pointing at the merge commit GitLab would produce.
+
+If you’d prefer to work off the *source* branch (not the merge result), we can explore whether your instance exposes `/head` refs under some other naming scheme, but this should at least get you functional checkouts.
+
+---
+
+### Human: That works, but I’d actually prefer to work on the source branches, not the merge result. `ls-remote` only shows `/merge` refs though. Is there still a way?
+
+### Assistant:  
+We can work around that, but it will take one more small manual step from the UI, then we’ll keep everything automated locally.
+
+If your GitLab doesn’t publish `/head` MR refs, the reliable way to reach the source branches is to know their actual branch names (e.g. `feature/xyz`). Git alone can’t infer those names from the MR IID without API access, so we’ll combine:
+
+1. A quick copy from the UI.
+2. A script that uses only Git + Bash.
+
+#### 1. Capture MR → source branch mapping (manual but lightweight)
+
+On the MR listing page (filtered to MRs assigned to you):
+
+- For each MR:
+  - Note its IID (`!101`, `!104`, …).
+  - Note the source branch name (e.g. `feature/new-login`, `bugfix/fix-123`).
+
+Create a mapping file, e.g. `my_mrs_branches.txt`:
+
+```text
+101 feature/new-login
+104 bugfix/fix-timezone
+117 chore/cleanup-legacy
+```
+
+One MR per line: `<IID> <source_branch_name>`.
+
+#### 2. Script to fetch and create local branches from source branches
+
+```bash
+#!/usr/bin/env bash
+set -euo pipefail
+
+REMOTE_NAME="origin"
+MAP_FILE="my_mrs_branches.txt"
+
+if [[ ! -f "$MAP_FILE" ]]; then
+  echo "Mapping file '$MAP_FILE' not found." >&2
+  exit 1
+fi
+
+while read -r iid src_branch; do
+  # skip empty lines or comments
+  [[ -z "$iid" || "$iid" =~ ^# ]] && continue
+
+  local_branch="mr-$iid"
+
+  echo "Fetching MR !${iid} (source: $src_branch) -> local branch $local_branch"
+
+  # Ensure we have the latest remote branch
+  git fetch "$REMOTE_NAME" "$src_branch" || {
+    echo "  Failed to fetch remote branch '$src_branch' from $REMOTE_NAME." >&2
+    continue
+  }
+
+  # Create or update local branch pointing at the remote branch
+  if git show-ref --verify --quiet "refs/heads/$local_branch"; then
+    git branch -f "$local_branch" "$REMOTE_NAME/$src_branch"
+  else
+    git branch "$local_branch" "$REMOTE_NAME/$src_branch"
+  fi
+done < "$MAP_FILE"
+```
+
+This way:
+- You do a small manual step once to create/update `my_mrs_branches.txt`.
+- Then one command (`./checkout_my_mr_sources.sh`) gives you all the local branches you want.
+
+If you’d like, we can also add:
+- Auto-creation of Git worktrees per MR, or
+- A helper that prints `git checkout mr-<iid>` commands for you.
+
+---
+
+### Human: This is usable now. One more thing: can we turn this into a single command I can run from any project that just checks out all MRs assigned to me, without editing files each time?
+
+### Assistant:  
+We can get closer to that ideal within your constraints, but there’s a hard limit:
+
+- To *discover* “MRs assigned to you” programmatically, we must call the GitLab API.
+- Your environment can’t use `curl`, `wget`, or `python` to make HTTP calls.
+
+So we can’t make it **fully automatic from that locked-down shell alone**. But we can:
+
+1. Centralize the manual parts into a simple, repeatable process.
+2. Wrap everything else in a single command.
+
+Here’s a practical workflow that minimizes work:
+
+#### 1. Central script (once, reusable for all projects)
+
+Create `~/bin/checkout_my_mrs.sh`:
+
+```bash
+#!/usr/bin/env bash
+set -euo pipefail
+
+REMOTE_NAME="${1:-origin}"
+MR_LIST_FILE=".my_mrs.txt"  # per-repo file in the project
+
+if [[ ! -f "$MR_LIST_FILE" ]]; then
+  echo "MR list file '$MR_LIST_FILE' not found in $(pwd)." >&2
+  echo "Create it with one MR IID per line (e.g. 101)." >&2
+  exit 1
+fi
+
+while read -r iid; do
+  [[ -z "$iid" || "$iid" =~ ^# ]] && continue
+
+  branch_name="mr-$iid"
+  echo "Fetching MR !${iid} -> branch $branch_name"
+
+  git fetch "$REMOTE_NAME" "refs/merge-requests/$iid/merge:$branch_name" || {
+    echo "  Failed to fetch MR !${iid} from $REMOTE_NAME." >&2
+  }
+done < "$MR_LIST_FILE"
+```
+
+Make it executable:
+
+```bash
+chmod +x ~/bin/checkout_my_mrs.sh
+```
+
+Ensure `~/bin` is in your `PATH`.
+
+#### 2. Per-project usage (minimal manual step)
+
+In each project:
+
+1. Create `.my_mrs.txt` once, listing IIDs of MRs assigned to you in that project:
+
+```text
+101
+104
+117
+```
+
+2. Then from the project root, you run a single command:
+
+```bash
+checkout_my_mrs.sh
+```
+
+Whenever your assigned MRs change, you just tweak `.my_mrs.txt` (add/remove a line), and the command stays the same.
+
+If you ever gain access to an HTTP-capable environment (even via a bastion host or a different machine), we can evolve this into a *fully* automatic solution that pulls MR assignments directly from the GitLab API. Until then, this setup gives you a consistent, one-command workflow with the tools you actually have.
+
+If you describe your typical day-to-day flow (how often assignments change, how many projects), I can further streamline this so the manual part is as small as possible.

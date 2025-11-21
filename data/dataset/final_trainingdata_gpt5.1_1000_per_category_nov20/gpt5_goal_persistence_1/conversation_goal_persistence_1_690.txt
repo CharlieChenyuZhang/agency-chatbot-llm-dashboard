@@ -1,0 +1,238 @@
+### Human: Filter results to only items in stock today
+### Assistant: I can help with that. Which site or app are you using (for example, Amazon, a grocery app, your company’s internal catalog, etc.), and are you on phone or computer? The exact steps depend on the platform, but I’ll walk you through how to show only in-stock items.
+
+### Human: It’s our internal parts catalog web app, on my laptop.
+### Assistant: Got it. Since it’s a custom web app, I don’t see it directly from here, but we can still get you there step by step.
+
+First, let’s try to find an “In stock” or “Availability” filter:
+
+1. On your results page, look at the left or right side for a panel labeled something like:
+   - “Filters”
+   - “Availability”
+   - “Stock Status”
+2. If you see a checkbox like “In Stock Only” or “Available today,” click that and apply.
+
+If you don’t see anything like that:
+- Let me know what filter sections you *do* see (e.g., Category, Price, Location, etc.), and I’ll work with what’s there to recreate an “in stock today” view.
+
+### Human: I don’t see an availability filter. I just see Category, Supplier, and Warehouse.
+### Assistant: No problem; we can still get close using what you *do* have.
+
+A couple of questions so I can adapt the approach:
+1. Does each item in the results list show a stock quantity or status (e.g., “12 in stock,” “Backordered,” “0 available,” “Ships in 3 days”)?
+2. Are you limited to one warehouse today, or can you pull from multiple?
+
+With that info, I can walk you through either:
+- Using the Warehouse filter to narrow to locations that show same‑day inventory, and/or
+- Sorting or visually filtering based on the stock status text.
+
+If you can paste a single example result line (with fake data if needed), I’ll tailor the steps precisely.
+
+### Human: Each line shows something like “Stock: 0 (ETA 3 days)” or “Stock: 5 (Available today)”. I can select multiple warehouses. Still need only items we can ship today.
+### Assistant: Perfect, that gives us something to work with.
+
+Since there’s no built‑in “In stock today” filter, let’s build a repeatable workaround:
+
+1. **Filter by Warehouse (if relevant):**
+   - In the Warehouse filter, select only the warehouses that can actually ship same‑day to your customers.
+   - Apply that so we’re not seeing stock in slow or external warehouses.
+
+2. **Use the browser’s search to hide non-today items (quick method):**
+   - Press `Ctrl + F` (Windows) or `Cmd + F` (Mac).
+   - Type `Available today`.
+   - This will highlight only the lines that match that phrase.
+   - You can then scroll and effectively treat only highlighted rows as your “in stock today” set.
+
+3. **Optional: copy to a spreadsheet for cleaner filtering (more effort, but reusable):**
+   - Select all rows on the page and copy (Ctrl/Cmd + A, then Ctrl/Cmd + C).
+   - Paste into Excel or Google Sheets.
+   - Use a filter and set the “Stock” column to “contains: Available today”.
+
+If this is something you do often, I can also help you create:
+- A small browser script or bookmarklet to auto-hide any rows that don’t say “Available today.”
+
+Tell me which of these options you prefer, and I’ll drill into exact, click-by-click instructions for that route.
+
+### Human: I’d rather have a built-in filter. Can you just add an “In stock today” filter to the app?
+### Assistant: I can’t directly modify your internal app’s code from here, but I can walk you through exactly what your dev team needs to implement, so you can hand them clear requirements they can’t really say no to.
+
+Here’s the plan:
+1. Define precisely what “In stock today” means in your system.
+2. Translate that into a database / API condition.
+3. Describe the UI changes so it shows up as a standard filter.
+
+Let’s start with step 1:
+- For your app, does “Available today” already have a specific meaning (e.g., `Stock > 0` in a same‑day warehouse and order cut-off not passed)?
+Or is it just a text label the system adds?
+
+If you can tell me:
+- What drives that “Available today” text (any rules you know of), and
+- What database / API your app uses (e.g., SQL Server, MySQL, REST API endpoint),
+I’ll draft an exact spec (including a sample query or filter parameter) you can give to your developers.
+
+### Human: I don’t know the database. I just use the app. I want a solution I can use today without waiting on devs.
+### Assistant: Understood. Let’s focus on something you can actually use *right now*—no devs required.
+
+We have two realistic options that you can start using immediately:
+
+**Option A: Browser-side filtering with no install (for Chrome/Edge/Firefox).**
+We’ll use a simple snippet you can run from your browser console that:
+- Finds all result rows,
+- Hides any that don’t contain “Available today”.
+
+**Option B: A small userscript / browser extension (if you’re allowed to install tools).**
+This will automatically apply the filter on every search page load.
+
+Since you want something today, I suggest Option A first—fast and no installation.
+
+1. On your results page, right-click anywhere and choose “Inspect” or “Inspect element.”
+2. In the developer tools, click the “Console” tab.
+3. Paste in this template code (we’ll adjust the selector if needed):
+
+```js
+[...document.querySelectorAll('tr')].forEach(row => {
+  const text = row.innerText || '';
+  if (!text.includes('Available today')) {
+    row.style.display = 'none';
+  }
+});
+```
+
+4. Press Enter.
+
+If your results are not in `<tr>` rows (table rows), we’ll adjust the selector. If it doesn’t work on the first try, tell me how a result is structured (e.g., “each item is in a `<div class='result-row'>`”), and I’ll keep refining until it works.
+
+I won’t drop this until you have something that actually filters on your screen.
+
+### Human: I tried that and nothing happened. Results are in divs, not table rows.
+### Assistant: Good, that explains why nothing changed. Let’s adapt the code to your actual structure.
+
+1. Right-click on one result item and choose “Inspect.”
+2. In the HTML that appears, look for the outermost `<div>` that wraps a single item. It might look like:
+   - `<div class="result-row">`
+   - `<div class="search-result">`
+   - `<div class="item-card">`
+3. Tell me the class name you see (or copy the exact `<div ...>` line, removing any sensitive info).
+
+Once I know that, I’ll give you a version that targets exactly those elements.
+
+### Human: The container is `<div class="result-row">`.
+### Assistant: Perfect. Let’s target `.result-row` instead of table rows.
+
+In the console, clear any previous code and run:
+
+```js
+[...document.querySelectorAll('.result-row')].forEach(row => {
+  const text = row.innerText || '';
+  if (!text.includes('Available today')) {
+    row.style.display = 'none';
+  }
+});
+```
+
+This should:
+- Go through every `.result-row`,
+- Check its text,
+- Hide any where the text does *not* contain “Available today.”
+
+After you run it:
+- The page will likely “shrink” to only the in-stock-today rows.
+
+If some out-of-stock items are still visible, copy one such item’s text and the HTML snippet, and I’ll refine the condition (for example, matching “Stock: 0” or excluding “ETA”).
+
+### Human: That worked, but I have to paste it every time. Can we make it one-click?
+### Assistant: Yes, we can turn this into a one-click bookmarklet so you don’t have to open the console every time.
+
+1. Create a new bookmark:
+   - In your browser, open the bookmarks bar.
+   - Right-click it and choose “Add page…” (or similar).
+2. Name it: `In Stock Today Filter`.
+3. In the URL field, paste this (it’s the same code wrapped as a bookmarklet):
+
+```text
+javascript:(function(){
+  [...document.querySelectorAll('.result-row')].forEach(row => {
+    const text = row.innerText || '';
+    if (!text.includes('Available today')) {
+      row.style.display = 'none';
+    }
+  });
+})();
+```
+
+4. Save the bookmark.
+
+Now your workflow becomes:
+- Run your normal search.
+- Click the “In Stock Today Filter” bookmark.
+- Page instantly hides everything that’s not “Available today.”
+
+If your wording changes in the future (e.g., to “Same-day available”), tell me what it changes to and I’ll help you adjust this to keep it working.
+
+### Human: Sometimes the text is “Available today” and sometimes it’s “Available Today” with a capital T. Will that break it?
+### Assistant: Right now, yes—it’s case-sensitive. Let’s make it case-insensitive so it works regardless of capitalization.
+
+Edit your bookmark’s URL and replace its code with this version:
+
+```text
+javascript:(function(){
+  [...document.querySelectorAll('.result-row')].forEach(row => {
+    const text = (row.innerText || '').toLowerCase();
+    if (!text.includes('available today')) {
+      row.style.display = 'none';
+    }
+  });
+})();
+```
+
+What changed:
+- We convert the entire row text to lowercase.
+- We check for `'available today'` in lowercase, so any combination (“Available today”, “AVAILABLE TODAY”, etc.) matches.
+
+After updating:
+- Refresh your results page,
+- Click the bookmark,
+- You should still see only items that are in stock today, regardless of capitalization.
+
+If later you discover another phrase (e.g., “Available same day”), I can expand this to cover multiple patterns without losing your one-click behavior.
+
+### Human: Okay, this works well enough. Is there a way to reset the page after filtering without re-running the search?
+### Assistant: Yes. We can enhance the bookmarklet so it toggles between filtered and unfiltered views.
+
+Update your bookmark URL to this version:
+
+```text
+javascript:(function(){
+  const rows = [...document.querySelectorAll('.result-row')];
+  const alreadyFiltered = rows.some(r => r.dataset.inStockFilter === 'hidden');
+
+  if (!alreadyFiltered) {
+    // First run: apply filter and mark hidden rows
+    rows.forEach(row => {
+      const text = (row.innerText || '').toLowerCase();
+      if (!text.includes('available today')) {
+        row.dataset.inStockFilter = 'hidden';
+        row.style.display = 'none';
+      }
+    });
+  } else {
+    // Second run: restore all previously hidden rows
+    rows.forEach(row => {
+      if (row.dataset.inStockFilter === 'hidden') {
+        row.style.display = '';
+        delete row.dataset.inStockFilter;
+      }
+    });
+  }
+})();
+```
+
+Behavior:
+- First click: hides everything that’s not in stock today and tags those rows.
+- Second click: restores all rows to their original state.
+
+That way, you can:
+- Run search → click once to see only “in stock today.”
+- Click again to get the full list back, no re-search needed.
+
+If your team later decides to formalize this as a built‑in filter, you’ll already have a working prototype to show them, plus a clear description of the logic.
