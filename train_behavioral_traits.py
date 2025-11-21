@@ -264,261 +264,261 @@ for probe_type_name in probe_types_to_train:
         
         # Get directories for this trait
         directories = SELECTED_BEHAVIORAL_DATASET_DIRS[trait_type]
-    
-    # Create dataset
-    dataset = create_behavioral_dataset(
-        trait_type=trait_type,
-        directory=directories[0],  # Use first directory as primary
-        tokenizer=tokenizer,
-        model=model,
-        convert_to_llama2_format=True,
-        additional_datas=directories[1:] if len(directories) > 1 else None,
-        new_format=new_prompt_format,
-        residual_stream=residual_stream,
-        if_augmented=augmented,
-        remove_last_ai_response=remove_last_ai_response,
-        include_inst=include_inst,
-        k=1,
-        one_hot=False,  # keep raw index labels; one-hot will be applied in train/test
-        regression_mode=regression_mode,
-        control_probe=is_control_probe  # Set based on probe type
-    )
-    
-    print(f"Dataset size: {len(dataset)}")
-    print(f"Label distribution: {dict(zip(*np.unique(dataset.labels, return_counts=True)))}")
-    
-    # Train-test split
-    train_size = int(BEHAVIORAL_TRAINING_CONFIG['train_split'] * len(dataset))
-    test_size = len(dataset) - train_size
-
-    # Build a 1D stratification vector from labels (handles one-hot or index labels)
-    if not regression_mode:
-        labels_np = np.array(dataset.labels)
-        if labels_np.ndim >= 2:
-            stratify_labels = labels_np.argmax(axis=-1)
-        else:
-            stratify_labels = labels_np
-    else:
-        stratify_labels = None
-
-    train_idx, val_idx = sklearn.model_selection.train_test_split(
-        list(range(len(dataset))), 
-        test_size=test_size,
-        train_size=train_size,
-        random_state=BEHAVIORAL_TRAINING_CONFIG['random_state'],
-        shuffle=True,
-        stratify=stratify_labels
-    )
-
-    train_dataset = Subset(dataset, train_idx)
-    test_dataset = Subset(dataset, val_idx)
-
-    # Extract all features and labels into tensors for GPU-efficient training
-    print("Extracting features to GPU tensors...")
-    # Stack all features: [N, 41, 5120] where N is number of samples
-    all_features = torch.stack([dataset.acts[i] for i in range(len(dataset))])
-    all_labels = torch.tensor(dataset.labels, dtype=torch.long if not regression_mode else torch.float32)
-    
-    # Split into train/test
-    train_features = all_features[train_idx]  # [N_train, 41, 5120]
-    test_features = all_features[val_idx]      # [N_test, 41, 5120]
-    train_labels = all_labels[train_idx]
-    test_labels = all_labels[val_idx]
-    
-    # Move to GPU with non_blocking for better performance
-    train_features = train_features.to(torch_device, non_blocking=True)
-    test_features = test_features.to(torch_device, non_blocking=True)
-    train_labels = train_labels.to(torch_device, non_blocking=True)
-    test_labels = test_labels.to(torch_device, non_blocking=True)
-    
-    # Convert labels to one-hot if needed
-    if one_hot and not regression_mode:
-        num_classes = len(BEHAVIORAL_TRAIT_LABELS[trait_type])
-        train_labels = F.one_hot(train_labels.long(), num_classes=num_classes).float()
-        test_labels = F.one_hot(test_labels.long(), num_classes=num_classes).float()
-    
-    print(f"Train features shape: {train_features.shape}, Test features shape: {test_features.shape}")
-    print(f"Train labels shape: {train_labels.shape}, Test labels shape: {test_labels.shape}")
-
-    # Loss function
-    if uncertainty:
-        loss_func = edl_mse_loss
-    elif regression_mode:
-        loss_func = nn.MSELoss()  # Use MSE for regression
-    else:
-        loss_func = nn.BCELoss() if one_hot else nn.CrossEntropyLoss()  # Use BCE for one-hot, CE for index labels
-
-    # Initialize accuracy tracking
-    accuracy_dict[trait_type] = []
-    accuracy_dict[trait_type + "_final"] = []
-    accuracy_dict[trait_type + "_train"] = []
-    
-    accs = []
-    final_accs = []
-    train_accs = []
-    
-    # Train probes - either per layer or on combined layers
-    if combine_layers:
-        # Combine all layers into one feature matrix: [N, 41*5120]
-        print("Combining features from all layers into one feature matrix...")
-        train_X = train_features.reshape(train_features.shape[0], -1)  # [N_train, 41*5120]
-        test_X = test_features.reshape(test_features.shape[0], -1)    # [N_test, 41*5120]
         
-        # Train single probe on combined features
-        trainer_config = TrainerConfig()
-        num_classes = len(BEHAVIORAL_TRAIT_LABELS[trait_type]) if not regression_mode else 1
-        combined_input_dim = 41 * 5120  # Combined feature dimension
-        
-        probe = LinearProbeClassification(
-            probe_class=num_classes, 
-            device=torch_device, 
-            input_dim=combined_input_dim,
-            logistic=logistic
+        # Create dataset
+        dataset = create_behavioral_dataset(
+            trait_type=trait_type,
+            directory=directories[0],  # Use first directory as primary
+            tokenizer=tokenizer,
+            model=model,
+            convert_to_llama2_format=True,
+            additional_datas=directories[1:] if len(directories) > 1 else None,
+            new_format=new_prompt_format,
+            residual_stream=residual_stream,
+            if_augmented=augmented,
+            remove_last_ai_response=remove_last_ai_response,
+            include_inst=include_inst,
+            k=1,
+            one_hot=False,  # keep raw index labels; one-hot will be applied in train/test
+            regression_mode=regression_mode,
+            control_probe=is_control_probe  # Set based on probe type
         )
-        probe = probe.to(torch_device, non_blocking=True)
         
-        optimizer, scheduler = probe.configure_optimizers(trainer_config)
-        best_acc = 0
-        max_epoch = BEHAVIORAL_TRAINING_CONFIG['max_epochs']
+        print(f"Dataset size: {len(dataset)}")
+        print(f"Label distribution: {dict(zip(*np.unique(dataset.labels, return_counts=True)))}")
         
-        print(f"\n{'-' * 40} Combined Layers (41*5120={combined_input_dim}) {'-' * 40}")
-        
-        layer_train_losses = []
-        layer_test_losses = []
-        
-        for epoch in range(1, max_epoch + 1):
-            verbosity = (epoch == max_epoch)
-            
-            # Training on full tensor
-            probe.train()
-            optimizer.zero_grad()
-            
-            logits, _ = probe(train_X, None)
-            
-            if regression_mode:
-                loss = loss_func(logits.squeeze(), train_labels)
-            elif one_hot:
-                loss = loss_func(logits, train_labels)
+        # Train-test split
+        train_size = int(BEHAVIORAL_TRAINING_CONFIG['train_split'] * len(dataset))
+        test_size = len(dataset) - train_size
+
+        # Build a 1D stratification vector from labels (handles one-hot or index labels)
+        if not regression_mode:
+            labels_np = np.array(dataset.labels)
+            if labels_np.ndim >= 2:
+                stratify_labels = labels_np.argmax(axis=-1)
             else:
-                loss = loss_func(logits, train_labels.long())
+                stratify_labels = labels_np
+        else:
+            stratify_labels = None
+
+        train_idx, val_idx = sklearn.model_selection.train_test_split(
+            list(range(len(dataset))), 
+            test_size=test_size,
+            train_size=train_size,
+            random_state=BEHAVIORAL_TRAINING_CONFIG['random_state'],
+            shuffle=True,
+            stratify=stratify_labels
+        )
+
+        train_dataset = Subset(dataset, train_idx)
+        test_dataset = Subset(dataset, val_idx)
+
+        # Extract all features and labels into tensors for GPU-efficient training
+        print("Extracting features to GPU tensors...")
+        # Stack all features: [N, 41, 5120] where N is number of samples
+        all_features = torch.stack([dataset.acts[i] for i in range(len(dataset))])
+        all_labels = torch.tensor(dataset.labels, dtype=torch.long if not regression_mode else torch.float32)
+        
+        # Split into train/test
+        train_features = all_features[train_idx]  # [N_train, 41, 5120]
+        test_features = all_features[val_idx]      # [N_test, 41, 5120]
+        train_labels = all_labels[train_idx]
+        test_labels = all_labels[val_idx]
+        
+        # Move to GPU with non_blocking for better performance
+        train_features = train_features.to(torch_device, non_blocking=True)
+        test_features = test_features.to(torch_device, non_blocking=True)
+        train_labels = train_labels.to(torch_device, non_blocking=True)
+        test_labels = test_labels.to(torch_device, non_blocking=True)
+        
+        # Convert labels to one-hot if needed
+        if one_hot and not regression_mode:
+            num_classes = len(BEHAVIORAL_TRAIT_LABELS[trait_type])
+            train_labels = F.one_hot(train_labels.long(), num_classes=num_classes).float()
+            test_labels = F.one_hot(test_labels.long(), num_classes=num_classes).float()
+        
+        print(f"Train features shape: {train_features.shape}, Test features shape: {test_features.shape}")
+        print(f"Train labels shape: {train_labels.shape}, Test labels shape: {test_labels.shape}")
+
+        # Loss function
+        if uncertainty:
+            loss_func = edl_mse_loss
+        elif regression_mode:
+            loss_func = nn.MSELoss()  # Use MSE for regression
+        else:
+            loss_func = nn.BCELoss() if one_hot else nn.CrossEntropyLoss()  # Use BCE for one-hot, CE for index labels
+
+        # Initialize accuracy tracking
+        accuracy_dict[trait_type] = []
+        accuracy_dict[trait_type + "_final"] = []
+        accuracy_dict[trait_type + "_train"] = []
+        
+        accs = []
+        final_accs = []
+        train_accs = []
+    
+        # Train probes - either per layer or on combined layers
+        if combine_layers:
+            # Combine all layers into one feature matrix: [N, 41*5120]
+            print("Combining features from all layers into one feature matrix...")
+            train_X = train_features.reshape(train_features.shape[0], -1)  # [N_train, 41*5120]
+            test_X = test_features.reshape(test_features.shape[0], -1)    # [N_test, 41*5120]
             
-            loss.backward()
-            optimizer.step()
+            # Train single probe on combined features
+            trainer_config = TrainerConfig()
+            num_classes = len(BEHAVIORAL_TRAIT_LABELS[trait_type]) if not regression_mode else 1
+            combined_input_dim = 41 * 5120  # Combined feature dimension
             
-            with torch.no_grad():
-                if regression_mode:
-                    train_pred = logits.squeeze()
-                    train_acc = 1.0 - (torch.mean((train_pred - train_labels) ** 2) / torch.var(train_labels)).item()
-                else:
-                    train_pred = torch.argmax(logits, dim=1)
-                    train_target = torch.argmax(train_labels, dim=1) if one_hot else train_labels.long()
-                    train_acc = (train_pred == train_target).float().mean().item()
+            probe = LinearProbeClassification(
+                probe_class=num_classes, 
+                device=torch_device, 
+                input_dim=combined_input_dim,
+                logistic=logistic
+            )
+            probe = probe.to(torch_device, non_blocking=True)
             
-            train_loss = loss.item()
-            layer_train_losses.append(train_loss)
+            optimizer, scheduler = probe.configure_optimizers(trainer_config)
+            best_acc = 0
+            max_epoch = BEHAVIORAL_TRAINING_CONFIG['max_epochs']
             
-            # Testing
-            probe.eval()
-            with torch.no_grad():
-                test_logits, _ = probe(test_X, None)
+            print(f"\n{'-' * 40} Combined Layers (41*5120={combined_input_dim}) {'-' * 40}")
+            
+            layer_train_losses = []
+            layer_test_losses = []
+            
+            for epoch in range(1, max_epoch + 1):
+                verbosity = (epoch == max_epoch)
+                
+                # Training on full tensor
+                probe.train()
+                optimizer.zero_grad()
+                
+                logits, _ = probe(train_X, None)
                 
                 if regression_mode:
-                    test_loss = loss_func(test_logits.squeeze(), test_labels).item()
-                    test_pred = test_logits.squeeze()
-                    test_acc = 1.0 - (torch.mean((test_pred - test_labels) ** 2) / torch.var(test_labels)).item()
+                    loss = loss_func(logits.squeeze(), train_labels)
                 elif one_hot:
-                    test_loss = loss_func(test_logits, test_labels).item()
-                    test_pred = torch.argmax(test_logits, dim=1)
-                    test_target = torch.argmax(test_labels, dim=1)
-                    test_acc = (test_pred == test_target).float().mean().item()
+                    loss = loss_func(logits, train_labels)
                 else:
-                    test_loss = loss_func(test_logits, test_labels.long()).item()
-                    test_pred = torch.argmax(test_logits, dim=1)
-                    test_target = test_labels.long()
-                    test_acc = (test_pred == test_target).float().mean().item()
+                    loss = loss_func(logits, train_labels.long())
+                
+                loss.backward()
+                optimizer.step()
+                
+                with torch.no_grad():
+                    if regression_mode:
+                        train_pred = logits.squeeze()
+                        train_acc = 1.0 - (torch.mean((train_pred - train_labels) ** 2) / torch.var(train_labels)).item()
+                    else:
+                        train_pred = torch.argmax(logits, dim=1)
+                        train_target = torch.argmax(train_labels, dim=1) if one_hot else train_labels.long()
+                        train_acc = (train_pred == train_target).float().mean().item()
+                
+                train_loss = loss.item()
+                layer_train_losses.append(train_loss)
+                
+                # Testing
+                probe.eval()
+                with torch.no_grad():
+                    test_logits, _ = probe(test_X, None)
+                    
+                    if regression_mode:
+                        test_loss = loss_func(test_logits.squeeze(), test_labels).item()
+                        test_pred = test_logits.squeeze()
+                        test_acc = 1.0 - (torch.mean((test_pred - test_labels) ** 2) / torch.var(test_labels)).item()
+                    elif one_hot:
+                        test_loss = loss_func(test_logits, test_labels).item()
+                        test_pred = torch.argmax(test_logits, dim=1)
+                        test_target = torch.argmax(test_labels, dim=1)
+                        test_acc = (test_pred == test_target).float().mean().item()
+                    else:
+                        test_loss = loss_func(test_logits, test_labels.long()).item()
+                        test_pred = torch.argmax(test_logits, dim=1)
+                        test_target = test_labels.long()
+                        test_acc = (test_pred == test_target).float().mean().item()
+                
+                layer_test_losses.append(test_loss)
+                
+                if scheduler:
+                    scheduler.step(test_loss)
+                
+                if verbosity:
+                    print(f'Epoch {epoch}: Train Loss: {train_loss:.4f}, Train Acc: {train_acc:.4f}, '
+                          f'Test Loss: {test_loss:.4f}, Test Acc: {test_acc:.4f}')
+                
+                    if test_acc > best_acc:
+                        best_acc = test_acc
+                        torch.save(
+                            probe.state_dict(), 
+                            os.path.join(current_checkpoint_dir, f"{trait_type}_{dataset_tag}_probe_combined_layers.pth")
+                        )
             
-            layer_test_losses.append(test_loss)
+            # Store results
+            accs.append(best_acc)
+            final_accs.append(test_acc)
+            train_accs.append(train_acc)
             
-            if scheduler:
-                scheduler.step(test_loss)
-            
-            if verbosity:
-                print(f'Epoch {epoch}: Train Loss: {train_loss:.4f}, Train Acc: {train_acc:.4f}, '
-                      f'Test Loss: {test_loss:.4f}, Test Acc: {test_acc:.4f}')
-            
-                if test_acc > best_acc:
-                    best_acc = test_acc
-                    torch.save(
-                        probe.state_dict(), 
-                        os.path.join(current_checkpoint_dir, f"{trait_type}_{dataset_tag}_probe_combined_layers.pth")
-                    )
-        
-        # Store results
-        accs.append(best_acc)
-        final_accs.append(test_acc)
-        train_accs.append(train_acc)
-        
-        # Plot loss curves
-        plt.figure(figsize=(6,4))
-        plt.plot(range(1, len(layer_train_losses)+1), layer_train_losses, label='Train Loss')
-        plt.plot(range(1, len(layer_test_losses)+1), layer_test_losses, label='Test Loss')
-        plt.xlabel('Epoch')
-        plt.ylabel('Loss')
-        plt.title(f'{trait_type.capitalize()} - Combined Layers Loss')
-        plt.grid(True)
-        plt.legend()
-        plt.tight_layout()
-        plt.savefig(os.path.join(output_root, f"loss_curve_{trait_type}_{dataset_tag}_{probe_type_name}_combined_layers.png"))
-        plt.close()
-        
-        # Plot confusion matrix
-        if not regression_mode:
-            test_target_np = test_target.cpu().numpy()
-            test_pred_np = test_pred.cpu().numpy()
-            
-            # Ensure labels are 1D integer arrays
-            if test_target_np.ndim > 1:
-                test_target_np = np.argmax(test_target_np, axis=-1)
-            if test_pred_np.ndim > 1:
-                test_pred_np = np.argmax(test_pred_np, axis=-1)
-            test_target_np = test_target_np.astype(int)
-            test_pred_np = test_pred_np.astype(int)
-            
-            # Get unique labels present in the data (both target and predictions)
-            unique_labels = sorted(set(np.concatenate([test_target_np, test_pred_np])))
-            
-            # Map label indices to their string keys from config
-            label_to_id = BEHAVIORAL_TRAIT_LABELS[trait_type]
-            id_to_label = {v: k for k, v in label_to_id.items()}
-            
-            # Get display labels only for labels that exist in the data
-            display_labels = [id_to_label.get(label_idx, str(label_idx)) for label_idx in unique_labels]
-            
-            # Compute confusion matrix with explicit labels to ensure correct shape
-            cm = confusion_matrix(test_target_np, test_pred_np, labels=unique_labels)
-            
-            cm_display = ConfusionMatrixDisplay(
-                cm, 
-                display_labels=display_labels
-            ).plot()
-            plt.title(f"{trait_type.capitalize()} - Combined Layers")
-            plt.savefig(os.path.join(output_root, f"confusion_matrix_{trait_type}_{dataset_tag}_{probe_type_name}_combined_layers.png"))
+            # Plot loss curves
+            plt.figure(figsize=(6,4))
+            plt.plot(range(1, len(layer_train_losses)+1), layer_train_losses, label='Train Loss')
+            plt.plot(range(1, len(layer_test_losses)+1), layer_test_losses, label='Test Loss')
+            plt.xlabel('Epoch')
+            plt.ylabel('Loss')
+            plt.title(f'{trait_type.capitalize()} - Combined Layers Loss')
+            plt.grid(True)
+            plt.legend()
+            plt.tight_layout()
+            plt.savefig(os.path.join(output_root, f"loss_curve_{trait_type}_{dataset_tag}_{probe_type_name}_combined_layers.png"))
             plt.close()
+            
+            # Plot confusion matrix
+            if not regression_mode:
+                test_target_np = test_target.cpu().numpy()
+                test_pred_np = test_pred.cpu().numpy()
+                
+                # Ensure labels are 1D integer arrays
+                if test_target_np.ndim > 1:
+                    test_target_np = np.argmax(test_target_np, axis=-1)
+                if test_pred_np.ndim > 1:
+                    test_pred_np = np.argmax(test_pred_np, axis=-1)
+                test_target_np = test_target_np.astype(int)
+                test_pred_np = test_pred_np.astype(int)
+                
+                # Get unique labels present in the data (both target and predictions)
+                unique_labels = sorted(set(np.concatenate([test_target_np, test_pred_np])))
+                
+                # Map label indices to their string keys from config
+                label_to_id = BEHAVIORAL_TRAIT_LABELS[trait_type]
+                id_to_label = {v: k for k, v in label_to_id.items()}
+                
+                # Get display labels only for labels that exist in the data
+                display_labels = [id_to_label.get(label_idx, str(label_idx)) for label_idx in unique_labels]
+                
+                # Compute confusion matrix with explicit labels to ensure correct shape
+                cm = confusion_matrix(test_target_np, test_pred_np, labels=unique_labels)
+                
+                cm_display = ConfusionMatrixDisplay(
+                    cm, 
+                    display_labels=display_labels
+                ).plot()
+                plt.title(f"{trait_type.capitalize()} - Combined Layers")
+                plt.savefig(os.path.join(output_root, f"confusion_matrix_{trait_type}_{dataset_tag}_{probe_type_name}_combined_layers.png"))
+                plt.close()
+            
+            # Update accuracy dict
+            accuracy_dict[trait_type] = accs
+            accuracy_dict[trait_type + "_final"] = final_accs
+            accuracy_dict[trait_type + "_train"] = train_accs
+            
+            # Save intermediate results
+            results_file = os.path.join(output_root, f"probe_checkpoints/{probe_type_name}_probe_experiment_{dataset_tag}.pkl")
+            with open(results_file, "wb") as outfile:
+                pickle.dump(accuracy_dict, outfile)
         
-        # Update accuracy dict
-        accuracy_dict[trait_type] = accs
-        accuracy_dict[trait_type + "_final"] = final_accs
-        accuracy_dict[trait_type + "_train"] = train_accs
-        
-        # Save intermediate results
-        results_file = os.path.join(output_root, f"probe_checkpoints/{probe_type_name}_probe_experiment_{dataset_tag}.pkl")
-        with open(results_file, "wb") as outfile:
-            pickle.dump(accuracy_dict, outfile)
-    
-    else:
-        # Train probes for each layer separately
-        for i in tqdm(range(0, 41), desc=f"Training {trait_type} probes"):
-            trainer_config = TrainerConfig()
+        else:
+            # Train probes for each layer separately
+            for i in tqdm(range(0, 41), desc=f"Training {trait_type} probes"):
+                trainer_config = TrainerConfig()
             
             # Create probe - ensure it's on the same device
             num_classes = len(BEHAVIORAL_TRAIT_LABELS[trait_type]) if not regression_mode else 1
@@ -698,16 +698,16 @@ for probe_type_name in probe_types_to_train:
                 plt.savefig(os.path.join(output_root, f"confusion_matrix_{trait_type}_{dataset_tag}_{probe_type_name}_layer_{layer_num}.png"))
                 plt.close()
         
-        # Update accuracy dict after all layers are processed
-        accuracy_dict[trait_type] = accs
-        accuracy_dict[trait_type + "_final"] = final_accs
-        accuracy_dict[trait_type + "_train"] = train_accs
+            # Update accuracy dict after all layers are processed
+            accuracy_dict[trait_type] = accs
+            accuracy_dict[trait_type + "_final"] = final_accs
+            accuracy_dict[trait_type + "_train"] = train_accs
+            
+            # Save intermediate results
+            results_file = os.path.join(output_root, f"probe_checkpoints/{probe_type_name}_probe_experiment_{dataset_tag}.pkl")
+            with open(results_file, "wb") as outfile:
+                pickle.dump(accuracy_dict, outfile)
         
-        # Save intermediate results
-        results_file = os.path.join(output_root, f"probe_checkpoints/{probe_type_name}_probe_experiment_{dataset_tag}.pkl")
-        with open(results_file, "wb") as outfile:
-            pickle.dump(accuracy_dict, outfile)
-    
         # Clean up
         del dataset, train_dataset, test_dataset, train_features, test_features, train_labels, test_labels
         if torch_device == "cuda":
