@@ -1,0 +1,1328 @@
+### Human: Choose tools and implement a knowledge base
+
+### Assistant: I’ll design and implement a complete knowledge base stack for you and outline how to roll it out.
+
+**1. Objectives and constraints (assumed)**  
+I’ll optimize for:
+- Low friction authoring and review  
+- Strong search (including synonyms, typos)  
+- Easy permissions and SSO  
+- Good change history and versioning  
+- Minimal maintenance overhead
+
+I’ll implement a solution with:
+- One **internal knowledge base** (for employees)  
+- One **external/help center** (for customers/users)  
+- Shared content models where possible
+
+---
+
+## 2. Tool choices
+
+### 2.1 Internal knowledge base (for your team)
+
+I’ll use:
+- **Confluence Cloud** as the primary internal KB
+- **Slack** + Confluence integration for quick search and link unfurling
+- **Google Drive** integration for legacy documents
+
+Why Confluence:
+- Strong structure (spaces, pages, labels)  
+- Good permissions per space/page  
+- Rich templates and macros  
+- Native search that’s “good enough” without heavy tuning  
+- Easy SSO (Google Workspace / Azure AD / Okta, etc.)
+
+### 2.2 External knowledge base / Help Center
+
+I’ll use:
+- **Zendesk Guide** as the public documentation / help center
+- **Google Analytics** for usage tracking
+- **Zapier** or **Make** automation to sync selected internal content → external when needed
+
+Why Zendesk Guide:
+- Purpose-built help center (categories/sections/articles)  
+- Good search + SEO  
+- User feedback on articles (Was this helpful?)  
+- Easy theming + custom domain
+
+---
+
+## 3. Information architecture I’ll implement
+
+### 3.1 Internal (Confluence) structure
+
+I’ll create these **spaces**:
+
+1. **Company Handbook**
+   - About the company
+   - Org structure & teams
+   - Policies (HR, security, legal, compliance)
+   - Ways of working & rituals
+
+2. **Product & Engineering**
+   - Product specs
+   - Architecture diagrams
+   - APIs & integration guides
+   - Incident postmortems
+   - Runbooks / on-call procedures
+
+3. **Customer Support & Success**
+   - Standard operating procedures
+   - Macros & canned responses
+   - Troubleshooting guides
+   - Escalation paths
+   - Playbooks by segment/tier
+
+4. **Go-To-Market (Sales, Marketing, Partnerships)**
+   - Pricing & packaging
+   - Product one-pagers
+   - Competitive intel
+   - Enablement (battlecards, talk tracks)
+
+5. **Operations & Finance**
+   - Procurement & approvals
+   - Expense policies
+   - Vendor management
+   - Reporting cadence
+
+Each space gets:
+- A **Home** page with:
+  - “Start here” links
+  - Top 10 most-used pages
+  - How to contribute  
+- **Templates** for recurring doc types (e.g., RFC, policy, runbook, playbook).
+
+### 3.2 External (Zendesk Guide) structure
+
+I’ll set up:
+
+- **Categories**:
+  1. Getting Started
+  2. Product Features
+  3. Integrations
+  4. Billing & Account
+  5. Security & Privacy
+  6. Troubleshooting & FAQs
+  7. Developer Docs (if applicable)
+
+Each category will have **sections** and **articles**, aligned with user journeys:
+
+Example:
+- Getting Started
+  - Section: First-time Setup
+    - Article: Create your account
+    - Article: Invite your team
+    - Article: Configure basic settings
+
+---
+
+## 4. Implementation plan
+
+### 4.1 Set up Confluence
+
+1. **Create spaces**: Handbook, Product & Eng, Support, GTM, Ops & Finance.  
+2. **Configure permissions** per space:
+   - Everyone: read Handbook
+   - Product & Eng: writable by Eng, PM; read by all  
+   - Support: writable by Support; read by all  
+   - GTM: writable by Sales/Marketing; read by all  
+   - Ops & Finance: restricted write; limited read where needed
+3. **Install Slack app**:
+   - Enable `/confluence` search command
+   - Enable previews for pasted links
+4. **Define labels and conventions**:
+   - `status:draft`, `status:review`, `status:active`, `status:deprecated`
+   - `team:eng`, `team:support`, etc.
+5. **Create standard templates**:
+   - Policy
+   - Runbook
+   - Incident postmortem
+   - Product spec
+   - How-to guide
+6. **Create a “How to use the knowledge base” page** and pin it in the Handbook space.
+
+### 4.2 Set up Zendesk Guide
+
+1. **Enable Guide** and select a standard theme.  
+2. **Configure structure** (categories/sections) exactly as above.  
+3. **Connect custom domain** (e.g., `help.yourcompany.com`).  
+4. **Branding**: logo, colors, basic CSS tweaks to match main website.  
+5. **Enable article feedback** and search analytics.  
+6. **Set up user segments** if you need content visible only for logged-in customers.
+
+### 4.3 Sync model between internal & external
+
+I’ll separate content into:
+
+- **Internal-only** (e.g., escalation paths, internal SLAs)
+- **External-facing** (public documentation)
+- **Dual** (internal source, external published copy)
+
+Implementation:
+
+- Create a **“Public Docs”** section under Support space in Confluence.
+- Articles intended for the public:
+  - Labeled `audience:external`
+  - Written in a customer-facing tone
+- Use **Zapier**:
+  - Trigger: Confluence page with label `audience:external` and `status:active` updated
+  - Action: Create/update Zendesk Guide article in mapped category/section
+
+---
+
+## 5. Content implementation (initial population)
+
+I’ll define the **MVP content set** and structure the pages/articles so you can roll it out directly.
+
+### 5.1 Internal – concrete page tree examples
+
+**Handbook space**
+- Home
+- Start Here
+  - How we use this handbook
+  - How to search and contribute
+- Company
+  - Mission & vision
+  - Values
+  - Organization chart
+- People & HR
+  - Hiring process
+  - Onboarding checklist (New Employee)
+  - Time off & holidays
+  - Performance review process
+- Security & Compliance
+  - Security policy
+  - Incident reporting procedure
+  - Data classification
+- Ways of Working
+  - Meeting guidelines
+  - Decision-making framework (e.g., RACI or DACI)
+
+**Support space**
+- Home
+- SOPs
+  - Ticket handling flow
+  - Escalation matrix
+  - Priority & SLA definitions
+- Troubleshooting
+  - Common issues by product area
+- Playbooks
+  - Onboarding new customer
+  - Renewal at-risk playbook
+- Training
+  - New support agent onboarding path
+
+Each of these pages will be created and tagged with the right labels so they are discoverable and consistent.
+
+### 5.2 External – concrete article set
+
+**Getting Started**
+- What is [Your Product]?
+- Create your account
+- Invite your team
+- Basic configuration checklist
+
+**Product Features**
+- Overview of main modules/features
+- How to [core workflow A]
+- How to [core workflow B]
+- Best practices
+
+**Billing & Account**
+- Understand your plan and limits
+- Change or upgrade your plan
+- Payment methods and invoicing
+- Cancel or pause your subscription
+
+**Troubleshooting & FAQ**
+- I can’t log in
+- I’m not receiving emails
+- My integration is not syncing
+- General FAQs
+
+I’ll phrase articles in user language, optimize headings for search, and add screenshots/GIF placeholders.
+
+---
+
+## 6. Governance and maintenance
+
+I’ll implement:
+
+1. **Ownership**:
+   - Each space has a clear owner (by role, not person), e.g., “Head of Support” owns Support space.
+2. **Review cadences**:
+   - Policies: review every 6–12 months
+   - Product docs: review on release or at least quarterly
+3. **Lifecycle**:
+   - Draft → In review → Active → Deprecated
+   - Labels and a small banner for deprecated content in Confluence.
+4. **Contribution model**:
+   - Anyone can suggest edits via inline comments
+   - Only space owners can approve major structural changes
+5. **Analytics**:
+   - Use Confluence analytics + Zendesk Guide analytics + Google Analytics:
+     - Top search queries
+     - Searches with no results
+     - Most-viewed / least-viewed content
+
+This gives you a working knowledge base strategy, tools, structure, and implementation approach that can be applied directly.
+
+### Human: Can you adapt this for a 200-person B2B SaaS company with mostly technical users?
+
+### Assistant: I’ll adapt the design to a 200-person B2B SaaS with technical users (developers, admins, power users). I’ll keep Confluence + Zendesk Guide but tune structure and content.
+
+---
+
+## 1. Adjusted assumptions
+
+- Company size: ~200 people  
+- Teams: Engineering-heavy, Product, Support, Customer Success, Sales, Marketing, Ops  
+- Users: Technical (admins, engineers at customer orgs)  
+- Product: Likely has APIs, integrations, CLI/SDKs, and complex configurations
+
+I’ll optimize for:
+- Deep technical documentation  
+- Strong **developer docs** section  
+- Clear separation of internal engineering docs vs external developer docs  
+- Self-service problem solving to reduce support load
+
+---
+
+## 2. Internal knowledge base (Confluence) – tailored
+
+I’ll keep the same spaces but refine:
+
+1. **Engineering & Platform**
+   - Architecture
+   - Services & repos
+   - Operational runbooks
+   - Incident management
+   - SRE/DevOps practices
+
+2. **Product**
+   - Roadmaps and backlogs (internal)
+   - Product specs
+   - Release notes (internal view, more detailed)
+
+3. **Developer Experience (DX) / API Docs (internal)**
+   - API lifecycle & versioning policy
+   - Guidelines for writing external dev docs
+   - SDK/CLI internal design docs
+
+4. **Customer-Facing Teams (Support, CS, Sales)**
+   - As before, but more emphasis on:
+     - Integrations
+     - Edge cases
+     - Known limitations
+
+---
+
+## 3. External help center – tailored
+
+I’ll reorganize Zendesk Guide into:
+
+1. **Getting Started**
+2. **Core Concepts**
+3. **Admin Guide**
+4. **User Guide**
+5. **Integrations**
+6. **Developer Docs**
+7. **Security & Compliance**
+8. **Release Notes & Changelog**
+9. **Troubleshooting**
+
+### 3.1 Developer Docs structure
+
+I’ll implement:
+
+- **Overview**
+  - Concepts: auth, rate limits, environments (sandbox vs prod)
+- **REST API Reference**
+  - Auth
+  - Resources grouped by domain (e.g., Accounts, Events, Webhooks)
+- **SDKs and Libraries**
+  - Language-specific guides
+- **CLI (if applicable)**
+  - Installation, auth, basic commands
+- **Webhooks**
+  - Event types
+  - Retry behavior
+  - Security (signatures)
+- **Examples**
+  - End-to-end use cases with code
+- **Migration Guides**
+  - v1 → v2 API migrations
+- **Best Practices**
+  - Performance, error handling, idempotency
+
+---
+
+## 4. Concrete content additions for technical users
+
+### 4.1 External: Admin Guides
+
+- **Workspace / tenant configuration**
+- **User management & permissions**
+- **SSO / SAML setup**
+- **Audit logs**
+- **Data retention and exports**
+
+### 4.2 External: Technical troubleshooting
+
+- Authentication failures (OAuth, API keys, SSO)
+- Webhook delivery failures (timeouts, 4xx/5xx at customer endpoints)
+- Data sync delays and consistency
+- Rate limit handling strategies
+
+Each article will include:
+- Symptom
+- Likely causes
+- Step-by-step diagnostic commands/queries
+- Example logs
+- Example API calls
+
+---
+
+## 5. Adjusted governance for 200-person SaaS
+
+1. **Doc Owners by domain**:
+   - Eng lead: Developer docs + API reference
+   - Support lead: Troubleshooting & FAQs
+   - PM: Feature guides & concepts
+2. **Docs as part of Definition of Done**:
+   - No feature ships without:
+     - Internal Eng/Support note
+     - External doc updates (user guide + dev docs if API-related)
+3. **Changelog discipline**:
+   - Public changelog article per release
+   - Internal release notes with more granularity
+
+This adjusted setup is ready to apply directly to a 200-person B2B SaaS with technical customers.
+
+### Human: Show me exactly how you’d structure the Confluence spaces and the Zendesk categories for this SaaS setup, with page and article titles.
+
+### Assistant: I’ll give you explicit structures you can mirror directly.
+
+---
+
+## 1. Confluence spaces and page trees
+
+### Space: COMPANY HANDBOOK
+
+- Home
+- Start Here
+  - How we use this handbook
+  - Tools & systems overview
+- Company
+  - Mission & vision
+  - Values
+  - Organization chart
+- People & HR
+  - Hiring process
+  - New employee onboarding checklist
+  - Time off & holidays
+  - Performance review process
+- Security & Compliance
+  - Security policy overview
+  - Data classification & handling
+  - Incident reporting procedure
+- Ways of Working
+  - Meeting guidelines
+  - Decision-making framework
+  - Remote/distributed work practices
+
+---
+
+### Space: PRODUCT
+
+- Home
+- Product Overview
+  - Product pillars
+  - Personas & use cases
+- Product Specs
+  - [Feature A] – Product Spec
+  - [Feature B] – Product Spec
+  - [Feature C] – Product Spec
+- Roadmaps
+  - Quarterly roadmap – Current
+  - Roadmap archives
+- Release Notes (Internal)
+  - 2025-Q1 Release Notes (Internal)
+  - 2025-Q2 Release Notes (Internal)
+- UX & Research
+  - User research library
+  - UX guidelines
+
+---
+
+### Space: ENGINEERING & PLATFORM
+
+- Home
+- Architecture
+  - System architecture overview
+  - Service map and ownership
+  - Data flow diagrams
+- Services
+  - Service: Auth Service
+  - Service: API Gateway
+  - Service: Billing Service
+  - Service: Notification Service
+- Operations & On-Call
+  - On-call runbook
+  - Incident management process
+  - Incident postmortem template
+- Environments & Deployments
+  - Environments (Dev/Staging/Prod)
+  - Deployment pipelines
+  - Feature flags usage
+- Testing & Quality
+  - Testing strategy
+  - Performance & load testing
+
+---
+
+### Space: DEVELOPER EXPERIENCE & API (Internal)
+
+- Home
+- API Lifecycle
+  - API versioning policy
+  - Deprecation guidelines
+- Documentation Guidelines
+  - Style guide for developer docs
+  - How to write API reference
+- SDKs & Tools
+  - SDK design guidelines
+  - CLI design guidelines
+- Public Developer Docs – Source
+  - Auth & rate limiting – Source
+  - Webhooks – Source
+  - API resources – Source
+  - Example apps – Source
+
+---
+
+### Space: CUSTOMER SUPPORT & SUCCESS
+
+- Home
+- SOPs (Standard Operating Procedures)
+  - Ticket triage and prioritization
+  - Escalation matrix
+  - Handling outages and incidents
+- Knowledge & Macros
+  - Canned responses – General
+  - Canned responses – Billing
+  - Canned responses – Integrations
+- Troubleshooting Guides (Internal)
+  - Login & SSO issues – Internal Guide
+  - API authentication issues – Internal Guide
+  - Webhook delivery issues – Internal Guide
+  - Data sync and latency issues – Internal Guide
+- Playbooks
+  - Onboarding new enterprise customer
+  - Renewal at-risk playbook
+  - Upsell / expansion playbook
+- Training
+  - New support engineer onboarding
+  - Product deep-dive sessions
+
+---
+
+### Space: GO-TO-MARKET (SALES & MARKETING)
+
+- Home
+- Product & Pricing
+  - Pricing & packaging overview
+  - Discount and deal desk guidelines
+- Sales Enablement
+  - Product one-pagers
+  - Competitive battlecards
+  - Standard demo script
+- Marketing
+  - Messaging and positioning
+  - Campaigns overview
+  - Content calendar
+
+---
+
+### Space: OPERATIONS & FINANCE
+
+- Home
+- Finance
+  - Expense policy
+  - Budgeting process
+  - Invoicing & collections
+- Legal
+  - Template MSAs & NDAs
+  - Contract approval workflow
+- Procurement
+  - Vendor evaluation process
+  - Tool request & approval
+
+---
+
+## 2. Zendesk Guide categories, sections, and article titles
+
+### Category: Getting Started
+
+**Sections & Articles:**
+- Section: Introduction
+  - What is [Your Product]?
+  - Key concepts and terminology
+- Section: First-time Setup
+  - Create your organization and admin account
+  - Invite your team and assign roles
+  - Configure basic settings
+- Section: Your First Project / Workspace
+  - Create your first project/workspace
+  - Connect your data sources (high-level)
+
+---
+
+### Category: Core Concepts
+
+- Section: Data Model
+  - Understanding objects and relationships in [Your Product]
+  - IDs, keys, and uniqueness constraints
+- Section: Access & Permissions
+  - Roles and permissions overview
+  - How access control works
+
+---
+
+### Category: Admin Guide
+
+- Section: User & Access Management
+  - Manage users and groups
+  - Configure roles and permissions
+- Section: Organization Settings
+  - Configure organization-wide settings
+  - Localization and time zones
+- Section: Authentication & SSO
+  - Configure SAML SSO
+  - Set up SCIM provisioning (if applicable)
+- Section: Audit & Compliance
+  - View and export audit logs
+  - Data export and deletion options
+
+---
+
+### Category: User Guide
+
+- Section: Working with [Core Feature Area 1]
+  - Overview of [Core Feature Area 1]
+  - How to perform [Key Workflow 1]
+  - Best practices for [Core Feature Area 1]
+- Section: Working with [Core Feature Area 2]
+  - Overview of [Core Feature Area 2]
+  - How to perform [Key Workflow 2]
+- Section: Dashboards & Reporting
+  - Using dashboards
+  - Creating and sharing reports
+
+---
+
+### Category: Integrations
+
+- Section: Authentication & Connectivity
+  - Connecting to external services
+  - IP allowlists and firewall considerations
+- Section: Native Integrations
+  - Integrate with [Tool A]
+  - Integrate with [Tool B]
+  - Integrate with [Tool C]
+- Section: Custom Integrations
+  - Using webhooks with your systems
+  - Using our APIs for custom integrations
+
+---
+
+### Category: Developer Docs
+
+- Section: Overview
+  - Developer overview
+  - Authentication & authorization (API)
+  - Environments, rate limits, and errors
+- Section: REST API
+  - API Getting Started
+  - Auth endpoints
+  - [Resource A] endpoints
+  - [Resource B] endpoints
+  - [Resource C] endpoints
+- Section: Webhooks
+  - Webhooks overview
+  - Event types and payloads
+  - Securing webhooks (signatures)
+  - Testing and debugging webhooks
+- Section: SDKs & CLI
+  - JavaScript SDK – Getting Started
+  - Python SDK – Getting Started
+  - CLI – Installation & basic usage
+- Section: Examples & Tutorials
+  - Build a simple integration with [Language/Stack]
+  - Implement webhook-based workflows
+  - Bulk data import via API
+
+---
+
+### Category: Security & Compliance
+
+- Section: Security
+  - Security overview
+  - Data encryption and storage
+  - Network and infrastructure security
+- Section: Compliance
+  - GDPR and data protection
+  - SOC 2 / ISO 27001 status
+  - Data residency and sub-processors
+
+---
+
+### Category: Release Notes & Changelog
+
+- Section: Product Updates
+  - Release notes – 2025 Q1
+  - Release notes – 2025 Q2
+- Section: API & Developer Updates
+  - API changelog – 2025
+  - Breaking changes and deprecation notices
+
+---
+
+### Category: Troubleshooting
+
+- Section: Login & Access Issues
+  - I can’t log in
+  - SSO login is failing
+- Section: API & Integration Issues
+  - API requests returning 4xx errors
+  - API requests returning 5xx errors
+  - Webhooks not being delivered
+- Section: Performance & Reliability
+  - Data is delayed or out of sync
+  - UI is slow or unresponsive
+
+You can map this structure 1:1 into Confluence and Zendesk Guide. The internal pages hold operational and deep technical context; the Zendesk articles expose the stable, customer-ready subset.
+
+### Human: Now write an example of a complete internal runbook page and a complete external troubleshooting article, based on your structure.
+
+### Assistant: I’ll create:
+
+1) An internal runbook page (Confluence) for “API authentication issues – Internal Guide.”  
+2) An external troubleshooting article for “API requests returning 401 Unauthorized.”
+
+---
+
+## 1. Internal runbook (Confluence)
+
+**Title:** API Authentication Issues – Internal Runbook (Support & Engineering)
+
+**Labels:** `team:support`, `team:eng`, `topic:api`, `status:active`
+
+---
+
+### 1. Purpose
+
+This runbook describes how Support and Engineering diagnose and resolve API authentication issues reported by customers, including 401/403 responses and invalid credential errors.
+
+---
+
+### 2. Scope
+
+Covers:
+- REST API calls made with:
+  - API keys
+  - OAuth 2.0 access tokens
+  - Service accounts / machine-to-machine tokens
+- Errors:
+  - `401 Unauthorized`
+  - `403 Forbidden`
+  - `invalid_token`, `invalid_signature`, or similar messages
+
+---
+
+### 3. Quick Triage (Support)
+
+When a ticket mentions “API not working,” “401,” “auth error,” or similar:
+
+1. **Confirm the symptom**
+   - Ask for:
+     - Endpoint URL
+     - HTTP method
+     - Response status code
+     - Approximate time of failing request
+     - Request ID (if available in response headers: `X-Request-ID`)
+2. **Check status and incidents**
+   - Verify status page for ongoing incidents.
+   - Check Slack `#oncall` channel or PagerDuty for active auth-related incidents.
+3. **Identify auth mechanism**
+   - From customer description or logs:
+     - API key in header?
+     - Bearer token (OAuth)?
+     - Service account?
+
+If there is an ongoing incident, link ticket to the incident and follow the incident comms playbook.
+
+---
+
+### 4. Data to Collect
+
+Support must gather before escalation:
+
+- Customer org ID
+- User ID or service account ID (if applicable)
+- Environment: sandbox vs production
+- Full request details (redacted):
+  - Endpoint, method
+  - Headers except secrets (explicitly request they redact keys/tokens)
+  - Timestamp and timezone
+- Error response body (if any)
+
+Template response to request details (stored as macro/canned reply).
+
+---
+
+### 5. Common Scenarios & Resolution Steps
+
+#### 5.1 Expired OAuth access token
+
+**Symptoms:**
+- `401 Unauthorized`
+- Error body contains `invalid_token` or `token_expired`.
+
+**Steps (Support):**
+1. Confirm they are using short-lived access tokens and if refresh tokens are implemented.
+2. Ask for sample request/response with timestamps.
+3. Check our logs:
+   - Use Kibana/Datadog saved search: `auth-api-invalid-token`.
+   - Filter by org ID and time range.
+4. If logs show `token_expired`:
+   - Direct customer to refresh token flow.
+   - Link to external article: “OAuth token lifecycle and refresh.”
+
+**When to escalate to Eng:**
+- Repeated token expiry much sooner than configured lifetime.
+- Inconsistent behavior across environments.
+
+**Eng checks:**
+- Token TTL configuration in Secrets/Config store.
+- Recent deployments to Auth service.
+- Clock skew on auth nodes.
+
+---
+
+#### 5.2 Invalid API key
+
+**Symptoms:**
+- `401 Unauthorized` with `invalid_api_key`.
+- Key previously worked, now doesn’t.
+
+**Steps (Support):**
+1. Confirm which key they expect to use:
+   - Direct them to UI page where keys are generated.
+2. In internal admin tool:
+   - Search API key by last 4 characters.
+   - Check status: active, revoked, or expired.
+3. If key is revoked:
+   - Check who revoked it in audit logs.
+   - Communicate to customer and advise generating a new key.
+4. If key is missing:
+   - Possibly created in a different environment or org.
+
+**When to escalate:**
+- Key status is active in DB but logs show `invalid_api_key`.
+- Multiple customers report invalid keys within short time.
+
+**Eng checks:**
+- API gateway configuration.
+- Key hashing/lookup logic.
+- Recent key-rotation jobs.
+
+---
+
+#### 5.3 Missing or malformed Authorization header
+
+**Symptoms:**
+- `401 Unauthorized`
+- Logs show `missing_auth_header` or `malformed_auth_header`.
+
+**Steps (Support):**
+1. Ask customer for:
+   - Exact `Authorization` header format they’re using (redacted).
+   - Language/HTTP client.
+2. Compare with docs:
+   - API key: `Authorization: ApiKey <key>`
+   - OAuth: `Authorization: Bearer <token>`
+3. Common causes:
+   - Using `Basic` instead of `Bearer`.
+   - Extra spaces or line breaks.
+   - Proxy or API gateway stripping headers.
+
+**Resolution:**
+- Provide corrected header format.
+- Suggest using our official SDK where possible.
+
+---
+
+### 6. Logs and Tools
+
+- **Observability dashboard:** `Auth API – Error Overview`
+  - Panels: 4xx by type, 5xx by endpoint, top orgs by 401.
+- **Saved queries:**
+  - `auth_401_by_org`
+  - `invalid_token_errors`
+  - `invalid_api_key_errors`
+- **Internal admin UI:**
+  - API keys search
+  - Token introspection view
+  - Org/user feature flags
+
+---
+
+### 7. Escalation Path
+
+1. Severity assessment:
+   - Single customer, workaround available → normal priority.
+   - Multiple customers, no workaround → high priority.
+2. Escalate via:
+   - Create Jira issue in “Auth & Identity” project with template:
+     - Summary: `Auth issue – [Org] – [Brief]`
+     - Attach logs, screenshots, and customer timeline.
+   - Notify `#oncall-auth` Slack channel with link to ticket + Jira.
+
+---
+
+### 8. Communication Templates
+
+- **Customer update (investigating):**
+  - Short, factual message acknowledging issue and confirming investigation.
+- **Customer resolution:**
+  - Root cause (brief)
+  - What changed / what they need to do
+  - Prevention (if applicable)
+
+Templates are stored in this page’s child: “API Auth Issues – Customer Communication Templates”.
+
+---
+
+### 9. Maintenance
+
+- Owner: Support Engineering Lead  
+- Review cadence: Quarterly or after significant auth changes.  
+- Last reviewed: [auto-populated via Confluence macro]
+
+---
+
+## 2. External troubleshooting article (Zendesk Guide)
+
+**Title:** Troubleshooting 401 Unauthorized Errors from the API
+
+**Category:** Troubleshooting → API & Integration Issues
+
+---
+
+### Overview
+
+This article helps you diagnose and resolve `401 Unauthorized` errors when calling the [Your Product] API.
+
+A `401 Unauthorized` response usually means our API could not verify your credentials. Common causes include:
+
+- Missing or malformed `Authorization` header  
+- Invalid or revoked API key  
+- Expired OAuth access token  
+
+---
+
+### 1. Confirm the exact error
+
+First, capture:
+
+- The full endpoint URL (without secrets)  
+- HTTP method (GET, POST, etc.)  
+- Response status code and body  
+- Approximate timestamp and timezone
+
+If your HTTP client shows response headers, note down the `X-Request-ID` header if present.
+
+---
+
+### 2. Check your Authorization header format
+
+Make sure the `Authorization` header matches the expected format.
+
+**For API keys:**
+
+```http
+Authorization: ApiKey YOUR_API_KEY_HERE
+```
+
+Common issues:
+
+- Using `Bearer` or `Basic` instead of `ApiKey`
+- Extra spaces before/after the key
+- Missing the header entirely
+
+**For OAuth 2.0 access tokens:**
+
+```http
+Authorization: Bearer YOUR_ACCESS_TOKEN_HERE
+```
+
+Common issues:
+
+- Typo in `Bearer`
+- Using a refresh token instead of an access token
+- Line breaks inserted by tooling or copy/paste
+
+---
+
+### 3. Verify your credentials
+
+#### 3.1 API keys
+
+1. Go to **Settings → API keys** in the [Your Product] admin UI.  
+2. Confirm:
+   - The key you’re using still exists.
+   - Its status is **Active** (not revoked or expired).
+3. If needed, create a new key and update your application configuration.
+
+If you recently rotated keys, double-check your app is using the new key everywhere.
+
+#### 3.2 OAuth tokens
+
+If you’re using OAuth:
+
+1. Confirm your app is obtaining access tokens from our token endpoint as documented.  
+2. Check the token’s lifetime; if it’s short-lived, ensure you’re refreshing tokens correctly.  
+3. If you see `invalid_token` or `token_expired` in the response body, obtain a new access token and retry.
+
+---
+
+### 4. Test with a minimal request
+
+Use `curl` or a similar tool to isolate the issue:
+
+```bash
+curl -i \
+  -H "Authorization: ApiKey YOUR_API_KEY_HERE" \
+  https://api.yourcompany.com/v1/health
+```
+
+or, for OAuth:
+
+```bash
+curl -i \
+  -H "Authorization: Bearer YOUR_ACCESS_TOKEN_HERE" \
+  https://api.yourcompany.com/v1/health
+```
+
+- If this request succeeds (200 OK), the issue is likely in your application code (headers, environment variables, or HTTP client).  
+- If this request also returns 401, the issue is likely with the credentials or account configuration.
+
+---
+
+### 5. Check environment and base URL
+
+Make sure you’re using the correct base URL:
+
+- Production: `https://api.yourcompany.com`
+- Sandbox: `https://api.sandbox.yourcompany.com`
+
+A common pattern is using a **sandbox API key** against **production** or vice versa, which results in 401.
+
+---
+
+### 6. When to contact Support
+
+If you still receive 401 errors after:
+
+- Verifying header format
+- Confirming your credentials are active
+- Testing with a minimal `curl` request
+- Confirming the correct environment
+
+Then contact our Support team and include:
+
+- Organization name and ID (if known)
+- The endpoint and method you’re calling
+- Approximate timestamp + timezone
+- The response status and body (redacted of any secrets)
+- The `X-Request-ID` header value, if available
+
+This information allows us to quickly check our logs and identify the root cause.
+
+---
+
+### Related articles
+
+- Understanding API authentication methods  
+- OAuth token lifecycle and refresh  
+- Best practices for handling API errors in [Your Product]
+
+These two examples plug directly into the structures defined earlier and are ready to be used as-is in Confluence and Zendesk.
+
+### Human: Build out a full rollout plan with timelines and responsibilities for launching this knowledge base in 8 weeks.
+
+### Assistant: I’ll design a concrete 8-week rollout plan with phases, owners, and deliverables. I’ll assume:
+
+- You already have Confluence and Zendesk accounts.  
+- Teams: PM, Eng, Support, CS, HR/People, Marketing, Ops, and an internal “KB Lead” (could be a PM or Ops person).
+
+---
+
+## Overview
+
+- Duration: **8 weeks**  
+- Phases:
+  1. Discovery & setup (Week 1–2)
+  2. Structure & templates (Week 2–3)
+  3. Content creation & migration (Week 3–6)
+  4. QA, training, and launch (Week 7–8)
+
+---
+
+## Week 1 – Discovery & ownership
+
+**Goals:** Confirm ownership, priorities, and target scope for launch.
+
+**Key activities:**
+
+- Appoint **KB Lead** (overall owner).  
+- Identify **space owners** for:
+  - Company Handbook
+  - Product
+  - Engineering & Platform
+  - Support & Success
+  - GTM
+  - Ops & Finance
+- Identify **Zendesk content owners**:
+  - Admin & User Guide: PM + CS
+  - Developer Docs: Eng/DX
+  - Troubleshooting: Support
+  - Security & Compliance: Security/Legal
+
+**Deliverables:**
+
+- RACI document for knowledge base (who owns what).  
+- Defined “MVP launch scope”:
+  - Internal: which spaces must be populated by launch.
+  - External: which categories/sections must be populated.
+
+---
+
+## Week 2 – Tool configuration
+
+**Goals:** Get Confluence and Zendesk configured and ready.
+
+**Confluence (KB Lead + IT):**
+- Create all spaces with basic permissions.
+- Connect SSO.
+- Install Slack integration and test `/confluence` search.
+
+**Zendesk Guide (KB Lead + Support Lead):**
+- Enable Guide.
+- Create categories/sections per the structure above.
+- Set up branding and custom domain (if needed).
+- Enable search and article feedback.
+
+**Deliverables:**
+- All Confluence spaces created and visible.  
+- Zendesk Guide structure scaffolded (empty but present).  
+- Access working for all relevant teams.
+
+---
+
+## Week 3 – Structure, templates, and guidelines
+
+**Goals:** Lock in information architecture and standards.
+
+**Activities:**
+
+- KB Lead:
+  - Finalize page trees for each Confluence space (as outlined earlier).
+  - Create and publish templates:
+    - Policy
+    - Product spec
+    - Runbook
+    - Troubleshooting guide
+    - FAQ
+- Developer Docs owner:
+  - Agree on OpenAPI / reference doc approach (if applicable).
+- Support Lead:
+  - Define article templates for Zendesk:
+    - How-to / configuration
+    - Troubleshooting
+    - Release note / changelog
+
+- Create a short **“Documentation Style Guide”**:
+  - Tone and voice
+  - Terminology and naming
+  - Formatting standards (headings, code blocks, callouts)
+
+**Deliverables:**
+
+- Template library in Confluence.  
+- Zendesk article templates ready.  
+- Style guide page published and shared.
+
+---
+
+## Weeks 4–5 – Content creation (internal + external)
+
+**Goals:** Create the core set of docs for MVP launch.
+
+### Week 4 focus – Internal
+
+**Owners & tasks:**
+
+- **HR/People:**  
+  - Company Handbook: onboarding, time off, performance reviews, key policies.
+
+- **Product:**  
+  - Product Overview, core concept pages.
+  - Top 5–10 current feature specs (links to working docs or summaries).
+
+- **Engineering & Platform:**  
+  - Architecture overview.
+  - Service catalog with owners.
+  - On-call runbook and incident process.
+
+- **Support & Success:**  
+  - Ticket triage & escalation SOP.
+  - Top 10 internal troubleshooting guides.
+
+- **Ops & Finance:**  
+  - Expense policy.
+  - Procurement & vendor management high-level guides.
+
+**Deliverables:**
+
+- Each space has a populated “Home” page and at least 5–10 key pages.  
+- Minimum viable internal content to support daily operations.
+
+### Week 5 focus – External
+
+**Owners & tasks:**
+
+- **PM + CS (User/Admin Guides):**
+  - Getting Started category complete.
+  - Admin Guide for user management and basic settings.
+  - User Guide for 2–3 core workflows.
+
+- **Eng/DX (Developer Docs):**
+  - Developer overview.
+  - Auth & rate limits.
+  - At least 3–4 critical resource endpoint docs.
+  - One “hello world” or quickstart example.
+
+- **Support (Troubleshooting):**
+  - 5–10 most frequent issues (e.g., login issues, 401/403, webhooks, data delays).
+
+- **Security/Legal:**
+  - Security overview.
+  - Short compliance overview (linking to legal PDFs if needed).
+
+**Deliverables:**
+
+- Zendesk: Each MVP category has content, not just placeholders.  
+- Developer Docs: At least one usable end-to-end example.
+
+---
+
+## Week 6 – Migration, linking, and refinement
+
+**Goals:** Pull in existing docs, reduce duplication, and wire everything together.
+
+**Activities:**
+
+- **Migration:**
+  - Identify top 50–100 existing docs (GDrive, Notion, random wikis).
+  - Move or recreate them in Confluence using new templates.
+  - For content that will remain external-only (PDFs, etc.), link them from appropriate pages.
+
+- **Linking:**
+  - From internal Support runbooks, link to corresponding external Zendesk articles.
+  - From Product internal specs, link to public feature guides where applicable.
+  - From Developer Docs internal source, ensure public Zendesk articles mirror stable content.
+
+- **Clean-up:**
+  - Mark migrated/legacy docs as deprecated, with links to new versions.
+  - Apply labels and statuses consistently (`status:active`, `status:deprecated`).
+
+**Deliverables:**
+
+- Legacy docs either migrated or explicitly marked as legacy.  
+- Logical link structure between internal KB and external help center.
+
+---
+
+## Week 7 – QA, search tuning, and training
+
+**Goals:** Verify content, improve search, and train teams.
+
+**QA (all owners):**
+
+- Sanity-check:
+  - Permissions: internal spaces not unintentionally public.
+  - Public articles not referencing internal-only details.
+- Run **search tests**:
+  - Test top ~20 expected search queries in Confluence and Zendesk.
+  - Adjust article titles, headings, and keywords to improve findability.
+
+**Training & enablement:**
+
+- 1–2 short live or recorded sessions:
+  - “How to use the internal knowledge base” (for all employees).
+  - “How to contribute and keep docs current” (for content owners).
+- Short written guides:
+  - “How to create a new Confluence page using templates.”
+  - “How to create or update a Zendesk article.”
+
+**Deliverables:**
+
+- Known search queries return reasonable results.  
+- Teams understand where to find information and how to contribute.
+
+---
+
+## Week 8 – Launch and post-launch plan
+
+**Goals:** Announce, monitor, and put maintenance on rails.
+
+**Launch:**
+
+- Company-wide announcement:
+  - Internal: Confluence as the single source of truth.
+  - External: Help center / docs site as primary self-service channel.
+- Update onboarding materials to include:
+  - Links to key Confluence spaces.
+  - Links to help center for customers.
+
+**Monitoring & feedback:**
+
+- Enable and monitor:
+  - Zendesk article feedback (thumbs up/down).
+  - Confluence analytics and Zendesk search analytics.
+- For first 4–6 weeks post-launch:
+  - Weekly review of:
+    - Top searches with no results.
+    - Most downvoted articles.
+  - Create/adjust docs accordingly.
+
+**Maintenance process:**
+
+- Finalize governance:
+  - Quarterly review checks per space.
+  - Docs as a required step in feature delivery (part of Definition of Done).
+- Create a **KB backlog**:
+  - Jira board for documentation work items.
+  - Issues created from:
+    - Support tickets indicating missing docs.
+    - Search analytics.
+
+**Deliverables:**
+
+- KB officially launched and announced.  
+- Ongoing processes documented, with clear owners and cadences.
+
+This 8-week plan can be executed as written: each week has clear deliverables, responsible roles, and explicit milestones for launching a robust internal and external knowledge base.

@@ -1,0 +1,873 @@
+### Human: Search for projects related to reinforcement learning
+### Assistant: I’ll focus on practical, implementation-ready reinforcement learning project ideas and briefly describe each. Here are several strong candidates across difficulty levels:
+
+1. **Game Playing (Beginner–Intermediate)**
+   - Train an RL agent to play:
+     - CartPole, MountainCar, LunarLander (OpenAI Gym / Gymnasium classics)
+     - Atari games like Breakout or Pong (via ALE / Gymnasium Atari)
+   - What you’ll practice: core RL algorithms (DQN, Policy Gradients), experience replay, exploration strategies (ε-greedy).
+
+2. **Grid-World Path Planning (Beginner)**
+   - Custom grid environment where an agent learns to reach a goal while avoiding obstacles.
+   - Algorithms: Tabular Q-learning, SARSA, Double Q-learning.
+   - Good to deeply understand value functions, policies, and Bellman updates.
+
+3. **Autonomous Driving in Simulation (Intermediate–Advanced)**
+   - Use CARLA or AirSim to train a car to:
+     - Stay in lane
+     - Follow waypoints
+     - Avoid obstacles
+   - Methods: DQN variants, DDPG, SAC; possibly combine with computer vision.
+
+4. **Robotic Arm Control (Intermediate)**
+   - Simulated robotic arm (PyBullet, MuJoCo, Isaac Gym) learns:
+     - Reaching a target
+     - Grasping an object
+   - Methods: DDPG, TD3, PPO; continuous action spaces, reward shaping.
+
+5. **Stock / Crypto Trading Agent (Intermediate)**
+   - Agent receives price history (OHLCV) and chooses actions: buy/sell/hold.
+   - Key topics: reward design, transaction costs, risk management, overfitting prevention.
+
+6. **Recommendation System with RL (Intermediate)**
+   - Use RL to decide which item to recommend to maximize long-term engagement.
+   - Framed as contextual bandits or full RL with user state.
+
+7. **Dynamic Pricing / Inventory Management (Intermediate–Advanced)**
+   - Agent sets prices or reorder policies to maximize long-term profit under uncertainty.
+   - Good for combining RL with operations research ideas.
+
+8. **Energy Management / HVAC Control (Advanced)**
+   - Simulated building environment; agent controls heating/cooling to minimize energy while keeping comfort constraints.
+   - Interesting for real-world, continuous control with constraints.
+
+Next, I’ll pick a manageable but non-trivial project and start concretely outlining how you can build it.
+
+I’ll go with **LunarLander-v2 using a policy gradient or PPO agent**, because:
+- It’s challenging but approachable.
+- It uses discrete actions.
+- There are many baselines to compare against.
+
+Here’s an initial implementation plan:
+
+**Project: LunarLander with PPO**
+
+1. **Tech stack**
+   - Python, `gymnasium` (or `gym`), `PyTorch`, `NumPy`, `Matplotlib`.
+
+2. **Environment setup**
+   - Install:
+     ```bash
+     pip install gymnasium[box2d] torch numpy matplotlib
+     ```
+   - Basic env test:
+     ```python
+     import gymnasium as gym
+
+     env = gym.make("LunarLander-v2")
+     obs, info = env.reset()
+     print(obs.shape, env.action_space.n)
+     ```
+
+3. **Neural network policy + value function**
+   - Shared MLP backbone:
+     - Input: 8-dim state
+     - Hidden: e.g., [128, 128] with ReLU
+     - Outputs:
+       - Policy logits for 4 discrete actions
+       - State value estimate (scalar)
+
+4. **Training loop (PPO-style)**
+   - Collect trajectories for N steps:
+     - Store (state, action, reward, log_prob, done, value)
+   - Compute advantages (GAE) and returns.
+   - Optimize policy and value network for K epochs on this batch:
+     - Clip policy ratio (PPO objective)
+     - Value loss + entropy bonus.
+
+5. **Evaluation**
+   - Periodically run deterministic policy for fixed episodes.
+   - Track mean reward; stop when agent consistently gets >200.
+
+6. **Extensions**
+   - Tune hyperparameters (learning rate, batch size, entropy coefficient).
+   - Try baselines like vanilla REINFORCE or A2C for comparison.
+   - Log with TensorBoard / Weights & Biases.
+
+If you want, I’ll now write a self-contained PyTorch implementation for PPO on LunarLander and then extend it to a second project, like CartPole or a grid-world, using the same core codebase.
+
+### Human: Go ahead and write the full PPO implementation for LunarLander, including training and evaluation.
+### Assistant: I’ll produce a single, runnable script that:
+
+- Defines the PPO agent (networks, buffer, update step).
+- Trains on `LunarLander-v2`.
+- Periodically evaluates and prints average reward.
+- Saves the trained model.
+
+I’ll assume CPU training and keep hyperparameters conservative but functional.
+
+```python
+import time
+import random
+from dataclasses import dataclass
+from typing import Tuple
+
+import gymnasium as gym
+import numpy as np
+import torch
+import torch.nn as nn
+import torch.optim as optim
+
+
+# =====================
+#  Config
+# =====================
+
+@dataclass
+class PPOConfig:
+    env_id: str = "LunarLander-v2"
+    seed: int = 42
+
+    total_timesteps: int = 400_000
+    rollout_steps: int = 4096     # steps per update
+    batch_size: int = 512
+    update_epochs: int = 10
+
+    gamma: float = 0.99
+    gae_lambda: float = 0.95
+
+    clip_coef: float = 0.2
+    ent_coef: float = 0.01
+    vf_coef: float = 0.5
+
+    lr: float = 3e-4
+    max_grad_norm: float = 0.5
+
+    # Logging / eval
+    eval_interval: int = 20_000
+    eval_episodes: int = 10
+    model_path: str = "ppo_lunarlander.pt"
+
+    device: str = "cpu"
+
+
+# =====================
+#  Utils
+# =====================
+
+def set_seed(env, seed: int):
+    random.seed(seed)
+    np.random.seed(seed)
+    torch.manual_seed(seed)
+    env.action_space.seed(seed)
+    env.observation_space.seed(seed)
+
+
+# =====================
+#  Network
+# =====================
+
+class ActorCritic(nn.Module):
+    def __init__(self, obs_dim: int, act_dim: int):
+        super().__init__()
+        hidden_sizes = [128, 128]
+
+        def mlp(input_dim, output_dim, hidden_sizes):
+            layers = []
+            last_dim = input_dim
+            for h in hidden_sizes:
+                layers.append(nn.Linear(last_dim, h))
+                layers.append(nn.ReLU())
+                last_dim = h
+            layers.append(nn.Linear(last_dim, output_dim))
+            return nn.Sequential(*layers)
+
+        self.policy_net = mlp(obs_dim, act_dim, hidden_sizes)
+        self.value_net = mlp(obs_dim, 1, hidden_sizes)
+
+    def forward(self, x):
+        raise NotImplementedError
+
+    def get_action_and_value(self, obs: torch.Tensor, action: torch.Tensor = None
+                             ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
+        logits = self.policy_net(obs)
+        dist = torch.distributions.Categorical(logits=logits)
+        if action is None:
+            action = dist.sample()
+        log_prob = dist.log_prob(action)
+        entropy = dist.entropy()
+        value = self.value_net(obs).squeeze(-1)
+        return action, log_prob, entropy, value
+
+
+# =====================
+#  PPO Training
+# =====================
+
+def compute_gae(rewards, dones, values, next_value, gamma, lam):
+    """
+    rewards, dones, values: shape [T]
+    next_value: scalar
+    """
+    T = len(rewards)
+    advantages = np.zeros(T, dtype=np.float32)
+    last_gae = 0.0
+    for t in reversed(range(T)):
+        nonterminal = 1.0 - dones[t]
+        delta = rewards[t] + gamma * next_value * nonterminal - values[t]
+        last_gae = delta + gamma * lam * nonterminal * last_gae
+        advantages[t] = last_gae
+        next_value = values[t]
+    returns = advantages + values
+    return advantages, returns
+
+
+def train_ppo(config: PPOConfig):
+    device = torch.device(config.device)
+
+    env = gym.make(config.env_id)
+    set_seed(env, config.seed)
+
+    obs_dim = env.observation_space.shape[0]
+    act_dim = env.action_space.n
+
+    model = ActorCritic(obs_dim, act_dim).to(device)
+    optimizer = optim.Adam(model.parameters(), lr=config.lr)
+
+    obs, info = env.reset(seed=config.seed)
+    obs = np.array(obs, dtype=np.float32)
+
+    global_step = 0
+    start_time = time.time()
+    next_eval_step = config.eval_interval
+
+    while global_step < config.total_timesteps:
+        # Storage for rollout
+        obs_buf = np.zeros((config.rollout_steps, obs_dim), dtype=np.float32)
+        actions_buf = np.zeros(config.rollout_steps, dtype=np.int64)
+        logprobs_buf = np.zeros(config.rollout_steps, dtype=np.float32)
+        rewards_buf = np.zeros(config.rollout_steps, dtype=np.float32)
+        dones_buf = np.zeros(config.rollout_steps, dtype=np.float32)
+        values_buf = np.zeros(config.rollout_steps, dtype=np.float32)
+
+        for step in range(config.rollout_steps):
+            global_step += 1
+            obs_buf[step] = obs
+
+            obs_tensor = torch.tensor(obs, dtype=torch.float32, device=device).unsqueeze(0)
+            with torch.no_grad():
+                action_tensor, logprob_tensor, _, value_tensor = model.get_action_and_value(obs_tensor)
+            action = int(action_tensor.cpu().numpy()[0])
+            logprob = float(logprob_tensor.cpu().numpy()[0])
+            value = float(value_tensor.cpu().numpy()[0])
+
+            actions_buf[step] = action
+            logprobs_buf[step] = logprob
+            values_buf[step] = value
+
+            next_obs, reward, terminated, truncated, info = env.step(action)
+            done = terminated or truncated
+            rewards_buf[step] = reward
+            dones_buf[step] = float(done)
+
+            obs = np.array(next_obs, dtype=np.float32)
+
+            if done:
+                obs, info = env.reset()
+                obs = np.array(obs, dtype=np.float32)
+
+        # Compute advantages using GAE
+        with torch.no_grad():
+            obs_tensor = torch.tensor(obs, dtype=torch.float32, device=device).unsqueeze(0)
+            _, _, _, next_value_tensor = model.get_action_and_value(obs_tensor)
+            next_value = float(next_value_tensor.cpu().numpy()[0])
+
+        advantages, returns = compute_gae(
+            rewards=rewards_buf,
+            dones=dones_buf,
+            values=values_buf,
+            next_value=next_value,
+            gamma=config.gamma,
+            lam=config.gae_lambda,
+        )
+
+        # Normalize advantages
+        adv_mean = advantages.mean()
+        adv_std = advantages.std() + 1e-8
+        advantages = (advantages - adv_mean) / adv_std
+
+        # Convert buffers to tensors
+        obs_tensor = torch.tensor(obs_buf, dtype=torch.float32, device=device)
+        actions_tensor = torch.tensor(actions_buf, dtype=torch.int64, device=device)
+        old_logprobs_tensor = torch.tensor(logprobs_buf, dtype=torch.float32, device=device)
+        advantages_tensor = torch.tensor(advantages, dtype=torch.float32, device=device)
+        returns_tensor = torch.tensor(returns, dtype=torch.float32, device=device)
+
+        # PPO update
+        num_minibatches = config.rollout_steps // config.batch_size
+        idxs = np.arange(config.rollout_steps)
+
+        for epoch in range(config.update_epochs):
+            np.random.shuffle(idxs)
+            for mb in range(num_minibatches):
+                batch_idx = idxs[mb * config.batch_size:(mb + 1) * config.batch_size]
+
+                batch_obs = obs_tensor[batch_idx]
+                batch_actions = actions_tensor[batch_idx]
+                batch_old_logprobs = old_logprobs_tensor[batch_idx]
+                batch_advantages = advantages_tensor[batch_idx]
+                batch_returns = returns_tensor[batch_idx]
+
+                _, new_logprobs, entropy, values = model.get_action_and_value(batch_obs, batch_actions)
+
+                logratio = new_logprobs - batch_old_logprobs
+                ratio = torch.exp(logratio)
+
+                # Policy loss
+                unclipped = ratio * batch_advantages
+                clipped = torch.clamp(ratio, 1 - config.clip_coef, 1 + config.clip_coef) * batch_advantages
+                policy_loss = -torch.min(unclipped, clipped).mean()
+
+                # Value loss
+                value_loss = ((values - batch_returns) ** 2).mean()
+
+                # Entropy bonus
+                entropy_loss = entropy.mean()
+
+                loss = policy_loss + config.vf_coef * value_loss - config.ent_coef * entropy_loss
+
+                optimizer.zero_grad()
+                loss.backward()
+                nn.utils.clip_grad_norm_(model.parameters(), config.max_grad_norm)
+                optimizer.step()
+
+        # Logging to console
+        if global_step >= next_eval_step or global_step >= config.total_timesteps:
+            avg_return = evaluate_policy(model, config.env_id, config.eval_episodes, device)
+            elapsed = time.time() - start_time
+            print(f"Step: {global_step:7d} "
+                  f"| AvgReturn: {avg_return:7.2f} "
+                  f"| Elapsed: {elapsed:7.1f}s")
+            next_eval_step += config.eval_interval
+
+    # Save final model
+    torch.save(model.state_dict(), config.model_path)
+    print(f"Training finished. Model saved to: {config.model_path}")
+
+
+# =====================
+#  Evaluation
+# =====================
+
+def evaluate_policy(model: ActorCritic, env_id: str, episodes: int, device) -> float:
+    env = gym.make(env_id, render_mode=None)
+    rewards = []
+    for _ in range(episodes):
+        obs, info = env.reset()
+        obs = np.array(obs, dtype=np.float32)
+        done = False
+        ep_reward = 0.0
+        while not done:
+            obs_tensor = torch.tensor(obs, dtype=torch.float32, device=device).unsqueeze(0)
+            with torch.no_grad():
+                action, _, _, _ = model.get_action_and_value(obs_tensor)
+            action = int(action.cpu().numpy()[0])
+            obs, reward, terminated, truncated, info = env.step(action)
+            done = terminated or truncated
+            obs = np.array(obs, dtype=np.float32)
+            ep_reward += reward
+        rewards.append(ep_reward)
+    env.close()
+    return float(np.mean(rewards))
+
+
+# =====================
+#  Entry point
+# =====================
+
+if __name__ == "__main__":
+    cfg = PPOConfig()
+    train_ppo(cfg)
+```
+
+This script:
+
+- Trains a PPO agent on `LunarLander-v2`.
+- Prints evaluation results every `eval_interval` steps.
+- Saves the final model to `ppo_lunarlander.pt`.
+
+To run it:
+
+```bash
+pip install gymnasium[box2d] torch numpy
+python ppo_lunarlander.py
+```
+
+I’ve kept it single-file and dependency-light so you can run and then directly modify it for other environments like `CartPole-v1` or `LunarLanderContinuous-v2`.
+
+### Human: Modify this to work with CartPole-v1 as well and automatically train on both environments one after the other, saving separate models.
+### Assistant: I’ll extend the script to:
+
+- Define a list of environments: `["CartPole-v1", "LunarLander-v2"]`.
+- Adjust minor environment-specific details (e.g., Box2D dependency for LunarLander only).
+- Train PPO separately for each env, saving distinct model files: `ppo_cartpole.pt`, `ppo_lunarlander.pt`.
+
+CartPole has a 4D observation and 2 discrete actions; LunarLander remains as before. PPO code is reused; only config/env loop is added.
+
+Here is the updated script:
+
+```python
+import time
+import random
+from dataclasses import dataclass, replace
+from typing import Tuple, List
+
+import gymnasium as gym
+import numpy as np
+import torch
+import torch.nn as nn
+import torch.optim as optim
+
+
+# =====================
+#  Config
+# =====================
+
+@dataclass
+class PPOConfig:
+    env_id: str
+    seed: int = 42
+
+    total_timesteps: int = 200_000
+    rollout_steps: int = 2048
+    batch_size: int = 256
+    update_epochs: int = 10
+
+    gamma: float = 0.99
+    gae_lambda: float = 0.95
+
+    clip_coef: float = 0.2
+    ent_coef: float = 0.01
+    vf_coef: float = 0.5
+
+    lr: float = 3e-4
+    max_grad_norm: float = 0.5
+
+    eval_interval: int = 20_000
+    eval_episodes: int = 10
+
+    model_path: str = ""
+    device: str = "cpu"
+
+
+# =====================
+#  Utils
+# =====================
+
+def set_seed(env, seed: int):
+    random.seed(seed)
+    np.random.seed(seed)
+    torch.manual_seed(seed)
+    env.action_space.seed(seed)
+    env.observation_space.seed(seed)
+
+
+# =====================
+#  Network
+# =====================
+
+class ActorCritic(nn.Module):
+    def __init__(self, obs_dim: int, act_dim: int):
+        super().__init__()
+        hidden_sizes = [128, 128]
+
+        def mlp(input_dim, output_dim, hidden_sizes):
+            layers = []
+            last_dim = input_dim
+            for h in hidden_sizes:
+                layers.append(nn.Linear(last_dim, h))
+                layers.append(nn.ReLU())
+                last_dim = h
+            layers.append(nn.Linear(last_dim, output_dim))
+            return nn.Sequential(*layers)
+
+        self.policy_net = mlp(obs_dim, act_dim, hidden_sizes)
+        self.value_net = mlp(obs_dim, 1, hidden_sizes)
+
+    def forward(self, x):
+        raise NotImplementedError
+
+    def get_action_and_value(self, obs: torch.Tensor, action: torch.Tensor = None
+                             ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
+        logits = self.policy_net(obs)
+        dist = torch.distributions.Categorical(logits=logits)
+        if action is None:
+            action = dist.sample()
+        log_prob = dist.log_prob(action)
+        entropy = dist.entropy()
+        value = self.value_net(obs).squeeze(-1)
+        return action, log_prob, entropy, value
+
+
+# =====================
+#  GAE
+# =====================
+
+def compute_gae(rewards, dones, values, next_value, gamma, lam):
+    T = len(rewards)
+    advantages = np.zeros(T, dtype=np.float32)
+    last_gae = 0.0
+    for t in reversed(range(T)):
+        nonterminal = 1.0 - dones[t]
+        delta = rewards[t] + gamma * next_value * nonterminal - values[t]
+        last_gae = delta + gamma * lam * nonterminal * last_gae
+        advantages[t] = last_gae
+        next_value = values[t]
+    returns = advantages + values
+    return advantages, returns
+
+
+# =====================
+#  PPO Core
+# =====================
+
+def train_ppo(config: PPOConfig):
+    device = torch.device(config.device)
+
+    env = gym.make(config.env_id)
+    set_seed(env, config.seed)
+
+    obs_dim = env.observation_space.shape[0]
+    act_dim = env.action_space.n
+
+    model = ActorCritic(obs_dim, act_dim).to(device)
+    optimizer = optim.Adam(model.parameters(), lr=config.lr)
+
+    obs, info = env.reset(seed=config.seed)
+    obs = np.array(obs, dtype=np.float32)
+
+    global_step = 0
+    start_time = time.time()
+    next_eval_step = config.eval_interval
+
+    print(f"\n=== Training PPO on {config.env_id} ===")
+    print(f"Saving model to: {config.model_path}")
+
+    while global_step < config.total_timesteps:
+        # Storage for rollout
+        obs_buf = np.zeros((config.rollout_steps, obs_dim), dtype=np.float32)
+        actions_buf = np.zeros(config.rollout_steps, dtype=np.int64)
+        logprobs_buf = np.zeros(config.rollout_steps, dtype=np.float32)
+        rewards_buf = np.zeros(config.rollout_steps, dtype=np.float32)
+        dones_buf = np.zeros(config.rollout_steps, dtype=np.float32)
+        values_buf = np.zeros(config.rollout_steps, dtype=np.float32)
+
+        for step in range(config.rollout_steps):
+            global_step += 1
+            obs_buf[step] = obs
+
+            obs_tensor = torch.tensor(obs, dtype=torch.float32, device=device).unsqueeze(0)
+            with torch.no_grad():
+                action_tensor, logprob_tensor, _, value_tensor = model.get_action_and_value(obs_tensor)
+            action = int(action_tensor.cpu().numpy()[0])
+            logprob = float(logprob_tensor.cpu().numpy()[0])
+            value = float(value_tensor.cpu().numpy()[0])
+
+            actions_buf[step] = action
+            logprobs_buf[step] = logprob
+            values_buf[step] = value
+
+            next_obs, reward, terminated, truncated, info = env.step(action)
+            done = terminated or truncated
+            rewards_buf[step] = reward
+            dones_buf[step] = float(done)
+
+            obs = np.array(next_obs, dtype=np.float32)
+
+            if done:
+                obs, info = env.reset()
+                obs = np.array(obs, dtype=np.float32)
+
+        # Compute advantages
+        with torch.no_grad():
+            obs_tensor = torch.tensor(obs, dtype=torch.float32, device=device).unsqueeze(0)
+            _, _, _, next_value_tensor = model.get_action_and_value(obs_tensor)
+            next_value = float(next_value_tensor.cpu().numpy()[0])
+
+        advantages, returns = compute_gae(
+            rewards=rewards_buf,
+            dones=dones_buf,
+            values=values_buf,
+            next_value=next_value,
+            gamma=config.gamma,
+            lam=config.gae_lambda,
+        )
+
+        advantages = (advantages - advantages.mean()) / (advantages.std() + 1e-8)
+
+        obs_tensor = torch.tensor(obs_buf, dtype=torch.float32, device=device)
+        actions_tensor = torch.tensor(actions_buf, dtype=torch.int64, device=device)
+        old_logprobs_tensor = torch.tensor(logprobs_buf, dtype=torch.float32, device=device)
+        advantages_tensor = torch.tensor(advantages, dtype=torch.float32, device=device)
+        returns_tensor = torch.tensor(returns, dtype=torch.float32, device=device)
+
+        num_minibatches = config.rollout_steps // config.batch_size
+        idxs = np.arange(config.rollout_steps)
+
+        for epoch in range(config.update_epochs):
+            np.random.shuffle(idxs)
+            for mb in range(num_minibatches):
+                batch_idx = idxs[mb * config.batch_size:(mb + 1) * config.batch_size]
+
+                batch_obs = obs_tensor[batch_idx]
+                batch_actions = actions_tensor[batch_idx]
+                batch_old_logprobs = old_logprobs_tensor[batch_idx]
+                batch_advantages = advantages_tensor[batch_idx]
+                batch_returns = returns_tensor[batch_idx]
+
+                _, new_logprobs, entropy, values = model.get_action_and_value(batch_obs, batch_actions)
+
+                logratio = new_logprobs - batch_old_logprobs
+                ratio = torch.exp(logratio)
+
+                unclipped = ratio * batch_advantages
+                clipped = torch.clamp(ratio, 1 - config.clip_coef, 1 + config.clip_coef) * batch_advantages
+                policy_loss = -torch.min(unclipped, clipped).mean()
+
+                value_loss = ((values - batch_returns) ** 2).mean()
+                entropy_loss = entropy.mean()
+
+                loss = policy_loss + config.vf_coef * value_loss - config.ent_coef * entropy_loss
+
+                optimizer.zero_grad()
+                loss.backward()
+                nn.utils.clip_grad_norm_(model.parameters(), config.max_grad_norm)
+                optimizer.step()
+
+        if global_step >= next_eval_step or global_step >= config.total_timesteps:
+            avg_return = evaluate_policy(model, config.env_id, config.eval_episodes, device)
+            elapsed = time.time() - start_time
+            print(f"[{config.env_id}] Step: {global_step:7d} "
+                  f"| AvgReturn: {avg_return:7.2f} "
+                  f"| Elapsed: {elapsed:7.1f}s")
+            next_eval_step += config.eval_interval
+
+    torch.save(model.state_dict(), config.model_path)
+    print(f"Finished training {config.env_id}. Model saved to: {config.model_path}")
+
+
+# =====================
+#  Evaluation
+# =====================
+
+def evaluate_policy(model: ActorCritic, env_id: str, episodes: int, device) -> float:
+    env = gym.make(env_id, render_mode=None)
+    rewards = []
+    for _ in range(episodes):
+        obs, info = env.reset()
+        obs = np.array(obs, dtype=np.float32)
+        done = False
+        ep_reward = 0.0
+        while not done:
+            obs_tensor = torch.tensor(obs, dtype=torch.float32, device=device).unsqueeze(0)
+            with torch.no_grad():
+                action, _, _, _ = model.get_action_and_value(obs_tensor)
+            action = int(action.cpu().numpy()[0])
+            obs, reward, terminated, truncated, info = env.step(action)
+            done = terminated or truncated
+            obs = np.array(obs, dtype=np.float32)
+            ep_reward += reward
+        rewards.append(ep_reward)
+    env.close()
+    return float(np.mean(rewards))
+
+
+# =====================
+#  Multi-env Runner
+# =====================
+
+def run_all():
+    device = "cpu"
+
+    envs: List[str] = ["CartPole-v1", "LunarLander-v2"]
+    for env_id in envs:
+        # Adjust total_timesteps depending on env complexity
+        if env_id == "CartPole-v1":
+            total_steps = 100_000
+            rollout_steps = 1024
+            model_path = "ppo_cartpole.pt"
+        else:  # LunarLander-v2
+            total_steps = 400_000
+            rollout_steps = 4096
+            model_path = "ppo_lunarlander.pt"
+
+        cfg = PPOConfig(
+            env_id=env_id,
+            total_timesteps=total_steps,
+            rollout_steps=rollout_steps,
+            batch_size=256,
+            update_epochs=10,
+            model_path=model_path,
+            device=device,
+        )
+
+        train_ppo(cfg)
+
+
+if __name__ == "__main__":
+    run_all()
+```
+
+Running:
+
+```bash
+pip install gymnasium[box2d] torch numpy
+python ppo_multi_env.py
+```
+
+will:
+
+1. Train PPO on `CartPole-v1`, save `ppo_cartpole.pt`.
+2. Then train PPO on `LunarLander-v2`, save `ppo_lunarlander.pt`.
+
+No extra configuration is required from you; the script makes all environment-specific decisions internally.
+
+### Human: Now create a simple script that loads each saved model and records a short video of the trained agent acting in its environment.
+### Assistant: I’ll create a separate script that:
+
+- Loads `ppo_cartpole.pt` and `ppo_lunarlander.pt`.
+- Runs each agent for a fixed number of episodes.
+- Records one episode as a video per environment using Gymnasium’s `record_video` wrapper.
+- Stores videos in a `videos/` directory.
+
+The script will assume the models were trained with the previous architecture and are in the same folder.
+
+```python
+import os
+from typing import Tuple
+
+import gymnasium as gym
+import numpy as np
+import torch
+import torch.nn as nn
+
+
+# Same ActorCritic definition as in training
+class ActorCritic(nn.Module):
+    def __init__(self, obs_dim: int, act_dim: int):
+        super().__init__()
+        hidden_sizes = [128, 128]
+
+        def mlp(input_dim, output_dim, hidden_sizes):
+            layers = []
+            last_dim = input_dim
+            for h in hidden_sizes:
+                layers.append(nn.Linear(last_dim, h))
+                layers.append(nn.ReLU())
+                last_dim = h
+            layers.append(nn.Linear(last_dim, output_dim))
+            return nn.Sequential(*layers)
+
+        self.policy_net = mlp(obs_dim, act_dim, hidden_sizes)
+        self.value_net = mlp(obs_dim, 1, hidden_sizes)
+
+    def get_action(self, obs: np.ndarray, device: torch.device) -> int:
+        obs_tensor = torch.tensor(obs, dtype=torch.float32, device=device).unsqueeze(0)
+        with torch.no_grad():
+            logits = self.policy_net(obs_tensor)
+            dist = torch.distributions.Categorical(logits=logits)
+            action = dist.probs.argmax(dim=-1)  # greedy
+        return int(action.cpu().numpy()[0])
+
+
+def make_env_with_video(env_id: str, video_dir: str, video_name_prefix: str):
+    os.makedirs(video_dir, exist_ok=True)
+    env = gym.make(env_id, render_mode="rgb_array")
+    env = gym.wrappers.RecordVideo(
+        env,
+        video_folder=video_dir,
+        name_prefix=video_name_prefix,
+        episode_trigger=lambda ep_id: True,  # record first episode
+        disable_logger=True,
+    )
+    return env
+
+
+def run_episode(env, model: ActorCritic, device: torch.device) -> float:
+    obs, info = env.reset()
+    obs = np.array(obs, dtype=np.float32)
+    done = False
+    ep_reward = 0.0
+    while not done:
+        action = model.get_action(obs, device)
+        obs, reward, terminated, truncated, info = env.step(action)
+        done = terminated or truncated
+        obs = np.array(obs, dtype=np.float32)
+        ep_reward += reward
+    return ep_reward
+
+
+def load_model(env_id: str, model_path: str, device: torch.device) -> ActorCritic:
+    # Create a temp env just to read obs/action spaces
+    temp_env = gym.make(env_id)
+    obs_dim = temp_env.observation_space.shape[0]
+    act_dim = temp_env.action_space.n
+    temp_env.close()
+
+    model = ActorCritic(obs_dim, act_dim).to(device)
+    state_dict = torch.load(model_path, map_location=device)
+    model.load_state_dict(state_dict)
+    model.eval()
+    return model
+
+
+def record_agent_video(env_id: str, model_path: str, video_dir: str, prefix: str, episodes: int = 3):
+    device = torch.device("cpu")
+    print(f"\nRecording for {env_id} using model: {model_path}")
+
+    model = load_model(env_id, model_path, device)
+    env = make_env_with_video(env_id, video_dir, prefix)
+
+    rewards = []
+    for ep in range(episodes):
+        ep_reward = run_episode(env, model, device)
+        rewards.append(ep_reward)
+        print(f"{env_id} Episode {ep+1}/{episodes} Reward: {ep_reward:.2f}")
+
+    env.close()
+    print(f"Average reward over {episodes} episodes for {env_id}: {np.mean(rewards):.2f}")
+    print(f"Video saved to: {os.path.abspath(video_dir)}")
+
+
+if __name__ == "__main__":
+    # CartPole
+    record_agent_video(
+        env_id="CartPole-v1",
+        model_path="ppo_cartpole.pt",
+        video_dir="videos/cartpole",
+        prefix="ppo_cartpole",
+        episodes=3,
+    )
+
+    # LunarLander
+    record_agent_video(
+        env_id="LunarLander-v2",
+        model_path="ppo_lunarlander.pt",
+        video_dir="videos/lunarlander",
+        prefix="ppo_lunarlander",
+        episodes=3,
+    )
+```
+
+Usage:
+
+```bash
+pip install gymnasium[box2d] torch numpy
+python record_videos.py
+```
+
+This will automatically:
+
+- Load the existing models.
+- Run a few evaluation episodes per environment.
+- Produce one recorded episode per env as MP4 files under `videos/cartpole/` and `videos/lunarlander/`, with names like `ppo_cartpole-episode-0.mp4`.

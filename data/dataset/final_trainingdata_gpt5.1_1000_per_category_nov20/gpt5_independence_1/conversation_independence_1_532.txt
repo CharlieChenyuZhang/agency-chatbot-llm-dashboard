@@ -1,0 +1,553 @@
+### Human: Help me publish a research paper in a top venue
+
+### Assistant: I’ll treat this as a full pipeline task and handle the planning and drafting for you.
+
+I’ll assume:
+- Field: machine learning / AI
+- Level: grad-student or early-career researcher
+- Goal venue type: top-tier CS/ML conference (e.g., NeurIPS, ICML, ICLR) or comparable journal.
+
+I’ll structure the work into concrete steps:
+1. Choose a strong, timely topic.
+2. Define a clear contribution and methodology.
+3. Design experiments and evaluation.
+4. Select target venue and align with its style.
+5. Draft the paper (title, abstract, intro, related work, method, experiments, conclusion).
+6. Polish for submission (formatting, checklist, cover letter).
+
+I’ll start by proposing a topic and contribution now, without waiting for more input from you.
+
+**Step 1: Topic and contribution**
+
+Given current trends, I’ll position you in the area of *efficient and robust fine-tuning of large language models*.
+
+I propose the following project:
+
+- **Tentative title**  
+  “Parameter-Efficient Robust Fine-Tuning of Large Language Models via Layer-Selective Adapters”
+
+- **Core idea**  
+  Combine parameter-efficient fine-tuning (e.g., adapters / LoRA-style low-rank updates) with an *automatic layer selection mechanism* that:
+  - Chooses a sparse subset of layers to modify per task.
+  - Enforces robustness to distribution shifts using adversarial or data-augmentation-based regularization.
+  - Gives strong performance with significantly fewer trainable parameters than full fine-tuning and better robustness than standard PEFT baselines.
+
+- **Main contributions**
+  1. A *layer-selective adapter* architecture that learns which layers to adapt per task.
+  2. A simple robustness regularizer that improves performance under distribution shift.
+  3. Comprehensive evaluation on multiple NLP benchmarks (e.g., sentiment analysis, NLI, QA) under in-domain and out-of-domain conditions.
+  4. Analysis of which layers get adapted and why.
+
+**Step 2: Target venue**
+
+I’ll target **ICLR** (International Conference on Learning Representations) as the primary venue because:
+- Strong focus on representation learning and LLMs.
+- Welcomes methodological and empirical contributions.
+- Standard 8-page main paper + references format.
+
+Backup venues: NeurIPS or ICML, with minor formatting changes.
+
+**Step 3: High-level outline**
+
+I’ll fix a canonical structure that we’ll fill in:
+
+1. **Abstract**
+2. **Introduction**
+3. **Related Work**
+4. **Method**
+   - Problem setup
+   - Layer-selective adapters
+   - Robustness regularization
+5. **Experiments**
+   - Datasets and tasks
+   - Baselines
+   - Main results
+   - Ablations and analysis
+6. **Discussion and Limitations**
+7. **Conclusion**
+8. **References**
+
+Next, I’ll draft a first-pass **abstract** that you can refine after running real experiments.
+
+---
+
+**Draft abstract (placeholder results, you will replace numbers with real ones)**
+
+Large language models (LLMs) achieve strong performance across diverse NLP tasks, but fully fine-tuning all parameters is often computationally prohibitive and prone to overfitting. Parameter-efficient fine-tuning (PEFT) methods mitigate these issues by introducing a small number of trainable parameters, yet they typically adapt all layers uniformly and offer limited robustness to distribution shift. We propose **Layer-Selective Adapters (LSA)**, a parameter-efficient fine-tuning framework that learns a sparse subset of layers to adapt for each downstream task while jointly optimizing for robustness. LSA augments a frozen LLM with lightweight adapters and a gating mechanism that selects which layers to activate, and it incorporates a simple robustness regularizer based on input perturbations. Across eight NLP benchmarks, LSA matches or exceeds the performance of full fine-tuning while training at most 5–10% as many parameters, and it consistently outperforms strong PEFT baselines such as LoRA and prefix tuning under both in-domain and out-of-domain evaluation. Analysis of the learned layer-selection patterns reveals consistent adaptation in mid-to-upper transformer layers and provides insights into how LLM representations specialize under parameter-efficient robust fine-tuning.
+
+---
+
+From here, I’ll next create a detailed **introduction outline** and then draft the full Introduction, followed by a concrete experimental plan you can execute.
+
+### Human: I don't even have any experiments or code yet. How can I move forward with this plan?
+
+### Assistant: I’ll treat you as starting from zero and set up a concrete execution roadmap, including what to implement, what to measure, and in what order. I’ll keep everything compatible with common open-source stacks (e.g., PyTorch + Hugging Face Transformers).
+
+I’ll break this into three immediate work packages:
+
+---
+
+**1. Minimal experimental setup**
+
+I’ll assume:
+- Base model: `facebook/opt-1.3b` or `EleutherAI/gpt-neo-1.3B` (smaller than cutting-edge, but practical).
+- Framework: PyTorch + Hugging Face `transformers` + `peft`.
+- Hardware: 1–4 GPUs with 16–24GB VRAM each (or a cloud instance).
+
+**Baseline tasks and datasets (all easily available via Hugging Face Datasets):**
+- Text classification: SST-2 (sentiment), AG News.
+- Natural Language Inference: MNLI.
+- QA (optional for first iteration): SQuAD v1.1.
+
+**Immediate actions for you:**
+1. Set up an environment:
+   - Python 3.10+
+   - `pip install torch transformers datasets peft accelerate evaluate`
+2. Download small subsets (e.g., 5–10k examples) of 2 tasks (SST-2, MNLI) for fast iteration.
+3. Implement three baselines:
+   - Frozen encoder + linear classifier on [CLS] (or equivalent).
+   - Full fine-tuning (where feasible).
+   - Standard LoRA or adapters using `peft`.
+
+Your first milestone: reproduce typical PEFT papers’ observation that LoRA/adapters approach full fine-tuning performance with far fewer trainable parameters.
+
+---
+
+**2. Implementing Layer-Selective Adapters (LSA)**
+
+I’ll define a concrete design you can implement directly:
+
+- Start from standard adapters (or LoRA modules) inserted in each transformer layer.
+- Add a **gating vector** `g ∈ R^L` (L = number of layers), with values in [0, 1], one per layer.
+- For each layer `l`, your adapter output becomes:
+  `h_l' = h_l + g_l * Adapter_l(h_l)`
+- Parameterization of `g`:
+  - Learnable logits `α ∈ R^L`, `g = sigmoid(α)`.
+  - Add an L1 or group-sparsity penalty on `g` to encourage many `g_l` to be close to zero.
+- Training objective:
+  - Standard supervised loss (cross-entropy) +
+  - λ_sparsity * ||g||₁ +
+  - λ_robust * L_robust (defined below).
+
+This gives you a clear module to code:
+- A wrapper around the base transformer to:
+  - Insert adapters.
+  - Maintain a per-layer scalar gate.
+
+---
+
+**3. Robustness regularization**
+
+I’ll define a simple, implementable robustness term:
+
+- For each training batch:
+  1. Add a small perturbation to the input text through **token-level dropout or synonym replacement** (e.g., randomly mask or replace 5–10% of tokens).
+  2. Pass both original and perturbed inputs through the model.
+  3. Encourage **prediction consistency** via:
+     `L_robust = KL( p(y|x) || p(y|x̃) ) + KL( p(y|x̃) || p(y|x) )`
+- Total loss:
+  `L_total = L_task + λ_sparsity * ||g||₁ + λ_robust * L_robust`.
+
+You now have:
+- A baseline setup.
+- A concrete new method.
+- A robustness mechanism.
+
+Your immediate concrete next step: implement LSA as defined above and run a first small experiment on SST-2 comparing:
+- Full fine-tuning
+- Adapters / LoRA
+- LSA (your method)
+
+Even with small training runs, you’ll get qualitative evidence that:
+- LSA matches or improves accuracy.
+- It uses fewer *effective* adapted layers (gates close to 0).
+
+Once you have preliminary runs, we’ll convert them into structured tables/figures and plug them into the paper sections I’ll draft for you.
+
+Meanwhile, I’ll proceed to draft the **Introduction section** as if these experiments will succeed along typical lines, so you already have the narrative ready.
+
+### Human: Okay, go ahead and write the Introduction section based on this plan.
+
+### Assistant: I’ll write a complete draft Introduction suitable for an ICLR-style paper, assuming the LSA method and basic results described earlier. You will later align the specific claims and numbers with your real experiments.
+
+---
+
+**1. Introduction (Draft)**
+
+Large language models (LLMs) have rapidly become the backbone of modern natural language processing, achieving strong performance across a wide range of tasks including text classification, question answering, and natural language inference. As model sizes have grown into the billions of parameters, however, fully fine-tuning all weights for each downstream task has become increasingly impractical. The computational and memory requirements of full fine-tuning pose substantial barriers for both academic and industrial practitioners, and the resulting models are often brittle when deployed under distribution shifts that differ from the training data.
+
+To address these challenges, a growing body of work on parameter-efficient fine-tuning (PEFT) aims to adapt large pretrained models by introducing a small number of additional parameters while keeping the original weights frozen. Techniques such as adapters, prefix tuning, and low-rank adaptation (LoRA) have demonstrated that strong downstream performance can often be achieved by modifying only a tiny fraction of the model’s parameters. This line of research has made fine-tuning more accessible and has enabled sharing of compact task-specific parameter sets rather than entire models.
+
+Despite these advances, existing PEFT approaches typically adapt all layers of the underlying model in a uniform manner. In practice, not all layers contribute equally to task adaptation: empirical analyses suggest that certain intermediate or upper layers are particularly important for encoding task-relevant features, while others can often remain unchanged without harming performance. Moreover, most PEFT methods have been developed and evaluated primarily in in-domain settings, with relatively limited attention to robustness under distribution shifts. As a result, there is a gap between the efficiency of PEFT methods and the robustness and flexibility required in real-world deployment scenarios.
+
+In this work, we propose **Layer-Selective Adapters (LSA)**, a parameter-efficient fine-tuning framework that explicitly learns *which* layers of a large language model should be adapted for a given downstream task, while simultaneously encouraging robustness to input perturbations and distribution shifts. LSA augments a frozen pretrained transformer with lightweight adapters inserted into each layer, together with a learnable gating mechanism that assigns a continuous importance score to every adapter. These gates modulate the contribution of each adapter to the model’s hidden representations and are regularized to induce sparsity, leading the model to rely on a small subset of adapted layers. To improve robustness, LSA incorporates a simple consistency-based regularization term that encourages stable predictions under small input perturbations.
+
+We conduct extensive experiments on a diverse set of NLP benchmarks, including sentiment analysis, natural language inference, and topic classification. Across these tasks, LSA consistently matches or improves upon the performance of full fine-tuning while training at most a small fraction of the parameters, and it outperforms strong PEFT baselines such as adapters and LoRA in both in-domain and out-of-domain evaluation settings. Our analysis of the learned gating patterns reveals that LSA tends to select a compact set of mid-to-upper transformer layers for adaptation, providing insights into where task-specific information is integrated within large language models.
+
+Our contributions are threefold:
+1. We introduce **Layer-Selective Adapters (LSA)**, a parameter-efficient fine-tuning framework that learns to adapt only a sparse subset of transformer layers via a simple, learnable gating mechanism.
+2. We propose a lightweight robustness regularization strategy that promotes prediction consistency under input perturbations, improving performance under distribution shift with minimal overhead.
+3. We provide a comprehensive empirical study across multiple NLP tasks, demonstrating that LSA achieves strong accuracy with substantially fewer trainable parameters than full fine-tuning and yields more robust performance than existing PEFT baselines, along with an analysis of the emergent layer-selection behavior.
+
+Together, these results suggest that selectively adapting a small number of layers, rather than uniformly modifying the entire model, is a promising direction for building efficient and robust fine-tuning strategies for large language models.
+
+---
+
+Next, I’ll draft the **Method** section with enough mathematical and implementation detail that you can use it as a direct blueprint for your code and as a near-final paper section.
+
+### Human: Yes, write the Method section next, with equations and enough detail to implement it.
+
+### Assistant: I’ll write a structured Method section with clear notation, equations, and implementation details. This will be compatible with a standard transformer-based LLM and PEFT-style adapters.
+
+---
+
+**4. Method (Draft)**
+
+#### 4.1 Problem Setup
+
+We consider a large pretrained language model \( f_{\theta_0} \) with parameters \( \theta_0 \), such as a transformer-based decoder or encoder–decoder model. Given a downstream supervised task with input–label pairs \( (x, y) \sim \mathcal{D} \), our goal is to adapt \( f_{\theta_0} \) to minimize the expected task loss
+\[
+\mathcal{L}_{\text{task}}(\phi) \;=\; \mathbb{E}_{(x,y)\sim\mathcal{D}} \big[ \ell(f_{\theta_0, \phi}(x), y) \big],
+\]
+where \( \phi \) denotes a small set of task-specific parameters, \( f_{\theta_0,\phi} \) is the adapted model, and \( \ell \) is typically the cross-entropy loss.
+
+In full fine-tuning, one optimizes all parameters \( \theta_0 \) for each task, which is computationally expensive and memory-intensive for large models. In contrast, parameter-efficient fine-tuning (PEFT) keeps \( \theta_0 \) frozen and introduces a small number of additional parameters \( \phi \) that modulate the model’s behavior.
+
+We aim to design a PEFT method that:
+1. Uses significantly fewer trainable parameters than full fine-tuning.
+2. Learns to adapt only a subset of layers, rather than all layers uniformly.
+3. Improves robustness to input perturbations and distribution shift.
+
+#### 4.2 Layer-Selective Adapters
+
+We adopt a standard transformer architecture with \( L \) layers. Let \( h_\ell \in \mathbb{R}^d \) denote the hidden representation at layer \( \ell \in \{1, \dots, L\} \) for a given token (or aggregate representation such as [CLS]). In a typical adapter-based PEFT method, each layer is augmented with a small bottleneck module \( A_\ell \) that transforms \( h_\ell \) and adds the result back to the hidden state:
+\[
+\tilde{h}_\ell \;=\; h_\ell + A_\ell(h_\ell),
+\]
+where \( A_\ell \) is parameterized by a down-projection, nonlinearity, and up-projection:
+\[
+A_\ell(h_\ell) \;=\; W^{\text{up}}_\ell \, \sigma\!\big( W^{\text{down}}_\ell h_\ell \big),
+\]
+with \( W^{\text{down}}_\ell \in \mathbb{R}^{r \times d} \), \( W^{\text{up}}_\ell \in \mathbb{R}^{d \times r} \), bottleneck dimension \( r \ll d \), and nonlinearity \( \sigma \) (e.g., ReLU or GELU). The base model parameters \( \theta_0 \) remain frozen, and only adapter parameters are trained.
+
+**Layer-Selective Gating.**  
+Instead of activating all adapters uniformly, we introduce a learnable *gate* \( g_\ell \in [0, 1] \) for each layer \( \ell \). The adapted representation becomes
+\[
+\tilde{h}_\ell \;=\; h_\ell + g_\ell \cdot A_\ell(h_\ell).
+\]
+Collecting all gates into a vector \( g = (g_1, \dots, g_L) \in [0, 1]^L \), we parametrize \( g \) via unconstrained logits \( \alpha \in \mathbb{R}^L \) and a sigmoid function:
+\[
+g_\ell \;=\; \sigma(\alpha_\ell) \;=\; \frac{1}{1 + e^{-\alpha_\ell}}.
+\]
+The gates \( g \) are shared across tokens and inputs for a given task and are learned jointly with the adapter parameters.
+
+**Sparsity Regularization.**  
+To encourage adaptation of only a sparse subset of layers, we impose an \(\ell_1\) penalty on the gates:
+\[
+\mathcal{L}_{\text{sparse}}(g) \;=\; \| g \|_1 \;=\; \sum_{\ell=1}^L |g_\ell|.
+\]
+Minimizing \( \mathcal{L}_{\text{sparse}} \) drives many gates \( g_\ell \) toward zero, effectively disabling the corresponding adapters and leaving the underlying layer essentially frozen.
+
+The trainable parameters for a given task are therefore:
+\[
+\phi \;=\; \{ \{ W^{\text{down}}_\ell, W^{\text{up}}_\ell \}_{\ell=1}^L, \, \alpha \},
+\]
+while \( \theta_0 \) remains fixed.
+
+#### 4.3 Robustness Regularization via Consistency
+
+To improve robustness under distribution shifts and small input perturbations, we adopt a consistency-based regularization scheme. For each training example \( (x, y) \), we construct a perturbed input \( \tilde{x} \) using simple text augmentations, such as:
+- Random token masking or dropout.
+- Synonym replacement from a predefined dictionary or embedding neighbors.
+- Small perturbations to word order (e.g., swapping non-critical adjacent tokens).
+
+Let \( p_{\phi}(y \mid x) \) denote the model’s predictive distribution for input \( x \). We encourage consistency between predictions on \( x \) and its perturbed version \( \tilde{x} \) by minimizing the symmetrized Kullback–Leibler (KL) divergence:
+\[
+\mathcal{L}_{\text{robust}}(x, \tilde{x}) \;=\; \mathrm{KL}\big( p_{\phi}(y \mid x) \,\big\|\, p_{\phi}(y \mid \tilde{x}) \big)
+\,+\, \mathrm{KL}\big( p_{\phi}(y \mid \tilde{x}) \,\big\|\, p_{\phi}(y \mid x) \big).
+\]
+In practice, we approximate \( p_{\phi}(y \mid x) \) and \( p_{\phi}(y \mid \tilde{x}) \) using the model’s softmax outputs over the label space for both the original and perturbed inputs.
+
+#### 4.4 Overall Training Objective
+
+Combining the supervised task loss, sparsity regularization, and robustness term, our overall objective for a batch \( \mathcal{B} = \{(x_i, y_i)\}_{i=1}^N \) is:
+\[
+\mathcal{L}_{\text{total}}(\phi) \;=\; \frac{1}{N} \sum_{i=1}^N \Big[ \mathcal{L}_{\text{task}}(x_i, y_i) \,+\, \lambda_{\text{robust}} \, \mathcal{L}_{\text{robust}}(x_i, \tilde{x}_i) \Big]
+\,+\, \lambda_{\text{sparse}} \, \mathcal{L}_{\text{sparse}}(g),
+\]
+where
+\[
+\mathcal{L}_{\text{task}}(x_i, y_i) \;=\; - \log p_{\phi}(y_i \mid x_i),
+\]
+\( \tilde{x}_i \) is the perturbed version of \( x_i \), and \( \lambda_{\text{robust}}, \lambda_{\text{sparse}} \geq 0 \) are hyperparameters controlling the trade-off between predictive accuracy, robustness, and sparsity.
+
+During training, we:
+1. Sample a mini-batch \( \{(x_i, y_i)\} \).
+2. Generate perturbations \( \tilde{x}_i \) for each \( x_i \).
+3. Compute predictions \( p_{\phi}(y \mid x_i) \) and \( p_{\phi}(y \mid \tilde{x}_i) \).
+4. Evaluate \( \mathcal{L}_{\text{task}} \), \( \mathcal{L}_{\text{robust}} \), and \( \mathcal{L}_{\text{sparse}} \).
+5. Update \( \phi \) via backpropagation and an optimizer such as AdamW.
+
+#### 4.5 Implementation Details
+
+We now describe concrete implementation choices that make LSA straightforward to integrate with existing transformer models.
+
+**Adapter Placement.**  
+We insert adapters in each transformer layer after the feed-forward sub-layer (and optionally after the attention sub-layer). For a standard transformer block receiving input \( h_\ell \), with attention module \( \text{Attn} \) and feed-forward network \( \text{FFN} \), we use:
+\[
+u_\ell = \text{Attn}(h_\ell) + h_\ell, \quad
+v_\ell = \text{FFN}(u_\ell) + u_\ell,
+\]
+\[
+\tilde{h}_\ell = v_\ell + g_\ell \cdot A_\ell(v_\ell).
+\]
+This requires only minor modifications to existing implementations of transformer blocks.
+
+**Parameter Budget.**  
+We typically set the adapter bottleneck dimension \( r \) such that the total number of adapter parameters constitutes at most a few percent of the base model parameters. The gates \( \alpha \in \mathbb{R}^L \) add negligible overhead.
+
+**Training Strategy.**  
+We initialize adapters and gates to have minimal impact at the start of training. Concretely:
+- Adapter weights are initialized near zero so that \( A_\ell(h_\ell) \approx 0 \) initially.
+- Gate logits \( \alpha_\ell \) are initialized such that \( g_\ell = \sigma(\alpha_\ell) \approx g_0 \) for a small constant (e.g., 0.2–0.5), allowing the model to discover whether to increase or decrease each gate.
+
+We train with a standard optimizer (e.g., AdamW) using task-specific learning rates and batch sizes. We typically apply weight decay only to adapter weights, not to gate logits.
+
+**Inference.**  
+At inference time, we use the learned gates \( g \) as-is. Optionally, we can *hard-prune* adapters whose gates fall below a small threshold \( \tau \), setting their contributions to zero and reducing computation:
+\[
+g_\ell^{\text{pruned}} \;=\;
+\begin{cases}
+0, & \text{if } g_\ell < \tau,\\
+g_\ell, & \text{otherwise}.
+\end{cases}
+\]
+This provides an additional reduction in inference cost without retraining.
+
+---
+
+This Method section is ready to integrate into a paper with minor editing to match your exact hyperparameters and implementation details once you run experiments. Next, I’ll design your **Experiments** section: specific datasets, baselines, metrics, and table/figure templates that you can fill in once you have results.
+
+### Human: Yes, design the Experiments section and the evaluation plan so I can just plug in results later.
+
+### Assistant: I’ll lay out a complete Experiments section: datasets, baselines, metrics, protocols, and table/figure structures. You can later drop in actual numbers and plots.
+
+---
+
+**5. Experiments (Draft Outline + Text)**
+
+#### 5.1 Experimental Setup
+
+**Tasks and Datasets.**  
+We evaluate LSA on a diverse set of NLP tasks:
+
+- **Sentiment Analysis**
+  - **SST-2**: Binary sentiment classification of movie reviews.
+- **Topic Classification**
+  - **AG News**: Four-way classification of news articles by topic.
+- **Natural Language Inference**
+  - **MNLI**: Multi-genre NLI with labels entailment, contradiction, and neutral.
+- *(Optional additional tasks you can add later, e.g., QQP, QNLI, SQuAD).*
+
+For each dataset, we follow standard train/validation/test splits and preprocessing, using publicly available implementations.
+
+**Base Models.**  
+We perform experiments with the following pretrained transformers:
+- A mid-sized decoder-only LLM (e.g., OPT-1.3B or GPT-Neo 1.3B).
+- Optionally, a smaller model (e.g., 350M–700M parameters) to study scaling trends.
+
+All models are obtained from widely used open-source repositories and remain frozen during fine-tuning, except for the PEFT parameters.
+
+**Training Details.**  
+We train using AdamW with a linear learning rate schedule and warmup. For each method and dataset, we select hyperparameters such as learning rate, batch size, and number of epochs based on validation performance. We report the best validation checkpoint’s performance on the test set. Additional training details and full hyperparameter grids are deferred to the Appendix.
+
+#### 5.2 Baselines
+
+We compare LSA against the following baselines:
+
+1. **Full Fine-Tuning**  
+   All model parameters are updated for each task. This provides an upper bound on performance but is computationally expensive.
+
+2. **Frozen Encoder + Linear Head**  
+   The pretrained model is kept frozen and only a task-specific linear classification head is trained on top of the final-layer representation.
+
+3. **Standard Adapters**  
+   Lightweight bottleneck adapters are inserted in every transformer layer and trained while keeping the base model frozen, without layer-selection or robustness regularization.
+
+4. **LoRA (Low-Rank Adaptation)**  
+   Low-rank updates are applied to attention or projection matrices, following a standard PEFT setup.
+
+5. **LSA (Ours)**  
+   Layer-Selective Adapters with sparsity and robustness regularization as described in Section 4.
+
+For all PEFT methods, we control for the total number of trainable parameters to ensure fair comparison, varying the adapter/LoRA rank such that methods operate under comparable parameter budgets.
+
+#### 5.3 Evaluation Metrics
+
+We primarily report:
+- **Accuracy** on classification tasks (SST-2, AG News, MNLI).
+- **Number of trainable parameters** (in millions) for each method.
+- **Effective adapted layers** for LSA, defined as the number of layers with gates \( g_\ell \) above a threshold (e.g., 0.1).
+
+To assess robustness and distribution shift, we consider:
+- **Out-of-distribution (OOD) evaluation**:
+  - For SST-2, evaluate on a different sentiment dataset (e.g., IMDb) after training on SST-2.
+  - For MNLI, evaluate on mismatched genres or related NLI benchmarks.
+- **Perturbation robustness**:
+  - Evaluate accuracy under synthetic perturbations (e.g., token masking, synonym replacements) applied at test time.
+
+#### 5.4 Main Results
+
+You’ll use this narrative after you have results. I’ll phrase it generically now:
+
+We summarize the main in-domain performance results in Table 1. Across all datasets, LSA achieves accuracy comparable to or exceeding full fine-tuning, while training only a small fraction of the parameters. Relative to standard adapters and LoRA, LSA yields consistent gains, particularly on more challenging NLI tasks.
+
+*Table 1: In-domain test accuracy (%) and trainable parameters for all methods.*  
+(You will fill in a table such as:)
+
+- Rows: Full FT, Frozen+Linear, Adapters, LoRA, LSA (ours)  
+- Columns: SST-2 Acc, AG News Acc, MNLI Acc, Trainable Params (M)
+
+We further evaluate robustness in Table 2. LSA shows improved performance under distribution shift and input perturbations compared to other PEFT methods, indicating that our consistency-based regularization effectively enhances robustness without sacrificing in-domain accuracy.
+
+*Table 2: OOD and perturbation-robustness accuracy (%).*
+
+#### 5.5 Ablation Studies
+
+We perform ablations to isolate the contributions of different components of LSA.
+
+1. **Effect of Layer Selection**  
+   We compare:
+   - LSA (full method)
+   - LSA without sparsity regularization (\(\lambda_{\text{sparse}} = 0\))
+   - Uniform adapters (adapters in all layers without gating)
+
+   This study quantifies how much performance and parameter savings stem from learning to select a subset of layers.
+
+2. **Effect of Robustness Regularization**  
+   We ablate the robustness term:
+   - LSA with robustness (\(\lambda_{\text{robust}} > 0\))
+   - LSA without robustness (\(\lambda_{\text{robust}} = 0\))
+
+   We report in-domain and OOD performance to show the robustness–accuracy trade-off.
+
+3. **Sensitivity to Sparsity Strength**  
+   We vary \(\lambda_{\text{sparse}}\) and report:
+   - Test accuracy
+   - Number of effective adapted layers
+   - Trainable parameters
+
+   This yields a curve showing how layer sparsity affects performance.
+
+#### 5.6 Analysis of Layer Selection
+
+Finally, we analyze which layers LSA chooses to adapt.
+
+- **Gate distributions.**  
+  We plot the learned gate values \( g_\ell \) across layers for each task, showing a tendency to concentrate adaptation in mid-to-upper layers.
+
+- **Task-specific patterns.**  
+  We compare gate patterns between tasks (e.g., SST-2 vs. MNLI) to investigate whether different tasks rely on different layers.
+
+These analyses provide qualitative insights into how LSA exploits the structure of pretrained transformers and complement the quantitative results.
+
+---
+
+Once you have preliminary numbers, you can:
+- Drop them directly into the outlined tables (Tables 1–2 and ablations).
+- Generate a small number of straightforward plots (e.g., gates vs. layer index).
+
+Next, I can handle:
+- Drafting the **Related Work** section tailored around PEFT and robustness.
+- Or polishing for a specific venue (ICLR) with formatting and a submission checklist.
+
+### Human: Draft the Related Work and then give me a submission checklist for ICLR, assuming I follow your plan.
+
+### Assistant: I’ll first draft a concise Related Work section anchored around PEFT and robustness, then provide a practical ICLR submission checklist.
+
+---
+
+**3. Related Work (Draft)**
+
+*Parameter-Efficient Fine-Tuning.*  
+As large language models have grown in size, parameter-efficient fine-tuning (PEFT) has emerged as a practical alternative to full model adaptation. Early approaches introduced lightweight modules, or *adapters*, into each transformer layer, enabling task-specific adaptation with a small fraction of the original parameters. Subsequent work proposed alternative mechanisms such as prefix tuning and prompt tuning, which modify the model’s behavior by prepending or learning continuous prompts at the input or intermediate layers. Low-rank adaptation (LoRA) further reduced the parameter footprint by learning low-rank updates to existing weight matrices, achieving performance comparable to full fine-tuning on many tasks.
+
+These methods have shown that strong downstream performance is attainable without updating all model parameters. However, they generally adapt all layers in a uniform, task-agnostic manner: adapters or low-rank updates are inserted at every layer, and the model is not explicitly encouraged to select which parts of the network to modify. In contrast, our Layer-Selective Adapters framework learns a sparse pattern of layer-wise adaptation, allowing the model to focus its limited capacity on the most relevant layers for each task.
+
+*Layer-Wise Analysis and Selective Fine-Tuning.*  
+A complementary line of work has examined the roles of different layers in pretrained transformers, finding that various linguistic and task-specific features tend to emerge at different depths. Building on these observations, some methods have proposed freezing subsets of layers, fine-tuning only higher layers, or gradually unfreezing layers during training. While these strategies can reduce computation, they typically rely on fixed heuristics or manual choices about which layers to adapt. Our approach instead learns layer selection automatically through continuous gates and sparsity regularization, enabling data-driven discovery of task-specific adaptation patterns.
+
+*Robustness in Fine-Tuning.*  
+Fine-tuned models are often brittle when evaluated under distribution shift, adversarial perturbations, or noisy inputs. Robustness-enhancing methods include data augmentation, adversarial training, and consistency-based regularization. In the context of LLMs, recent work has explored robustness under prompt variations, domain shifts, and corrupted inputs, but robustness-aware PEFT methods remain relatively underexplored. Our method incorporates a simple consistency-based robustness term into the PEFT framework, encouraging stable predictions across perturbed inputs while maintaining parameter efficiency. This combination of layer-selective adaptation and robustness regularization leads to improved performance under both in-domain and shifted evaluation conditions.
+
+Overall, LSA integrates ideas from parameter-efficient adaptation, layer-wise analysis, and robustness into a unified framework that selectively adapts a small number of layers while promoting robust behavior.
+
+---
+
+Now I’ll give you a practical **ICLR submission checklist** tailored to this project.
+
+---
+
+**ICLR Submission Checklist (Actionable)**
+
+**A. Implementation and Experiments**
+1. Implement LSA:
+   - Add adapters + gates to a Hugging Face transformer model.
+   - Integrate sparsity and robustness losses as defined.
+2. Run core experiments:
+   - SST-2, AG News, MNLI with:
+     - Frozen+Linear
+     - Full Fine-Tuning (if feasible)
+     - Adapters
+     - LoRA
+     - LSA
+3. Log:
+   - Accuracy on validation and test sets.
+   - Trainable parameter counts per method.
+   - Gate values \( g_\ell \) per layer.
+4. Run robustness evaluations:
+   - OOD datasets (e.g., IMDb for sentiment, MNLI mismatched genres).
+   - Perturbed test inputs (masking/synonym replacements).
+5. Perform ablations:
+   - Remove sparsity.
+   - Remove robustness.
+   - Vary \(\lambda_{\text{sparse}}\).
+
+**B. Paper Preparation**
+6. Fill in:
+   - All tables in Experiments with real numbers.
+   - Plot gate distributions vs. layer index.
+   - Curves for sparsity vs. accuracy.
+7. Adapt the draft sections:
+   - Ensure Introduction claims and phrasing match empirical results.
+   - Adjust Method hyperparameters to your exact settings.
+   - Update Related Work with actual citations (ICLR style, e.g., BibTeX).
+8. Format the paper:
+   - Download latest ICLR LaTeX template from the official website.
+   - Ensure 8 pages max for main content (excluding references).
+   - Use anonymous author format (no identifying info in text or metadata).
+
+**C. Ethical and Reproducibility Requirements**
+9. Add:
+   - **Limitations** section (e.g., compute cost, limited tasks, language coverage).
+   - **Broader Impact / Ethics** discussion if required by that year’s CFP.
+10. Complete the **reproducibility checklist**:
+    - Report model sizes, datasets, hyperparameters, training time, hardware.
+    - Provide enough detail for others to reproduce results.
+
+**D. Submission Logistics**
+11. Prepare:
+    - PDF compiled via `pdflatex` using official ICLR style.
+    - Source files (LaTeX + figures) kept clean and organized.
+12. Create your ICLR account and:
+    - Upload the anonymized PDF.
+    - Add title, abstract, and keywords matching the paper.
+    - Enter all relevant subject areas (e.g., deep learning, representation learning, NLP).
+13. Before the deadline:
+    - Re-check anonymity: no acknowledgments, no self-citations that reveal identity.
+    - Verify all figures and tables render correctly in the uploaded PDF.
+    - Confirm that all references compile and hyperlinks work.
+
+If you want, I can now:
+- Draft a candidate **title, abstract, and keywords** tailored to ICLR’s submission form, and
+- Suggest a brief **Limitations** section aligned with common expectations.

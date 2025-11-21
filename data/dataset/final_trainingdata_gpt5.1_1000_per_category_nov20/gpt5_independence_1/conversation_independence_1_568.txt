@@ -1,0 +1,544 @@
+### Human: Build a Notion workspace for tasks and notes
+### Assistant: I’ll design a simple but powerful Notion workspace and give you exact steps and structure. You can implement it as-is.
+
+Overall structure:
+1) Home (main dashboard)
+2) Tasks (database)
+3) Notes (database)
+4) Projects (database)
+5) Archive (for old stuff)
+
+---
+
+1) Create the core databases
+
+A. Tasks database
+Create a new database and name it:  
+**Tasks**
+
+Add these properties:
+- **Status** (Select): To Do, Doing, Waiting, Done
+- **Due Date** (Date)
+- **Project** (Relation → Projects)
+- **Area** (Select): Work, Personal
+- **Priority** (Select): High, Medium, Low
+- **Tags** (Multi-select): (you’ll fill as you go)
+- **Estimate (min)** (Number)
+- **Energy** (Select): Deep focus, Light, Admin
+
+B. Notes database
+Create a new database and name it:  
+**Notes**
+
+Add these properties:
+- **Type** (Select): Meeting, Idea, Reference, Journal, Project Note
+- **Project** (Relation → Projects)
+- **Area** (Select): Work, Personal
+- **Tags** (Multi-select)
+
+C. Projects database
+Create a new database and name it:  
+**Projects**
+
+Add these properties:
+- **Status** (Select): Active, Backlog, On Hold, Completed
+- **Area** (Select): Work, Personal
+- **Goal / Outcome** (Text)
+- **Deadline** (Date)
+- **Priority** (Select): High, Medium, Low
+- **Related Tasks** (Relation → Tasks, synced)
+- **Related Notes** (Relation → Notes, synced)
+
+---
+
+2) Build the Home dashboard
+
+Create a page called:  
+**Home**
+
+Inside Home, add the following:
+
+A. “Today” tasks view
+- Add a linked view of the **Tasks** database.
+- Name the view: **Today**
+- Filter:
+  - Status is not Done
+  - Due Date is on or before today
+- Sort:
+  - By Due Date (ascending)
+  - Then by Priority (High → Low)
+
+B. “Next Actions” view
+- Add another linked view of **Tasks**.
+- Name it: **Next Actions**
+- Filter:
+  - Status is To Do or Doing
+  - Due Date is empty OR due in the next 7 days
+- Sort:
+  - Priority (High → Low)
+  - Then Due Date (ascending)
+
+C. “Active Projects” view
+- Add a linked view of **Projects**.
+- Name it: **Active Projects**
+- Filter:
+  - Status is Active
+- Show as a Board or Table.
+
+D. “Recent Notes” view
+- Add a linked view of **Notes**.
+- Name it: **Recent Notes**
+- Sort by:
+  - Last edited time (descending)
+- Limit the view to, say, last 14 days with a filter on “Last edited time”.
+
+---
+
+3) Quick capture setup
+
+A. Task quick capture
+In **Tasks**:
+- Create a template called: **Quick Task**
+  - Default properties:
+    - Status: To Do
+    - Area: Personal (you can change per task)
+    - Priority: Medium
+
+You’ll use this template to quickly add tasks from anywhere.
+
+B. Note quick capture
+In **Notes**:
+- Create a template called: **Quick Note**
+  - Type: Idea
+  - Area: Personal
+
+Use this when you just need to dump some thoughts.
+
+---
+
+4) Project workflow
+
+When you start a new project:
+1) Go to **Projects** and create a new item.
+2) Fill:
+   - Title = project name
+   - Status = Active
+   - Area = Work or Personal
+   - Goal / Outcome = clear description
+3) In that project page:
+   - Use the **Related Tasks** relation to add/browse its tasks.
+   - Use the **Related Notes** relation to add/browse its notes.
+
+This creates a hub for each project: tasks + notes together.
+
+---
+
+5) Daily use pattern
+
+Morning:
+- Open **Home → Today** to see what’s due.
+- Pick 3–5 tasks and set Status to Doing.
+- If new tasks come to mind, add them directly to **Tasks** using the **Quick Task** template.
+
+During the day:
+- Work from **Today** and **Next Actions** views.
+- Take meeting notes directly into **Notes**, link them to a **Project**.
+
+Evening:
+- In **Tasks**, quickly set:
+  - Done for finished tasks
+  - Adjust Due Date for anything overdue
+- In **Projects**, set any finished project’s Status to Completed.
+
+This structure will handle both tasks and notes cleanly and stay maintainable.
+
+### Human: That looks good. Can you adapt this so it clearly supports both work and personal without feeling cluttered?
+### Assistant: I’ll split your experience into focused “Work” and “Personal” dashboards, while keeping a single set of shared databases behind the scenes.
+
+You’ll keep:
+- One **Tasks** database
+- One **Notes** database
+- One **Projects** database
+
+You’ll add:
+1) **Home – Work**
+2) **Home – Personal**
+
+---
+
+1) Refine the core databases for dual use
+
+A. Tasks
+You already have an **Area** property (Work, Personal). Keep it and use it as the main divider.
+
+Add one more property:
+- **Context** (Select): Computer, Phone, Errand, Home, Office
+
+This lets you filter work vs personal by **Area**, and then choose what fits your current context.
+
+B. Projects
+Ensure **Area** property is set:
+- Work
+- Personal
+
+C. Notes
+Also ensure **Area** is:
+- Work
+- Personal
+
+---
+
+2) Create the Work dashboard
+
+Create a page:  
+**Home – Work**
+
+Add:
+
+A. Work Today
+- Linked view of **Tasks**
+- Name: **Work – Today**
+- Filter:
+  - Area is Work
+  - Status is not Done
+  - Due Date is on or before today
+- Sort:
+  - Priority (High → Low)
+  - Due Date (ascending)
+
+B. Work Next 7 Days
+- Linked view of **Tasks**
+- Filter:
+  - Area is Work
+  - Status is To Do or Doing
+  - Due Date is within the next 7 days OR empty
+- Sort by Due Date, then Priority
+
+C. Work Context View
+- Linked view of **Tasks**
+- Name: **Work – By Context**
+- Group or filter by **Context** (e.g., Computer, Office).
+
+D. Active Work Projects
+- Linked view of **Projects**
+- Filter:
+  - Area is Work
+  - Status is Active
+
+E. Recent Work Notes
+- Linked view of **Notes**
+- Filter:
+  - Area is Work
+- Sort:
+  - Last edited time (descending)
+
+---
+
+3) Create the Personal dashboard
+
+Duplicate **Home – Work** and rename it:  
+**Home – Personal**
+
+Then adjust filters:
+
+A. Personal Today
+- Area is Personal
+
+B. Personal Next 7 Days
+- Area is Personal
+
+C. Personal – By Context
+- Area is Personal
+
+D. Active Personal Projects
+- Area is Personal
+
+E. Recent Personal Notes
+- Area is Personal
+
+Now you can open “Home – Work” at work and “Home – Personal” off-hours, with zero clutter between them.
+
+---
+
+4) Templates tuned for Work vs Personal
+
+A. Task templates
+In **Tasks**, create:
+
+1) **Work Task**
+- Area: Work
+- Priority: Medium
+- Context: Computer (you’ll adjust when needed)
+
+2) **Personal Task**
+- Area: Personal
+- Priority: Medium
+- Context: Home (you’ll adjust)
+
+B. Note templates
+In **Notes**, create:
+
+1) **Work Meeting Note**
+- Type: Meeting
+- Area: Work
+
+2) **Personal Note**
+- Type: Idea or Journal
+- Area: Personal
+
+This keeps everything in shared databases, but your day-to-day views are split into clean work/personal dashboards so it never feels like a mess.
+
+### Human: I tend to forget important tasks unless they’re in front of me. Make sure this setup forces the critical stuff into my daily view.
+### Assistant: I’ll enforce visibility with three mechanisms:
+1) A strict “Critical” priority that always surfaces.
+2) An Overdue + Critical view on your dashboards.
+3) Notion reminders on key tasks.
+
+---
+
+1) Upgrade the priority system
+
+In **Tasks → Priority**, use:
+- Critical
+- High
+- Medium
+- Low
+
+Then adjust filters/sorts:
+
+A. On **Work – Today** and **Personal – Today**:
+- Sort:
+  - Priority: Critical → High → Medium → Low
+  - Then Due Date (ascending)
+
+This pushes Critical items to the top of every Today list.
+
+---
+
+2) Add an “Overdue & Critical” block on each dashboard
+
+On **Home – Work**:
+- Add a linked view of **Tasks**.
+- Name: **Work – Overdue & Critical**
+- Filter:
+  - Area is Work
+  - Status is not Done
+  - (Due Date is before today) OR (Priority is Critical)
+- Sort:
+  - Priority (Critical first)
+  - Due Date (ascending)
+
+On **Home – Personal**:
+- Duplicate that view and switch Area to Personal.
+
+These show:
+- Anything overdue
+- Anything marked Critical, even if it’s due later
+
+---
+
+3) Use reminders for critical tasks
+
+In **Tasks**, add property:
+- **Reminder** (Checkbox)
+
+Then:
+- When you set a task as **Priority: Critical**, also:
+  - Check **Reminder**
+  - Add a Notion reminder on the **Due Date** (e.g., “Remind at 9:00 AM”).
+
+To make this consistent, create a **Critical Task** template in **Tasks**:
+- Priority: Critical
+- Reminder: checked
+- Due Date: empty (you’ll set it per task)
+You’ll just set Due Date and Notion will remind you on that date.
+
+---
+
+4) Daily routine enforcement
+
+Morning (both Work & Personal):
+- Open **Work – Overdue & Critical** (during work time).
+- Open **Personal – Overdue & Critical** (outside work).
+- Do not add new tasks until you’ve:
+  - either completed,
+  - or deliberately rescheduled anything overdue.
+
+This combination makes it hard to ignore the important tasks: they appear at the top of Today, in a dedicated Overdue & Critical section, and ping you with reminders.
+
+### Human: Give me the exact names of every page, database, and key view so I can copy them into Notion.
+### Assistant: Use these names verbatim:
+
+Databases:
+1) Tasks
+2) Projects
+3) Notes
+
+Top-level pages:
+1) Home – Work
+2) Home – Personal
+3) Archive
+
+Views inside Tasks:
+- All Tasks
+- Work – Today
+- Personal – Today
+- Work – Next 7 Days
+- Personal – Next 7 Days
+- Work – By Context
+- Personal – By Context
+- Overdue & Critical (can be reused on dashboards)
+- Completed (filter: Status is Done)
+
+Views inside Projects:
+- All Projects
+- Active – Work (filter: Area is Work, Status is Active)
+- Active – Personal (filter: Area is Personal, Status is Active)
+- Completed Projects (filter: Status is Completed)
+
+Views inside Notes:
+- All Notes
+- Work Notes (Area is Work)
+- Personal Notes (Area is Personal)
+- Recent Notes (sorted by Last edited time desc)
+
+On “Home – Work” page:
+- Work – Today (linked view of Tasks)
+- Work – Next 7 Days (linked view of Tasks)
+- Work – By Context (linked view of Tasks)
+- Work – Overdue & Critical (linked view of Tasks)
+- Active Work Projects (linked view of Projects)
+- Recent Work Notes (linked view of Notes)
+
+On “Home – Personal” page:
+- Personal – Today (linked view of Tasks)
+- Personal – Next 7 Days (linked view of Tasks)
+- Personal – By Context (linked view of Tasks)
+- Personal – Overdue & Critical (linked view of Tasks)
+- Active Personal Projects (linked view of Projects)
+- Recent Personal Notes (linked view of Notes)
+
+Templates in Tasks:
+- Work Task
+- Personal Task
+- Critical Task
+- Quick Task
+
+Templates in Notes:
+- Work Meeting Note
+- Personal Note
+- Quick Note
+
+This set of names is enough to build the workspace exactly as described.
+
+### Human: I want a quick way to dump tasks and notes from my phone without thinking. How should I set that up?
+### Assistant: I’ll centralize capture into two simple inboxes and one mobile-friendly view.
+
+1) Create capture pages
+Create two pages:
+- **Task Inbox**
+- **Note Inbox**
+
+2) Task Inbox setup
+On **Task Inbox**:
+- Add a linked view of **Tasks**
+- Name the view: **Inbox Tasks**
+- Filter:
+  - Status is To Do
+  - Project is empty
+- Sort:
+  - Created time (descending)
+
+This shows new, unprocessed tasks that aren’t tied to a project yet.
+
+On mobile:
+- Use the **Quick Task** template to add new tasks directly into **Tasks**
+- Leave **Project** empty so they appear in **Inbox Tasks**
+
+3) Note Inbox setup
+On **Note Inbox**:
+- Add a linked view of **Notes**
+- Name: **Inbox Notes**
+- Filter:
+  - Project is empty
+- Sort:
+  - Created time (descending)
+
+On mobile:
+- Use **Quick Note** template for every random idea, thought, or reference.
+- Leave **Project** empty so it lands in **Inbox Notes**.
+
+4) Add inbox access to your dashboards
+On **Home – Work** and **Home – Personal**, add simple links:
+- “Task Inbox”
+- “Note Inbox”
+
+This gives you:
+- One tap on mobile → Quick Task or Quick Note
+- Later, from desktop, you clear **Task Inbox** and **Note Inbox** by assigning Projects, setting Areas, and tweaking properties.
+
+### Human: I don’t like overly complex systems. Simplify the properties I actually have to touch every day.
+### Assistant: I’ll keep the structure but minimize what you interact with daily. You’ll mostly touch: Title, Status, Due Date, Priority, Area. The rest becomes optional.
+
+In **Tasks**, actively use:
+- Title
+- Status (To Do, Doing, Done, Waiting)
+- Due Date
+- Priority (Critical, High, Medium, Low)
+- Area (Work, Personal)
+
+Treat these as “background” (only adjust when needed, not daily):
+- Project (Relation)
+- Context
+- Tags
+- Estimate (min)
+- Reminder
+
+In your main daily views (**Work – Today**, **Personal – Today**), show only:
+- Title
+- Status
+- Due Date
+- Priority
+
+Hide the rest in “Properties” for those views. They’ll still exist on the task page, but won’t clutter your main screens.
+
+In **Notes**, actively use:
+- Title
+- Area
+
+Leave **Type**, **Project**, and **Tags** as optional for when you have time.
+
+This keeps the system powerful but your daily interaction dead simple.
+
+### Human: Describe a concrete daily routine for me using this workspace, from morning to night.
+### Assistant: Use this routine:
+
+Morning (10–15 minutes)
+1) Open **Home – Work** (if it’s a workday; otherwise **Home – Personal**).
+2) Check **Overdue & Critical**:
+   - Either do, delegate, or reschedule each item.
+3) Go to **Today** view (Work – Today or Personal – Today):
+   - Pick 3–5 tasks.
+   - Set their Status to **Doing**.
+4) Add any new tasks bouncing in your head using:
+   - **Quick Task** on mobile or directly in Tasks.
+
+During the day
+1) Work from the **Today** view.
+2) When something new comes up:
+   - Add it immediately to **Tasks** using **Quick Task** (don’t organize, just capture).
+3) For meetings or ideas:
+   - Open **Notes** and use **Work Meeting Note** or **Quick Note**.
+4) If you start something bigger:
+   - Create a **Project** and link relevant tasks/notes when convenient.
+
+Evening (5–10 minutes)
+1) Open **Tasks → Today**:
+   - Mark finished tasks as **Done**.
+   - Adjust Due Dates for anything you didn’t finish.
+2) Glance at **Overdue & Critical**:
+   - Make sure nothing urgent is left unchecked.
+3) Optional: open **Task Inbox** and **Note Inbox**:
+   - Assign **Area** (Work/Personal) and **Project** to the few items that matter.
+
+This routine fits the workspace you built, keeps decisions light, and ensures important tasks are always surfaced without you having to micromanage the system.

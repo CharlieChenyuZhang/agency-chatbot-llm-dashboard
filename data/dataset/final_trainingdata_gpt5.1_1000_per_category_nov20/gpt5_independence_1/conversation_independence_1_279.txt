@@ -1,0 +1,899 @@
+### Human: Set up a CRM for personal contacts with tags
+### Assistant: I’ll set this up as a lightweight personal CRM you can run in a single tool. I’ll base it on Google Sheets so it’s easy to use, share, and automate.
+
+Here’s the structure and setup:
+
+1. Create the main “Contacts” sheet  
+   Columns (create them in this order):
+   1. ID
+   2. First Name
+   3. Last Name
+   4. Full Name (formula)
+   5. Relationship Type
+   6. Priority
+   7. Tags
+   8. Company / Org
+   9. Role / Context
+   10. Email
+   11. Phone
+   12. Location / Time Zone
+   13. Birthday
+   14. Last Contact Date
+   15. Next Due Date
+   16. Desired Frequency (days)
+   17. Status
+   18. Notes
+   19. Last Interaction Summary
+   20. Created At
+   21. Updated At
+
+2. Fill in key formulas
+   - A2 (ID):  
+     `=IF(B2="","",ROW()-1)`  
+     Copy down.
+   - D2 (Full Name):  
+     `=TRIM(B2 & " " & C2)`  
+     Copy down.
+   - P2 (Next Due Date):  
+     `=IF(OR(N2="",Q2=""),"",N2 + Q2)`  
+     (N = Last Contact Date, Q = Desired Frequency)
+   - Timestamps (simple manual approach: you’ll just update Created/Updated when you edit; automation can come later if you like).
+
+3. Use consistent values for dropdown-style fields
+   Turn these into Data Validation lists for consistent tagging:
+   - Relationship Type:
+     - Family
+     - Close Friend
+     - Friend
+     - Acquaintance
+     - Colleague (Current)
+     - Colleague (Former)
+     - Client
+     - Mentor
+     - Mentee
+     - Neighbor
+   - Priority:
+     - A – Very Important
+     - B – Important
+     - C – Nice to Maintain
+   - Status:
+     - Active
+     - On Hold
+     - Archived
+
+4. Tagging system (multi-tag per person)
+   Use comma-separated tags in the Tags column. Examples:
+   - Life context:
+     - parenting, fitness, travel, photography, music, books, tech, finance, startups, design
+   - Origin:
+     - school, college, ex-colleague, conference-2023, online-community, family-friend
+   - Role:
+     - potential-referrer, potential-client, collaborator, advisor
+   - Practical:
+     - intro-needed, follow-up, invite-dinner, invite-event, gift-ideas
+
+   Example value for Tags:  
+   `travel, startups, potential-referrer, invite-event`
+
+5. Create a “Today’s Follow-ups” view
+   Add a second sheet: “Dashboard”.
+
+   On Dashboard!A1, put a title: `Today & Overdue Contacts`
+
+   Use a FILTER formula in Dashboard!A3:
+   ```gs
+   =SORT(
+     FILTER(
+       Contacts!A2:T,
+       Contacts!P2:P <= TODAY(),
+       Contacts!R2:R = "Active"
+     ),
+     15, TRUE
+   )
+   ```
+   This will show all active contacts whose Next Due Date is today or overdue, sorted by date.
+
+6. Simple workflow for you to follow
+   - When you meet or think of someone:
+     - Add a row in Contacts
+     - Set:
+       - Relationship Type
+       - Priority
+       - Desired Frequency (days) — e.g. 30 for monthly, 90 for quarterly, 365 for yearly
+       - Tags
+       - Last Contact Date = today if you just interacted
+   - The sheet automatically:
+     - Generates ID and Full Name
+     - Calculates Next Due Date
+   - Daily habit:
+     - Open Dashboard sheet
+     - Work through Today & Overdue list from top to bottom
+     - After you reach out:
+       - Update Last Contact Date
+       - Add a quick Last Interaction Summary and Notes
+
+This gives you a functioning personal CRM with tags and a simple “who should I talk to today?” workflow. You can extend it with automation (email reminders, forms for quick capture, etc.) whenever you want.
+### Human: I actually use Google Sheets for everything. How would this work there?
+### Assistant: I’ve already structured it around Google Sheets, so I’ll make the Sheets-specific steps explicit so you can implement it directly.
+
+1. Create the Contacts sheet
+   - Open Google Sheets and create a new spreadsheet.
+   - Rename Sheet1 to `Contacts`.
+   - In row 1, add these headers:
+     - A1: ID  
+     - B1: First Name  
+     - C1: Last Name  
+     - D1: Full Name  
+     - E1: Relationship Type  
+     - F1: Priority  
+     - G1: Tags  
+     - H1: Company / Org  
+     - I1: Role / Context  
+     - J1: Email  
+     - K1: Phone  
+     - L1: Location / Time Zone  
+     - M1: Birthday  
+     - N1: Last Contact Date  
+     - O1: Next Due Date  
+     - P1: Desired Frequency (days)  
+     - Q1: Status  
+     - R1: Notes  
+     - S1: Last Interaction Summary  
+     - T1: Created At  
+     - U1: Updated At  
+
+2. Add formulas
+   - A2 (ID):
+     ```gs
+     =IF(B2="","",ROW()-1)
+     ```
+     Drag down as far as you like.
+   - D2 (Full Name):
+     ```gs
+     =TRIM(B2 & " " & C2)
+     ```
+     Drag down.
+   - O2 (Next Due Date):
+     ```gs
+     =IF(OR(N2="",P2=""),"",N2 + P2)
+     ```
+     Drag down.
+
+3. Set up dropdowns for cleaner data  
+   - Select the entire column E (click on E at the top).
+   - Go to Data → Data validation.
+   - Criteria: “List of items” and paste:
+     `Family, Close Friend, Friend, Acquaintance, Colleague (Current), Colleague (Former), Client, Mentor, Mentee, Neighbor`
+   - Do the same for column F (Priority), with:
+     `A – Very Important, B – Important, C – Nice to Maintain`
+   - For Status in column Q:
+     `Active, On Hold, Archived`
+
+4. Enable date formats
+   - Select columns M, N, O, T, U.
+   - Format → Number → Date.
+
+5. Basic timestamp approach
+   - When you first add a contact, manually set:
+     - Created At (T): use `Ctrl+;` (or ⌘+; on Mac) to insert today’s date.
+   - When you update a row (after interacting), update:
+     - Last Contact Date (N) to today.
+     - Updated At (U) with `Ctrl+;` / `⌘+;`.
+
+6. Create the Dashboard view
+   - Add a new sheet: click the `+` at the bottom and name it `Dashboard`.
+   - In Dashboard!A1, type: `Today & Overdue Contacts`.
+   - In Dashboard!A3, paste:
+     ```gs
+     =SORT(
+       FILTER(
+         Contacts!A2:U,
+         Contacts!O2:O <= TODAY(),
+         Contacts!Q2:Q = "Active"
+       ),
+       15, TRUE
+     )
+     ```
+     (Column 15 in this range corresponds to Last Contact Date; sorting by it gives you oldest contact first.)
+
+7. Daily use pattern
+   - Open Dashboard.
+   - Look at the list in A3 downward; those are people to reach out to.
+   - When you contact someone:
+     - Go to the Contacts sheet.
+     - Update:
+       - Last Contact Date (N) to today.
+       - Last Interaction Summary (S) with a brief note.
+       - Updated At (U) to today.
+   - The Next Due Date (O) automatically recalculates, moving them off the “overdue” list until next time.
+
+You now have a Sheets-native personal CRM with tags, status, prioritization, and a “who’s due now?” dashboard.
+### Human: Can you create some example tags and segments for me? I’m bad at thinking of categories.
+### Assistant: I’ll give you a ready-made tagging system plus named segments you can filter by in Sheets.
+
+1. Core tag categories
+
+Use these as mental buckets; all live in the single Tags column as comma-separated values.
+
+A) Relationship / how you know them
+- origin-school
+- origin-college
+- origin-university
+- origin-work-current
+- origin-work-former
+- origin-family
+- origin-neighbor
+- origin-online
+- origin-conference
+- origin-mastermind
+- origin-community-[name] (e.g. origin-community-slack-group)
+
+B) Life topics & interests
+- interest-fitness
+- interest-running
+- interest-cycling
+- interest-hiking
+- interest-yoga
+- interest-travel
+- interest-food
+- interest-wine
+- interest-coffee
+- interest-books
+- interest-writing
+- interest-photography
+- interest-music
+- interest-gaming
+- interest-tech
+- interest-design
+- interest-finance
+- interest-investing
+- interest-startups
+- interest-parenting
+- interest-diy
+- interest-gardening
+
+C) Professional context
+- role-manager
+- role-individual-contributor
+- role-founder
+- role-investor
+- role-freelancer
+- role-student
+- role-executive
+- role-academic
+- role-creator
+
+D) How they can help / how you can help
+- asset-connector
+- asset-mentor
+- asset-technical-expert
+- asset-career-advice
+- asset-legal
+- asset-finance-advice
+- asset-job-leads
+- asset-referrer
+- asset-creative-collab
+- asset-emotional-support
+
+E) Your intent / workflow tags
+- intent-follow-up
+- intent-introduce-to-X
+- intent-invite-coffee
+- intent-invite-dinner
+- intent-invite-event
+- intent-send-article
+- intent-check-in-monthly
+- intent-check-in-quarterly
+- intent-thank-you
+- intent-birthday-call
+- intent-holiday-greeting
+
+F) Practical tags
+- location-city-[name] (location-city-berlin, location-city-nyc)
+- timezone-eu
+- timezone-us-east
+- timezone-us-west
+- contact-prefer-email
+- contact-prefer-text
+- contact-prefer-call
+- contact-prefer-whatsapp
+
+2. Example complete tag sets per person
+
+You can paste these directly into a Tags cell.
+
+- Close colleague who’s into tech and running:
+  `origin-work-current, interest-tech, interest-running, role-manager, asset-job-leads, intent-check-in-quarterly`
+
+- Old university friend who loves travel and wine:
+  `origin-university, interest-travel, interest-wine, intent-invite-dinner, intent-check-in-monthly`
+
+- Mentor in your industry:
+  `origin-work-former, role-executive, asset-mentor, asset-career-advice, intent-check-in-quarterly`
+
+- Neighbor with kids similar age:
+  `origin-neighbor, interest-parenting, location-city-yourcity, intent-invite-dinner`
+
+- Potential collaborator in a creative project:
+  `origin-online, interest-writing, interest-design, role-creator, asset-creative-collab, intent-invite-event`
+
+3. Named “segments” you can implement via filters
+
+In Google Sheets, you’ll filter the Tags column using “Text contains”.
+
+Here are useful segment ideas and the corresponding filter conditions:
+
+- “Local friends to see in person”
+  - Filter: Tags contains `location-city-[yourcity]`
+  - And Relationship Type is Friend, Close Friend, or Neighbor.
+
+- “Career/network contacts”
+  - Filter: Tags contains any of:
+    - `asset-job-leads`
+    - `asset-referrer`
+    - `role-executive`
+    - `role-founder`
+  - And Status = Active.
+
+- “People to invite to next event”
+  - Filter: Tags contains `intent-invite-event`.
+
+- “People to check in with monthly”
+  - Filter: Tags contains `intent-check-in-monthly`.
+
+- “Running or fitness buddies”
+  - Filter: Tags contains `interest-running` or `interest-fitness`.
+
+- “Mentors / advisors”
+  - Filter: Tags contains `asset-mentor` or `asset-career-advice`.
+
+4. A few ready-made tag templates
+
+You can keep this small cheat sheet at the top or in a separate “Reference” sheet:
+
+- Template: New close friend
+  - `origin-[context], interest-[main], intent-check-in-monthly`
+- Template: Professional contact
+  - `origin-work-[current/former], role-[role], asset-[their strength], intent-check-in-quarterly`
+- Template: Family
+  - `origin-family, intent-birthday-call, intent-holiday-greeting`
+
+This gives you a concrete, opinionated tagging scheme you can plug directly into your current sheet without having to invent categories yourself.
+### Human: I’d like this to remind me automatically by email when someone is due. Can you set that up?
+### Assistant: I’ll wire this up using Google Apps Script so your sheet emails you daily with a list of due contacts.
+
+Setup overview:
+- A time-based trigger runs once a day.
+- The script looks at your `Contacts` sheet.
+- It finds all Active contacts where Next Due Date (column O) is today or earlier.
+- It emails you a summary list.
+
+1. Open the Script Editor
+   - In your Google Sheet, go to Extensions → Apps Script.
+   - Delete any default code in `Code.gs`.
+
+2. Paste this script (adjust the email address if needed):
+   ```javascript
+   function sendDailyCRMReminder() {
+     var email = Session.getActiveUser().getEmail(); // or hardcode: "you@example.com"
+     var ss = SpreadsheetApp.getActiveSpreadsheet();
+     var sheet = ss.getSheetByName("Contacts");
+
+     var lastRow = sheet.getLastRow();
+     if (lastRow < 2) return; // no data
+
+     var dataRange = sheet.getRange(2, 1, lastRow - 1, 21); // A2:U
+     var data = dataRange.getValues();
+
+     var today = new Date();
+     today.setHours(0, 0, 0, 0);
+
+     var dueContacts = [];
+
+     // Column indexes relative to data array (0-based)
+     var COL_FULL_NAME = 3;   // D
+     var COL_REL_TYPE = 4;    // E
+     var COL_PRIORITY = 5;    // F
+     var COL_TAGS = 6;        // G
+     var COL_EMAIL = 9;       // J
+     var COL_LAST_CONTACT = 13; // N
+     var COL_NEXT_DUE = 14;   // O
+     var COL_FREQ = 15;       // P
+     var COL_STATUS = 16;     // Q
+     var COL_NOTES = 17;      // R
+
+     for (var i = 0; i < data.length; i++) {
+       var row = data[i];
+       var status = row[COL_STATUS];
+       var nextDue = row[COL_NEXT_DUE];
+
+       if (status !== "Active") continue;
+       if (!(nextDue instanceof Date)) continue;
+
+       var dueDate = new Date(nextDue.getTime());
+       dueDate.setHours(0, 0, 0, 0);
+
+       if (dueDate <= today) {
+         dueContacts.push({
+           fullName: row[COL_FULL_NAME],
+           relType: row[COL_REL_TYPE],
+           priority: row[COL_PRIORITY],
+           tags: row[COL_TAGS],
+           email: row[COL_EMAIL],
+           lastContact: row[COL_LAST_CONTACT],
+           nextDue: row[COL_NEXT_DUE],
+           freq: row[COL_FREQ],
+           notes: row[COL_NOTES]
+         });
+       }
+     }
+
+     if (dueContacts.length === 0) {
+       // Optional: skip email if no contacts are due
+       return;
+     }
+
+     var subject = "Personal CRM – Contacts due today (" + dueContacts.length + ")";
+     var body = "Here are your due or overdue contacts:\n\n";
+
+     dueContacts.forEach(function(c, idx) {
+       body += (idx + 1) + ". " + (c.fullName || "[No name]") + "\n";
+       if (c.relType) body += "   Relationship: " + c.relType + "\n";
+       if (c.priority) body += "   Priority: " + c.priority + "\n";
+       if (c.tags) body += "   Tags: " + c.tags + "\n";
+       if (c.email) body += "   Email: " + c.email + "\n";
+       if (c.lastContact instanceof Date) {
+         body += "   Last contact: " + c.lastContact.toDateString() + "\n";
+       }
+       if (c.nextDue instanceof Date) {
+         body += "   Next due: " + c.nextDue.toDateString() + "\n";
+       }
+       if (c.freq) body += "   Frequency (days): " + c.freq + "\n";
+       if (c.notes) body += "   Notes: " + c.notes + "\n";
+       body += "\n";
+     });
+
+     body += "Open your CRM sheet to update Last Contact Date after you reach out.\n";
+
+     MailApp.sendEmail(email, subject, body);
+   }
+   ```
+
+3. Authorize the script
+   - Click the “Run” ▶ button next to `sendDailyCRMReminder` once.
+   - Google will ask for permissions:
+     - Click through “Review permissions”.
+     - Choose your Google account.
+     - Allow access to Sheets and Gmail.
+
+4. Set up the daily trigger
+   - In Apps Script, go to the clock icon (“Triggers”) on the left.
+   - Click “+ Add Trigger”.
+   - Choose function: `sendDailyCRMReminder`.
+   - Deployment: Head.
+   - Event source: Time-driven.
+   - Type of time-based trigger: Day timer.
+   - Select the time-of-day window you prefer (e.g., 6am–7am).
+   - Save.
+
+5. How this fits your workflow
+   - Each morning you’ll get an email listing all Active contacts whose Next Due Date is today or earlier.
+   - You open the sheet, contact those people, and update:
+     - Last Contact Date.
+     - Last Interaction Summary.
+   - The Next Due Date recalculates; they drop off future reminders until they’re due again.
+
+This gives you a fully automated, low-maintenance reminder system on top of your Sheets-based personal CRM.
+### Human: That looks good. Can you write the script so it also highlights overdue rows in red in the sheet itself?
+### Assistant: I’ll extend the existing script so it both sends the email and visually highlights overdue rows in the Contacts sheet.
+
+Behavior:
+- Any Active contact with Next Due Date ≤ today:
+  - Row background set to light red.
+- Any Active contact with Next Due Date > today:
+  - Row background reset to white (or no fill).
+- Archived / On Hold rows are left alone.
+
+Use this combined script:
+
+```javascript
+function sendDailyCRMReminder() {
+  var email = Session.getActiveUser().getEmail(); // or hardcode
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var sheet = ss.getSheetByName("Contacts");
+
+  var lastRow = sheet.getLastRow();
+  if (lastRow < 2) return;
+
+  var dataRange = sheet.getRange(2, 1, lastRow - 1, 21); // A2:U
+  var data = dataRange.getValues();
+
+  var today = new Date();
+  today.setHours(0, 0, 0, 0);
+
+  var dueContacts = [];
+
+  var COL_FULL_NAME = 3;   // D
+  var COL_REL_TYPE = 4;    // E
+  var COL_PRIORITY = 5;    // F
+  var COL_TAGS = 6;        // G
+  var COL_EMAIL = 9;       // J
+  var COL_LAST_CONTACT = 13; // N
+  var COL_NEXT_DUE = 14;   // O
+  var COL_FREQ = 15;       // P
+  var COL_STATUS = 16;     // Q
+  var COL_NOTES = 17;      // R
+
+  // For coloring
+  var bgRange = sheet.getRange(2, 1, lastRow - 1, sheet.getLastColumn());
+  var backgrounds = bgRange.getBackgrounds();
+
+  for (var i = 0; i < data.length; i++) {
+    var row = data[i];
+    var status = row[COL_STATUS];
+    var nextDue = row[COL_NEXT_DUE];
+
+    // Default: keep existing background; we’ll adjust for Active rows
+    var isActive = (status === "Active");
+
+    if (isActive && nextDue instanceof Date) {
+      var dueDate = new Date(nextDue.getTime());
+      dueDate.setHours(0, 0, 0, 0);
+
+      if (dueDate <= today) {
+        // Overdue or due today: highlight light red
+        for (var c = 0; c < backgrounds[i].length; c++) {
+          backgrounds[i][c] = "#f4c7c3"; // light red
+        }
+
+        dueContacts.push({
+          fullName: row[COL_FULL_NAME],
+          relType: row[COL_REL_TYPE],
+          priority: row[COL_PRIORITY],
+          tags: row[COL_TAGS],
+          email: row[COL_EMAIL],
+          lastContact: row[COL_LAST_CONTACT],
+          nextDue: row[COL_NEXT_DUE],
+          freq: row[COL_FREQ],
+          notes: row[COL_NOTES]
+        });
+      } else {
+        // Active but not yet due: reset to white
+        for (var c2 = 0; c2 < backgrounds[i].length; c2++) {
+          backgrounds[i][c2] = "#ffffff";
+        }
+      }
+    }
+  }
+
+  // Apply background changes
+  bgRange.setBackgrounds(backgrounds);
+
+  // If nothing is due, skip email
+  if (dueContacts.length === 0) {
+    return;
+  }
+
+  var subject = "Personal CRM – Contacts due today (" + dueContacts.length + ")";
+  var body = "Here are your due or overdue contacts:\n\n";
+
+  dueContacts.forEach(function(c, idx) {
+    body += (idx + 1) + ". " + (c.fullName || "[No name]") + "\n";
+    if (c.relType) body += "   Relationship: " + c.relType + "\n";
+    if (c.priority) body += "   Priority: " + c.priority + "\n";
+    if (c.tags) body += "   Tags: " + c.tags + "\n";
+    if (c.email) body += "   Email: " + c.email + "\n";
+    if (c.lastContact instanceof Date) {
+      body += "   Last contact: " + c.lastContact.toDateString() + "\n";
+    }
+    if (c.nextDue instanceof Date) {
+      body += "   Next due: " + c.nextDue.toDateString() + "\n";
+    }
+    if (c.freq) body += "   Frequency (days): " + c.freq + "\n";
+    if (c.notes) body += "   Notes: " + c.notes + "\n";
+    body += "\n";
+  });
+
+  body += "Rows highlighted in light red in your Contacts sheet are due or overdue.\n";
+  body += "Update Last Contact Date after reaching out to clear the highlight.\n";
+
+  MailApp.sendEmail(email, subject, body);
+}
+```
+
+Use the same daily time-based trigger you already set (or create it now). This single function handles both the coloring and the email reminder on each run.
+### Human: I also want a quick way to add new contacts from my phone without opening the sheet. What do you suggest?
+### Assistant: I’ll set up a simple Google Form that feeds into your Contacts sheet, so from your phone you just open the form, fill a few fields, and the row appears in the sheet.
+
+Concept:
+- Google Form → “Form Responses” sheet.
+- A small Apps Script copies each new form response into your main `Contacts` sheet with correct columns and formulas.
+- You bookmark the form on your phone’s home screen.
+
+1. Create the Google Form
+   - In your Google Drive, click New → More → Google Forms.
+   - Title: `Quick Contact Capture`.
+   - Add questions (all Short Answer unless noted):
+     1) First Name (Required)
+     2) Last Name
+     3) Relationship Type (Dropdown or Short Answer)
+     4) Priority (Dropdown: A – Very Important, B – Important, C – Nice to Maintain)
+     5) Tags (Short Answer, comma-separated)
+     6) Company / Org
+     7) Role / Context
+     8) Email
+     9) Phone
+     10) Notes (Paragraph)
+
+   - Under Settings → Responses:
+     - Ensure “Collect email addresses” is OFF for general use (unless you want it).
+     - Choose “Link to Sheets” and create/select the spreadsheet that has your `Contacts` sheet.
+
+2. Check the response sheet
+   - When you link the form, it creates a sheet, usually named `Form Responses 1`.
+   - Columns will be like:
+     - A: Timestamp
+     - B: First Name
+     - C: Last Name
+     - D: Relationship Type
+     - E: Priority
+     - F: Tags
+     - G: Company / Org
+     - H: Role / Context
+     - I: Email
+     - J: Phone
+     - K: Notes
+
+3. Add a script to move data into Contacts
+   - In the same spreadsheet, open Extensions → Apps Script.
+   - Add this script in a new file or below your existing code:
+
+   ```javascript
+   function onFormSubmit(e) {
+     var ss = SpreadsheetApp.getActiveSpreadsheet();
+     var contactsSheet = ss.getSheetByName("Contacts");
+     var formSheet = ss.getSheetByName("Form Responses 1");
+
+     var row = e.values; // full submitted row
+     // row indexes (0-based):
+     // 0: Timestamp
+     // 1: First Name
+     // 2: Last Name
+     // 3: Relationship Type
+     // 4: Priority
+     // 5: Tags
+     // 6: Company / Org
+     // 7: Role / Context
+     // 8: Email
+     // 9: Phone
+     // 10: Notes
+
+     var firstName = row[1];
+     var lastName = row[2];
+     var relType = row[3];
+     var priority = row[4];
+     var tags = row[5];
+     var company = row[6];
+     var role = row[7];
+     var email = row[8];
+     var phone = row[9];
+     var notes = row[10];
+
+     var now = new Date();
+
+     // Desired default values
+     var status = "Active";
+     var desiredFreq = 90; // default: quarterly
+     var lastContactDate = ""; // unknown until you first interact
+     var nextDueDate = "";     // will be blank until you set Last Contact Date
+
+     // Append a new row to Contacts
+     // Columns: A:ID (formula), B:First, C:Last, D:Full (formula), E:RelType, F:Priority,
+     // G:Tags, H:Company, I:Role, J:Email, K:Phone, L:Location, M:Birthday,
+     // N:LastContact, O:NextDue, P:DesiredFreq, Q:Status, R:Notes, S:LastInteraction, T:CreatedAt, U:UpdatedAt
+     contactsSheet.appendRow([
+       "",                 // ID (formula in sheet)
+       firstName,          // First Name
+       lastName,           // Last Name
+       "",                 // Full Name (formula in sheet)
+       relType,            // Relationship Type
+       priority,           // Priority
+       tags,               // Tags
+       company,            // Company / Org
+       role,               // Role / Context
+       email,              // Email
+       phone,              // Phone
+       "",                 // Location / Time Zone
+       "",                 // Birthday
+       lastContactDate,    // Last Contact Date
+       nextDueDate,        // Next Due Date
+       desiredFreq,        // Desired Frequency
+       status,             // Status
+       notes,              // Notes
+       "",                 // Last Interaction Summary
+       now,                // Created At
+       now                 // Updated At
+     ]);
+   }
+   ```
+
+4. Connect the form to the script
+   - In Apps Script, go to Triggers (clock icon).
+   - Add Trigger:
+     - Choose function: `onFormSubmit`.
+     - Event source: From spreadsheet.
+     - Event type: On form submit.
+   - Save and authorize when prompted.
+
+5. Use on your phone
+   - Open the Google Form link in your mobile browser.
+   - Use “Add to Home Screen” (on Android Chrome or iOS Safari) to pin it as an app-like icon.
+   - Whenever you meet someone:
+     - Tap the icon.
+     - Fill the quick fields.
+     - The person appears in your `Contacts` sheet automatically with defaults.
+
+This gives you a fast mobile capture pipeline feeding your CRM without ever opening the spreadsheet directly on your phone.
+### Human: Nice. Can you specify the exact fields and options for that Google Form so I can just copy them?
+### Assistant: Here’s the precise spec for the Google Form so you can recreate it field-for-field.
+
+Form title:
+- `Quick Contact Capture`
+
+Form description (optional):
+- `Use this form to quickly add new people to your personal CRM. Keep entries short; you can enrich them later in the sheet.`
+
+Questions (in order):
+
+1) Question 1  
+   - Type: Short answer  
+   - Label: `First Name`  
+   - Required: Yes  
+   - Response validation: None
+
+2) Question 2  
+   - Type: Short answer  
+   - Label: `Last Name`  
+   - Required: No  
+   - Response validation: None
+
+3) Question 3  
+   - Type: Dropdown  
+   - Label: `Relationship Type`  
+   - Required: No (you can fill or adjust later in the sheet)  
+   - Options:
+     - `Family`
+     - `Close Friend`
+     - `Friend`
+     - `Acquaintance`
+     - `Colleague (Current)`
+     - `Colleague (Former)`
+     - `Client`
+     - `Mentor`
+     - `Mentee`
+     - `Neighbor`
+     - `Other`
+
+4) Question 4  
+   - Type: Dropdown  
+   - Label: `Priority`  
+   - Required: No  
+   - Options:
+     - `A – Very Important`
+     - `B – Important`
+     - `C – Nice to Maintain`
+
+5) Question 5  
+   - Type: Short answer  
+   - Label: `Tags`  
+   - Help text: `Comma-separated, e.g. "interest-travel, origin-conference, asset-connector"`  
+   - Required: No
+
+6) Question 6  
+   - Type: Short answer  
+   - Label: `Company / Organization`  
+   - Required: No
+
+7) Question 7  
+   - Type: Short answer  
+   - Label: `Role / Context`  
+   - Help text: `e.g. "Product Manager", "Neighbor", "Friend from college"`  
+   - Required: No
+
+8) Question 8  
+   - Type: Short answer  
+   - Label: `Email`  
+   - Required: No  
+   - Response validation: Optional (Text → Email) if you want to enforce format.
+
+9) Question 9  
+   - Type: Short answer  
+   - Label: `Phone`  
+   - Required: No
+
+10) Question 10  
+    - Type: Paragraph  
+    - Label: `Notes`  
+    - Help text: `Quick context: where you met, what you talked about, anything to remember.`  
+    - Required: No
+
+Form settings:
+
+- Collect email addresses: Off (unless you explicitly want it).
+- Limit to users in your organization: Off (for personal use).
+- Response destination: 
+  - Click “Link to Sheets”.
+  - Choose your CRM spreadsheet or create a new one, then move the Form Responses sheet into your CRM file if needed.
+
+With these exact fields and options, the Apps Script mapping I provided matches the form structure, so new submissions flow cleanly into your `Contacts` sheet.
+### Human: Can you summarize the full workflow for me, from adding a contact to staying in touch?
+### Assistant: Here’s the end-to-end workflow you now have:
+
+1. Capture new contacts (phone, fast)
+   - Open the `Quick Contact Capture` Google Form from your phone’s home screen.
+   - Fill:
+     - First Name (required)
+     - Last Name (optional)
+     - Relationship Type (pick from dropdown)
+     - Priority (A/B/C)
+     - Tags (comma-separated)
+     - Company / Org
+     - Role / Context
+     - Email
+     - Phone
+     - Notes (brief context)
+   - Submit.
+   - The Apps Script `onFormSubmit` runs and appends a new, structured row into your `Contacts` sheet with:
+     - Status = Active
+     - Default Desired Frequency (e.g., 90 days)
+     - Created At / Updated At set to now.
+
+2. Enrich and adjust in the Contacts sheet (desktop or laptop)
+   - Periodically open your `Contacts` sheet.
+   - For new entries:
+     - Adjust Relationship Type and Priority if needed.
+     - Refine Tags.
+     - Set Desired Frequency to what feels right:
+       - 30 for monthly
+       - 60 for every 2 months
+       - 90 for quarterly
+       - 180 or 365 for less frequent
+   - When you first actually connect with them:
+     - Set Last Contact Date to that date.
+     - The Next Due Date auto-calculates from Last Contact + Desired Frequency.
+
+3. Automatic daily reminders & highlighting
+   - A time-based trigger runs `sendDailyCRMReminder` once per day.
+   - The script:
+     - Finds all Active rows where Next Due Date ≤ today.
+     - Colors those entire rows light red in the `Contacts` sheet.
+     - Sends you an email summary listing all due/overdue contacts with key details.
+
+4. Daily routine
+   - In your email:
+     - Read the “Personal CRM – Contacts due today” message.
+   - In your `Contacts` sheet:
+     - Go to the Dashboard sheet if you want a filtered view.
+     - Or visually scan the red-highlighted rows in `Contacts`.
+   - For each due person:
+     - Reach out (message, call, email, etc.).
+     - Then update that row:
+       - Set Last Contact Date to today.
+       - Add a short Last Interaction Summary and any Notes.
+       - Updated At to today (quick manual date).
+     - The Next Due Date recalculates; the script will clear the red highlight on the next run (or immediately if you re-run it).
+
+5. Ongoing organization using tags and filters
+   - Use Tags and Relationship Type / Priority to:
+     - Filter by segment (e.g., `intent-invite-event` or `interest-travel`).
+     - Decide who to invite to events, ask for advice, or reconnect with.
+   - Status field:
+     - Set to `On Hold` for people you’re pausing with.
+     - Set to `Archived` for people you don’t need reminders about.
+     - Only `Active` contacts are included in reminders and highlighting.
+
+End result:
+- Quick capture on your phone.
+- Central `Contacts` sheet with structured data and tags.
+- Automated daily email plus visual row highlighting for due contacts.
+- Simple manual updates after each interaction to keep the system accurate and low maintenance.

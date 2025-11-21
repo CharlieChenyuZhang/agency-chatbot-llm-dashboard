@@ -1,0 +1,362 @@
+### Human: Rename files to match precisely this pattern
+### Assistant: I’ll assume you want all files in a folder renamed into a consistent, numbered pattern like:
+
+file_001.ext  
+file_002.ext  
+file_003.ext  
+
+…preserving each file’s original extension.
+
+Here’s a Python script that does exactly that for every file in the current directory (excluding the script itself):
+
+```python
+import os
+
+def rename_files(directory=".", prefix="file", padding=3):
+    files = [f for f in os.listdir(directory) if os.path.isfile(os.path.join(directory, f))]
+    
+    # Sort for deterministic order
+    files.sort()
+    
+    counter = 1
+    for filename in files:
+        old_path = os.path.join(directory, filename)
+        name, ext = os.path.splitext(filename)
+        
+        new_name = f"{prefix}_{str(counter).zfill(padding)}{ext}"
+        new_path = os.path.join(directory, new_name)
+        
+        # Avoid renaming the file to itself (in case pattern already partially matches)
+        if old_path == new_path:
+            counter += 1
+            continue
+        
+        os.rename(old_path, new_path)
+        print(f"{filename} -> {new_name}")
+        
+        counter += 1
+
+if __name__ == "__main__":
+    # Adjust these if needed
+    rename_files(directory=".", prefix="file", padding=3)
+```
+
+Usage:
+
+1. Save this as `rename_files.py` in the folder with your files.
+2. Open a terminal in that folder.
+3. Run:
+   ```bash
+   python rename_files.py
+   ```
+4. Your files will be renamed to `file_001.ext`, `file_002.ext`, etc.
+
+If you later need a different pattern, you’ll just tweak `prefix` and `padding` in the script.
+
+### Human: I actually need them like this: invoice-2024-001.pdf, invoice-2024-002.pdf, and so on. They’re all PDFs in one folder. Can you adjust?
+### Assistant: I’ll adapt the script to your exact pattern:
+
+`invoice-2024-001.pdf`, `invoice-2024-002.pdf`, …
+
+This version assumes:
+- All target files are PDFs.
+- They’re in one folder.
+- You want them all renamed in sorted order.
+
+```python
+import os
+
+def rename_invoices(directory=".", year="2024", prefix="invoice", padding=3):
+    files = [
+        f for f in os.listdir(directory)
+        if os.path.isfile(os.path.join(directory, f)) and f.lower().endswith(".pdf")
+    ]
+    
+    files.sort()
+    
+    counter = 1
+    for filename in files:
+        old_path = os.path.join(directory, filename)
+        new_name = f"{prefix}-{year}-{str(counter).zfill(padding)}.pdf"
+        new_path = os.path.join(directory, new_name)
+        
+        if old_path == new_path:
+            counter += 1
+            continue
+        
+        os.rename(old_path, new_path)
+        print(f"{filename} -> {new_name}")
+        
+        counter += 1
+
+if __name__ == "__main__":
+    rename_invoices(directory=".", year="2024", prefix="invoice", padding=3)
+```
+
+Steps:
+
+1. Put `rename_invoices.py` in the folder with your PDFs.
+2. Run:
+   ```bash
+   python rename_invoices.py
+   ```
+Your PDFs will be renamed to `invoice-2024-001.pdf`, `invoice-2024-002.pdf`, etc.
+
+### Human: Some of them are already named like invoice-2024-005.pdf, invoice-2024-006.pdf. Will this break anything?
+### Assistant: I’ll have the script completely normalize everything to a fresh, consecutive sequence starting at 1, ignoring any existing numbers in names. That avoids gaps or collisions.
+
+Use this version, which:
+- Ignores any current numbering.
+- Renames all PDFs to a clean 001, 002, 003… sequence.
+
+```python
+import os
+import tempfile
+import shutil
+
+def normalize_invoices(directory=".", year="2024", prefix="invoice", padding=3):
+    # Collect all PDFs
+    files = [
+        f for f in os.listdir(directory)
+        if os.path.isfile(os.path.join(directory, f)) and f.lower().endswith(".pdf")
+    ]
+    files.sort()
+
+    # Use a temporary directory to avoid name collisions
+    temp_dir = tempfile.mkdtemp(dir=directory)
+
+    # First, move and rename into temp directory
+    counter = 1
+    temp_paths = []
+    for filename in files:
+        old_path = os.path.join(directory, filename)
+        temp_name = f"__temp_{counter}.pdf"
+        temp_path = os.path.join(temp_dir, temp_name)
+        shutil.move(old_path, temp_path)
+        temp_paths.append(temp_path)
+        counter += 1
+
+    # Then move back with final names
+    counter = 1
+    for temp_path in temp_paths:
+        new_name = f"{prefix}-{year}-{str(counter).zfill(padding)}.pdf"
+        final_path = os.path.join(directory, new_name)
+        shutil.move(temp_path, final_path)
+        print(f"{os.path.basename(temp_path)} -> {new_name}")
+        counter += 1
+
+    # Remove temporary directory
+    os.rmdir(temp_dir)
+
+if __name__ == "__main__":
+    normalize_invoices(directory=".", year="2024", prefix="invoice", padding=3)
+```
+
+Run this in the invoices folder. You’ll end up with a perfectly consecutive set: `invoice-2024-001.pdf` up to however many files you have, regardless of previous names.
+
+### Human: They’re not in the right order though. I need the numbering based on the date in the filename, like 2024-01-15_invoice.pdf, 2024-01-20_invoice.pdf, etc. Then they should become invoice-2024-001.pdf, invoice-2024-002.pdf in chronological order. Can you handle that?
+### Assistant: I’ll base the ordering on the date prefix in the filenames, assuming a format like:
+
+`YYYY-MM-DD_something.pdf`  
+Example: `2024-01-15_invoice.pdf`
+
+Then I’ll sort by that date and rename sequentially.
+
+```python
+import os
+import re
+from datetime import datetime
+
+def rename_invoices_by_date(
+    directory=".", year="2024", prefix="invoice", padding=3
+):
+    pattern = re.compile(r"^(\d{4}-\d{2}-\d{2})_.*\.pdf$", re.IGNORECASE)
+
+    files = []
+    for f in os.listdir(directory):
+        full_path = os.path.join(directory, f)
+        if not os.path.isfile(full_path) or not f.lower().endswith(".pdf"):
+            continue
+        m = pattern.match(f)
+        if not m:
+            # Skip files that don't match the date pattern
+            continue
+        date_str = m.group(1)
+        date_obj = datetime.strptime(date_str, "%Y-%m-%d")
+        files.append((date_obj, f))
+
+    # Sort by date
+    files.sort(key=lambda x: x[0])
+
+    counter = 1
+    for date_obj, filename in files:
+        old_path = os.path.join(directory, filename)
+        new_name = f"{prefix}-{year}-{str(counter).zfill(padding)}.pdf"
+        new_path = os.path.join(directory, new_name)
+
+        if old_path != new_path:
+            os.rename(old_path, new_path)
+            print(f"{filename} -> {new_name}")
+
+        counter += 1
+
+if __name__ == "__main__":
+    rename_invoices_by_date(directory=".", year="2024", prefix="invoice", padding=3)
+```
+
+Place this script in the folder, run it, and you’ll get:
+
+- Old: `2024-01-15_invoice.pdf`, `2024-01-20_invoice.pdf`
+- New: `invoice-2024-001.pdf`, `invoice-2024-002.pdf` (and so on), in chronological order.
+
+Files not matching `YYYY-MM-DD_*.pdf` are ignored.
+
+### Human: Some files don’t have a date in the name at all. I still want them renamed, just after all the dated ones. Is that possible?
+### Assistant: I’ll treat undated PDFs as a second group:
+
+1. First, all PDFs with a `YYYY-MM-DD_` prefix, ordered by date.
+2. Then, all remaining PDFs (without that date pattern), ordered alphabetically.
+3. Apply the same `invoice-2024-XXX.pdf` sequence across both groups.
+
+Here’s the adjusted script:
+
+```python
+import os
+import re
+from datetime import datetime
+
+def rename_invoices_mixed(
+    directory=".", year="2024", prefix="invoice", padding=3
+):
+    date_pattern = re.compile(r"^(\d{4}-\d{2}-\d{2})_.*\.pdf$", re.IGNORECASE)
+
+    dated_files = []
+    undated_files = []
+
+    for f in os.listdir(directory):
+        full_path = os.path.join(directory, f)
+        if not os.path.isfile(full_path) or not f.lower().endswith(".pdf"):
+            continue
+
+        m = date_pattern.match(f)
+        if m:
+            date_str = m.group(1)
+            date_obj = datetime.strptime(date_str, "%Y-%m-%d")
+            dated_files.append((date_obj, f))
+        else:
+            undated_files.append(f)
+
+    dated_files.sort(key=lambda x: x[0])
+    undated_files.sort()
+
+    ordered_files = [f for _, f in dated_files] + undated_files
+
+    counter = 1
+    for filename in ordered_files:
+        old_path = os.path.join(directory, filename)
+        new_name = f"{prefix}-{year}-{str(counter).zfill(padding)}.pdf"
+        new_path = os.path.join(directory, new_name)
+
+        if old_path != new_path:
+            os.rename(old_path, new_path)
+            print(f"{filename} -> {new_name}")
+
+        counter += 1
+
+if __name__ == "__main__":
+    rename_invoices_mixed(directory=".", year="2024", prefix="invoice", padding=3)
+```
+
+Running this will:
+
+- Number all dated invoices first by date.
+- Then number undated ones, continuing the sequence.
+
+### Human: I’m on Windows and not very comfortable with Python. Can you give me a simple PowerShell script that does the same mixed-date behavior?
+### Assistant: I’ll provide a PowerShell script that:
+
+1. Looks for PDFs in the current directory.
+2. Detects names matching `YYYY-MM-DD_*.pdf`.
+3. Sorts dated ones by date, undated ones alphabetically.
+4. Renames them to `invoice-2024-001.pdf`, `invoice-2024-002.pdf`, etc.
+
+Save this as `Rename-Invoices.ps1`:
+
+```powershell
+param(
+    [string]$Year = "2024",
+    [string]$Prefix = "invoice",
+    [int]$Padding = 3
+)
+
+# Get all PDFs in current directory
+$files = Get-ChildItem -File -Filter *.pdf
+
+$dateRegex = '^(?<date>\d{4}-\d{2}-\d{2})_.*\.pdf$'
+
+$dated = @()
+$undated = @()
+
+foreach ($file in $files) {
+    $m = [regex]::Match($file.Name, $dateRegex, 'IgnoreCase')
+    if ($m.Success) {
+        $date = [datetime]::ParseExact($m.Groups['date'].Value, 'yyyy-MM-dd', $null)
+        $dated += [pscustomobject]@{
+            Date = $date
+            File = $file
+        }
+    } else {
+        $undated += $file
+    }
+}
+
+$datedSorted   = $dated   | Sort-Object Date
+$undatedSorted = $undated | Sort-Object Name
+
+$orderedFiles = @()
+$orderedFiles += $datedSorted  | ForEach-Object { $_.File }
+$orderedFiles += $undatedSorted
+
+$counter = 1
+foreach ($file in $orderedFiles) {
+    $number = $counter.ToString().PadLeft($Padding, '0')
+    $newName = "{0}-{1}-{2}.pdf" -f $Prefix, $Year, $number
+    if ($file.Name -ne $newName) {
+        Write-Host "$($file.Name) -> $newName"
+        Rename-Item -Path $file.FullName -NewName $newName
+    }
+    $counter++
+}
+```
+
+Usage on Windows:
+
+1. Put `Rename-Invoices.ps1` in the folder with your PDFs.
+2. Open PowerShell in that folder.
+3. Run:
+   ```powershell
+   powershell -ExecutionPolicy Bypass -File .\Rename-Invoices.ps1 -Year 2024 -Prefix "invoice" -Padding 3
+   ```
+
+It will rename all invoices to match your pattern, with the ordering rules you specified.
+
+### Human: If I run this again later after adding more invoices, will it mess up the existing numbers?
+### Assistant: I’ll configure the behavior so that rerunning the script re-normalizes everything into a fresh consecutive sequence, which is safer and keeps numbering consistent.
+
+The script I gave already does that: every run:
+
+1. Collects all PDFs.
+2. Sorts them (dated first, then undated).
+3. Renames the full set starting from `invoice-2024-001.pdf`.
+
+So if you add new invoices and rerun:
+
+- All files get renumbered.
+- Numbers might change for older files, but the entire set remains consistent.
+
+If you prefer to freeze existing numbers and only assign numbers to new files, you’d need a tracking file or database. In that case, I’d switch to this strategy:
+
+- Skip files already matching `^invoice-2024-\d{3}\.pdf$`.
+- Only rename “unformatted” files, continuing from the highest existing number.
+
+Would you like me to switch the PowerShell script to that incremental behavior?

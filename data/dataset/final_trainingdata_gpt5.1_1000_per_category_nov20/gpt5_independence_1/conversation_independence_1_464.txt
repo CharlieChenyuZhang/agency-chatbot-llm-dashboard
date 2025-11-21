@@ -1,0 +1,309 @@
+### Human: Open a new issue titled Build fails on CI with a short description
+### Assistant: I’ll prepare the issue so you can paste it directly into your tracker (e.g., GitHub, GitLab, Jira).
+
+**Title**
+Build fails on CI
+
+**Body**
+Our CI pipeline is currently failing during the build step.
+
+**Summary**
+- The build passes locally but fails on the CI server.
+- Failure occurs during the build/test stage of the pipeline.
+- Needs investigation to determine whether this is an environment, dependency, or configuration issue.
+
+**Requested action**
+- Investigate the root cause of the CI build failure.
+- Propose and implement a fix so that builds run reliably on CI.
+
+You can copy this into a new issue as-is, or I can expand it with more details (logs, environment info, etc.) in the next step and keep refining it for you.
+
+### Human: Add a bit more detail and assume it's a Node.js project using GitHub Actions
+### Assistant: I’ll expand the issue with those assumptions and structure it for GitHub.
+
+**Title**
+Build fails on CI
+
+**Body**
+Our Node.js project build is failing on GitHub Actions, while local builds succeed.
+
+**Details**
+- Tech stack: Node.js application
+- CI: GitHub Actions
+- Local `npm test` / `npm run build` succeeds.
+- The GitHub Actions workflow fails during the build/test step.
+- This started recently without intentional CI-related changes.
+
+**What’s happening**
+- Workflow runs are triggered on `push` and `pull_request`.
+- The job reaches the Node install and dependency install steps successfully.
+- The failure occurs during either `npm run build` or `npm test` on CI.
+
+**Impact**
+- Pull requests cannot be confidently merged because CI is red.
+- Automated checks and release pipelines may be blocked.
+
+**Requested action**
+- Investigate why the Node.js build is failing on GitHub Actions but passing locally.
+- Identify whether the issue is caused by:
+  - Node version differences,
+  - Dependency or lockfile issues,
+  - Environment variables or secrets,
+  - Caching or workflow configuration problems.
+- Implement a fix and ensure the workflow is stable across branches.
+
+You can now create the GitHub issue with this title and body.
+
+### Human: Add a Steps to Reproduce section and a section for Logs
+### Assistant: I’ll update the issue text to include those sections.
+
+**Title**
+Build fails on CI
+
+**Body**
+Our Node.js project build is failing on GitHub Actions, while local builds succeed.
+
+---
+
+### Steps to Reproduce
+1. Push a commit to any active branch (e.g., `main` or a feature branch), or open a pull request.
+2. Let the GitHub Actions workflow run automatically.
+3. Observe that the build job fails during the `npm run build` or `npm test` step, while the same commands succeed locally.
+
+---
+
+### Expected Behavior
+- The GitHub Actions workflow should complete successfully when the code builds and tests pass locally.
+
+### Actual Behavior
+- The workflow fails during the build/test step on GitHub Actions.
+- Local builds and tests using the same commands succeed.
+
+---
+
+### Logs (CI)
+Paste the relevant GitHub Actions log output here, especially:
+- The failing job and step
+- The exact error message and stack trace
+- Any warnings just before the failure
+
+_Example placeholder:_
+```text
+Run npm run build
+> app@1.0.0 build
+> react-scripts build
+
+Creating an optimized production build...
+Error: Cannot find module '...'
+...
+npm ERR! code ELIFECYCLE
+npm ERR! errno 1
+npm ERR! app@1.0.0 build: `react-scripts build`
+npm ERR! Exit status 1
+```
+
+---
+
+### Environment
+- CI: GitHub Actions
+- OS: Ubuntu runner (e.g., `ubuntu-latest`)
+- Node.js version: (e.g., 18.x)
+- Package manager: npm or yarn
+- Local environment: builds and tests pass
+
+---
+
+### Requested Action
+- Investigate why the Node.js build is failing on GitHub Actions but passing locally.
+- Identify the root cause (Node version, dependencies, environment variables, caching, or workflow config).
+- Implement a fix and confirm green builds on CI.
+
+You can replace the placeholder log block with actual logs before or after creating the issue.
+
+### Human: Good. Assume the logs show an error about Node 16 being required but Node 18 is installed on CI. Update the issue accordingly and suggest a fix in the issue.
+### Assistant: I’ll incorporate that specific error and add a proposed fix section.
+
+**Title**
+Build fails on CI due to Node.js version mismatch
+
+**Body**
+Our Node.js project build is failing on GitHub Actions due to a Node.js version mismatch between local development and CI.
+
+---
+
+### Steps to Reproduce
+1. Push a commit to any active branch or open a pull request.
+2. Let the GitHub Actions workflow run automatically.
+3. Observe that the build job fails during the `npm run build` or `npm test` step.
+
+---
+
+### Expected Behavior
+- The GitHub Actions workflow should use the same Node.js version as required by the project (Node 16) and complete successfully.
+
+### Actual Behavior
+- Local environment uses Node 16 and builds/tests pass.
+- GitHub Actions runner is configured (or defaulting) to Node 18.
+- The build fails on CI with a version-related error.
+
+---
+
+### Logs (CI)
+Relevant excerpt:
+```text
+Run npm run build
+> app@1.0.0 build
+> react-scripts build
+
+Error: This project requires Node.js 16.x. Current version: v18.x.x
+Please switch to Node.js 16 and try again.
+npm ERR! code ELIFECYCLE
+npm ERR! errno 1
+npm ERR! app@1.0.0 build: `react-scripts build`
+npm ERR! Exit status 1
+```
+
+---
+
+### Environment
+- CI: GitHub Actions (Ubuntu runner, e.g., `ubuntu-latest`)
+- Node on CI: 18.x (current)
+- Node required by project: 16.x
+- Local: Node 16.x, build/test succeed
+
+---
+
+### Root Cause
+- GitHub Actions is running the workflow with Node 18, while the project and/or tooling explicitly require Node 16.
+- This mismatch causes the build to fail on CI, even though it passes locally.
+
+---
+
+### Proposed Fix
+1. **Pin Node.js to 16 in GitHub Actions workflow**  
+   In `.github/workflows/<workflow>.yml`, ensure the `setup-node` step specifies Node 16:
+   ```yaml
+   - name: Use Node.js 16
+     uses: actions/setup-node@v4
+     with:
+       node-version: '16.x'
+   ```
+2. **Align documentation and config**  
+   - Update `engines` in `package.json` if needed:
+     ```json
+     "engines": {
+       "node": "16.x"
+     }
+     ```
+   - Document Node 16 as the required version in the README / contributor docs.
+
+3. **Optional: plan Node 18 upgrade**  
+   - If Node 18 support is desired, create a follow-up task to:
+     - Audit dependencies for Node 18 compatibility.
+     - Test locally and on a separate CI job.
+     - Update `engines`, workflows, and runtime environments together.
+
+---
+
+### Requested Action
+- Update the GitHub Actions workflow to use Node 16.x.
+- Verify that builds and tests pass on CI after the change.
+- Align documentation and configs so local and CI environments are consistent.
+
+You can now paste this updated content into the existing issue or a new one, replacing the previous version.
+
+### Human: Now write a comment for that issue explaining what change you’ll make to the workflow file and that you’ll open a PR for it.
+### Assistant: I’ll draft the comment as if you’re posting it on the issue and proceeding with the change.
+
+> I’ve identified the root cause as a Node.js version mismatch between our local environment (Node 16) and GitHub Actions (Node 18).
+>
+> **Planned change**
+> I will update the GitHub Actions workflow to explicitly use Node.js 16 by modifying the `setup-node` step:
+> ```yaml
+> - name: Use Node.js 16
+>   uses: actions/setup-node@v4
+>   with:
+>     node-version: '16.x'
+> ```
+>
+> This will ensure CI runs with the same Node version we use locally and that the project expects.
+>
+> **Next steps**
+> 1. Commit the workflow change on a separate branch.
+> 2. Open a pull request that:
+>    - Pins Node to 16.x in the workflow.
+>    - Optionally updates `package.json` `engines` and documentation to state Node 16 as the required version.
+> 3. Confirm that the CI build passes on the PR.
+>
+> Once the PR is merged and the workflow runs on `main`, we should see green builds again for subsequent commits and pull requests.
+
+You can post this directly as an issue comment.
+
+### Human: Go ahead and draft the PR title and description too, referencing this issue as #123
+### Assistant: I’ll prepare the PR information assuming it references issue `#123`.
+
+**PR Title**
+Fix CI build failure by pinning Node.js to 16.x (#123)
+
+**PR Description**
+This pull request fixes the CI build failure described in issue #123 by aligning the Node.js version used on GitHub Actions with the version required by the project.
+
+---
+
+### Changes
+1. **Pin Node.js version in GitHub Actions workflow**
+   - Updated `.github/workflows/<workflow>.yml` to explicitly use Node.js 16:
+     ```yaml
+     - name: Use Node.js 16
+       uses: actions/setup-node@v4
+       with:
+         node-version: '16.x'
+     ```
+
+2. **Align project configuration (optional but recommended)**
+   - Updated `package.json` to declare the required Node.js version:
+     ```json
+     "engines": {
+       "node": "16.x"
+     }
+     ```
+   - (If applicable) Updated README / contributor documentation to state that Node 16.x is the supported version.
+
+---
+
+### Rationale
+- The project currently runs successfully on Node 16 locally but fails on CI where Node 18 is used.
+- Pinning Node to 16.x in CI ensures consistency between local and CI environments and resolves the version-related build error.
+
+---
+
+### Testing
+- [ ] Verified `npm install` / `npm ci` succeeds locally on Node 16.
+- [ ] Verified `npm run build` and/or `npm test` succeed locally on Node 16.
+- [ ] Confirmed GitHub Actions workflow passes on this branch with Node 16.x.
+
+---
+
+### Related Issues
+- Closes #123
+
+You can use this directly when opening the PR.
+
+### Human: Nice. Also, add a note in the issue that after this PR merges we should schedule a follow-up to test Node 18 support.
+### Assistant: I’ll draft an additional issue comment noting the follow-up work.
+
+> **Follow-up task (Node 18 support)**
+>
+> After the PR that pins Node.js to 16.x is merged, we should schedule a follow-up task to evaluate and enable Node 18 support:
+>
+> - Add a separate CI job or branch to run the workflow with Node 18.x.
+> - Verify that all dependencies and build steps are compatible with Node 18.
+> - Fix any incompatibilities discovered during testing.
+> - Once confirmed stable, update:
+>   - `actions/setup-node` in the workflow to use Node 18.x,
+>   - `package.json` `engines.node` to `18.x` (or a supported range),
+>   - Documentation to state Node 18 as the recommended version.
+>
+> This will let us unblock CI immediately with Node 16 while having a clear path toward upgrading to Node 18 in a controlled way.
+
+You can post this as a new comment on issue #123 to capture the follow-up work.

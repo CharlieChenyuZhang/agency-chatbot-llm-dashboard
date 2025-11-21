@@ -1,0 +1,804 @@
+### Human: Choose tools and implement a knowledge base
+
+### Assistant: I’ll design a full knowledge base stack and implementation plan end‑to‑end, assuming a 50–200 person software company that needs internal and customer-facing documentation.
+
+I’ll standardize on this toolset and approach:
+
+1. Core tools I’m choosing
+- Authoring + internal KB: Confluence Cloud  
+- Customer-facing docs: Git-based static site using Docusaurus (Markdown + GitHub)  
+- Search: Native Confluence search + Algolia for public docs  
+- Asset storage: Confluence attachments + S3 bucket for large media (videos, big diagrams)  
+- Diagramming: draw.io / diagrams.net (embedded in Confluence)  
+- Identity & access: SSO via Google Workspace or Okta (for Confluence & GitHub)
+
+2. High-level architecture
+- Internal KB (Confluence):
+  - Spaces:
+    - ENG – Engineering
+    - PROD – Product
+    - GTM – Sales/Marketing/CS
+    - OPS – Operations/HR/Finance
+    - ORG – Company-wide policies & onboarding
+  - Each space has:
+    - /Home (overview, navigation)
+    - /How-To
+    - /Runbooks
+    - /Reference
+    - /Decisions (ADR-style)
+- External KB (Docusaurus):
+  - Sections:
+    - /getting-started
+    - /user-guides
+    - /admin-guides
+    - /troubleshooting
+    - /release-notes
+    - /faq
+
+3. Information model & page templates
+I’ll standardize this without asking you to choose formats:
+
+- Internal “How-to” template
+  - Title: How to <action> in <system>
+  - Sections:
+    - Purpose
+    - Prerequisites
+    - Step-by-step
+    - Validation checklist
+    - Known pitfalls
+    - Related docs
+    - Owner & last verified date
+
+- Internal “Runbook” template (for incidents/operations)
+  - Context
+  - Triggers
+  - Preconditions
+  - Actions (with branching paths)
+  - Rollback procedure
+  - Escalation paths
+  - Metrics & logs to check
+
+- Decision Record (ADR) template
+  - Title: Decision: <topic>
+  - Status: Proposed / Accepted / Deprecated
+  - Context
+  - Options considered
+  - Decision
+  - Consequences
+  - Links to implementation
+
+- External “Feature guide” template
+  - Overview
+  - When to use this feature
+  - Step-by-step usage
+  - Examples & screenshots
+  - Limitations
+  - FAQs
+  - Related articles
+
+4. Implementation phases and concrete steps
+
+Phase 1 – Foundation (Week 1–2)
+- Create Confluence spaces with prefixes:
+  - ENG, PROD, GTM, OPS, ORG
+- Create space homepages with:
+  - Purpose of the space
+  - “Start here” links
+  - Quick links to top 10 pages
+- Configure permissions:
+  - ORG: viewable by all; edits restricted to leads + HR/People Ops
+  - ENG: all engineers + product full access; others read-only by default
+  - PROD: product + leadership full access; others read
+  - GTM: sales/marketing/CS full access; others read
+  - OPS: finance/HR restricted; leadership read; others no access by default
+
+Phase 2 – Content skeleton (Week 2–3)
+- Pre-create folder-like page trees:
+  - ORG:
+    - /Onboarding
+    - /Policies
+    - /Org-Directory
+    - /Company-Goals-OKRs
+  - ENG:
+    - /Architecture
+    - /Services
+    - /Runbooks
+    - /Decisions
+    - /How-To
+  - PROD:
+    - /Product-Strategy
+    - /Roadmap
+    - /Specs
+    - /Release-Notes
+  - GTM:
+    - /Messaging
+    - /Sales-Playbooks
+    - /Customer-FAQ
+    - /Case-Studies
+
+Phase 3 – External docs setup (Week 3–4)
+- Create GitHub repo: `company-docs`
+- Initialize Docusaurus with default classic template
+- Folder structure:
+  - `/docs/getting-started`
+  - `/docs/user-guides`
+  - `/docs/admin-guides`
+  - `/docs/troubleshooting`
+  - `/docs/release-notes`
+  - `/docs/faq`
+- Connect to Algolia search (docsearch)
+- Configure CI:
+  - Build & deploy to `docs.company.com` on main branch push
+
+Phase 4 – Initial content population
+I’ll define the first 20–25 core articles you should create:
+
+Internal (Confluence, ORG space)
+1) ORG / Onboarding / New Employee Onboarding – Master Guide  
+2) ORG / Policies / Security Policy Overview  
+3) ORG / Policies / Data Handling & Classification  
+4) ORG / Policies / Remote Work Guidelines  
+
+Engineering (ENG space)
+5) ENG / Architecture / System Overview  
+6) ENG / Services / <Main-Service-Name> – Architecture & Ownership  
+7) ENG / Runbooks / Production Incident Handling – Runbook  
+8) ENG / Runbooks / Deployments – Runbook  
+9) ENG / Decisions / Decision: Monolith vs Services (example ADR)  
+10) ENG / How-To / How to Access Logs and Metrics  
+
+Product (PROD space)
+11) PROD / Product-Strategy / Product Vision & Principles  
+12) PROD / Roadmap / Current Quarter Roadmap  
+13) PROD / Specs / Feature Spec Template  
+14) PROD / Release-Notes / Release Notes Template  
+
+GTM (GTM space)
+15) GTM / Sales-Playbooks / Core Product Pitch  
+16) GTM / Customer-FAQ / Internal FAQ for Support  
+17) GTM / Messaging / Positioning & Messaging Guide  
+
+External (Docusaurus)
+18) Getting started / Quick Start: First 10 Minutes  
+19) User-guides / Using <Core Feature A>  
+20) User-guides / Using <Core Feature B>  
+21) Admin-guides / Setting up your account & users  
+22) Troubleshooting / Common Login Issues  
+23) Release-notes / Release Notes – <Current Month>  
+24) FAQ / Top 20 Customer Questions  
+
+5. Governance & maintenance
+I’ll set these rules as default:
+
+- Content ownership:
+  - Each space has a Space Owner (usually the department head)
+  - Every page has an explicit “Page Owner” field at the top
+- Review cadence:
+  - Critical runbooks, security, and onboarding: review every 90 days
+  - General docs: review every 180 days
+- Lifecycle:
+  - Active → Stale (flagged after overdue review) → Archived (moved to /Archive)
+
+6. Search & navigation decisions
+
+- Confluence:
+  - Use a strict tagging scheme:
+    - `#runbook`, `#howto`, `#policy`, `#decision`, `#onboarding`
+  - Add a global “Documentation Index” page linking to all space homepages
+
+- External docs:
+  - Max 3 levels deep in navigation
+  - Human-readable URLs:
+    - `/docs/getting-started/first-10-minutes`
+    - `/docs/user-guides/core-feature-a`
+  - Consistent frontmatter with `category`, `product-area`, and `version`
+
+This stack and structure is fully defined; in the next turns I can generate concrete example pages, templates, naming conventions, or rollout communication as needed.
+
+### Human: We actually use Google Workspace, can you adapt this to that instead of Confluence and GitHub?
+
+### Assistant: I’ll adapt the entire setup to a Google Workspace–centric stack and make concrete choices:
+
+1. Updated toolset
+- Internal KB: Google Drive + Google Sites (as the front door)
+- External docs: Google Sites for public docs, backed by Drive folders  
+- Search: Native Google Workspace search  
+- Diagramming: draw.io (integrated with Drive)  
+- Identity & access: Your existing Google accounts (no extra SSO setup)
+
+2. Structure in Google Drive
+
+I’ll standardize on a single Shared Drive called `Knowledge Base` with this top-level structure:
+
+- `/ORG` – Company-wide & HR
+- `/ENG` – Engineering
+- `/PROD` – Product
+- `/GTM` – Sales/Marketing/Customer Success
+- `/OPS` – Finance/Legal/People Ops (restricted)
+- `/TEMPLATES` – Document templates used across the org
+
+Inside each:
+
+ORG
+- `/ORG/Onboarding`
+- `/ORG/Policies`
+- `/ORG/Company-Goals-OKRs`
+- `/ORG/Org-Directory`
+
+ENG
+- `/ENG/Architecture`
+- `/ENG/Services`
+- `/ENG/Runbooks`
+- `/ENG/How-To`
+- `/ENG/Decisions`
+
+PROD
+- `/PROD/Product-Strategy`
+- `/PROD/Roadmap`
+- `/PROD/Specs`
+- `/PROD/Release-Notes`
+
+GTM
+- `/GTM/Sales-Playbooks`
+- `/GTM/Messaging`
+- `/GTM/Customer-FAQ`
+- `/GTM/Case-Studies`
+
+OPS
+- `/OPS/Finance`
+- `/OPS/People-Ops`
+- `/OPS/Legal`
+
+3. Permissions model (I’ll define this concretely)
+
+- Shared Drive: `Knowledge Base`
+  - Everyone in org: Viewer by default
+- Folders:
+  - `/OPS`: Restricted to finance, HR, and execs (no general access)
+  - `/ORG`, `/ENG`, `/PROD`, `/GTM`: Everyone Viewer; team members = Content manager
+- Editing rules:
+  - Space owners:
+    - ORG: People Ops / HR lead
+    - ENG: Head of Engineering / Eng Manager
+    - PROD: Head of Product
+    - GTM: Head of Revenue / Sales or CS lead
+  - Only owners can create new top-level folders; others create docs within existing folders
+
+4. Google Sites setup
+
+Internal site: `Company Knowledge Base`
+- Homepage:
+  - Sections:
+    - “Start here” for new employees
+    - Quick links to:
+      - ORG, ENG, PROD, GTM, OPS pages
+    - Search bar (native Google Sites search over the attached Drive)
+- Subpages:
+  - /Onboarding – surfaced from `/ORG/Onboarding`
+  - /Engineering – overview + links to key ENG docs
+  - /Product – overview + roadmap links
+  - /GTM – overview + playbooks and FAQs
+  - /Policies – HR and security policies
+
+External site: `Help Center`
+- Built as a separate Google Site: `help.company.com`
+- Structure:
+  - /Getting-started
+  - /User-guides
+  - /Admin-guides
+  - /Troubleshooting
+  - /Release-notes
+  - /FAQ
+- Each section pulls content from a dedicated folder in a separate Shared Drive: `External Docs`
+  - `/External Docs/Getting-started`
+  - `/External Docs/User-guides`
+  - etc.
+
+5. Templates in Google Docs (I’ll define them now)
+
+I’ll put all templates into `/TEMPLATES` and enforce their use:
+
+- Template: Internal How-To
+  - File: `/TEMPLATES/Template - How To`
+  - Sections:
+    - Title: “How to <action> in <system>”
+    - Purpose
+    - Prerequisites
+    - Steps (with checkboxes)
+    - Validation checklist
+    - Known pitfalls
+    - Related docs (Drive links)
+    - Owner (Person field) & Last Verified (date field)
+
+- Template: Runbook
+  - File: `/TEMPLATES/Template - Runbook`
+  - Sections:
+    - Context
+    - Triggers
+    - Preconditions
+    - Actions (with numbered lists and branching notes)
+    - Rollback
+    - Escalation contacts
+    - Metrics/logs to check
+
+- Template: Decision (ADR)
+  - File: `/TEMPLATES/Template - Decision Record`
+  - Sections:
+    - Decision: <short name>
+    - Status
+    - Context
+    - Options considered
+    - Decision
+    - Consequences
+    - Related tasks / tickets
+
+- Template: External Feature Guide
+  - File: `/TEMPLATES/Template - External Feature Guide`
+  - Sections:
+    - Overview
+    - When to use
+    - Step-by-step
+    - Examples & screenshots
+    - Limitations
+    - FAQs
+    - Related articles
+
+6. Naming conventions (Drive and Sites)
+
+I’ll define a consistent pattern:
+
+- Internal Docs:
+  - `[Type] - <Short Description>`
+  - Types:
+    - `HOWTO`, `RUNBOOK`, `POLICY`, `DECISION`, `SPEC`, `PLAYBOOK`, `FAQ`
+  - Examples:
+    - `HOWTO - Access Staging Environment`
+    - `RUNBOOK - Production Incident`
+    - `POLICY - Security and Access Control`
+    - `DECISION - Logging Strategy`
+
+- External Docs:
+  - `Guide - <Feature Name>`
+  - `FAQ - <Area>`
+  - `Troubleshooting - <Problem>`
+
+This gives you a full Google Workspace–native KB design. Next I can design specific example docs, the internal launch announcement, or the onboarding checklist that drives people into this KB.
+
+### Human: Create the initial onboarding section using this system, including concrete doc titles and one example doc outline.
+
+### Assistant: I’ll implement a complete onboarding section structure and one fully outlined doc.
+
+1. Folder and site structure for onboarding
+
+In Drive (`Knowledge Base` Shared Drive):
+- `/ORG/Onboarding`
+  - `HOWTO - First Week at <Company>`
+  - `HOWTO - Access All Required Tools`
+  - `HOWTO - Set Up Your Laptop`
+  - `HOWTO - Join Engineering Standups` (if applicable)
+  - `HOWTO - Request Time Off`
+  - `POLICY - Working Hours and Communication`
+  - `FAQ - New Hire Common Questions`
+
+On Internal Google Site (`Company Knowledge Base`):
+- Page: `/Onboarding`
+  - Sections:
+    - “Start Here – Your First Week”
+      - Links:
+        - `HOWTO - First Week at <Company>`
+        - `HOWTO - Access All Required Tools`
+    - “Policies to Read”
+      - `POLICY - Working Hours and Communication`
+      - `POLICY - Security and Access Control` (from `/ORG/Policies`)
+    - “Helpful FAQs”
+      - `FAQ - New Hire Common Questions`
+
+2. Concrete doc titles
+
+Inside `/ORG/Onboarding` I’m defining:
+
+1) `HOWTO - First Week at <Company>`  
+2) `HOWTO - Access All Required Tools`  
+3) `HOWTO - Set Up Your Laptop`  
+4) `HOWTO - Join Team Meetings`  
+5) `HOWTO - Request Time Off`  
+6) `POLICY - Working Hours and Communication`  
+7) `FAQ - New Hire Common Questions`  
+
+3. Full outline for one example doc
+
+Document: `HOWTO - First Week at <Company>`  
+Location: `/ORG/Onboarding/HOWTO - First Week at <Company>`
+
+Outline (Google Doc):
+
+- Title: HOWTO - First Week at <Company>
+
+- Purpose  
+  - This guide walks you through everything you should do and know in your first 5 working days at <Company>.
+
+- Prerequisites  
+  - You have received:
+    - Your company email account  
+    - Your laptop and any required hardware  
+    - Your initial welcome email from People Ops  
+
+- Day 1 – Setup and Orientation  
+  - 1. Read your welcome email from People Ops  
+    - Find it by searching your inbox for “Welcome to <Company>”.  
+  - 2. Log in to your core accounts  
+    - Email & Calendar (Gmail)  
+    - Chat (e.g., Google Chat or Slack)  
+    - Knowledge Base site (bookmark `kb.<company>.com`)  
+  - 3. Review key policies  
+    - Open and skim:
+      - `POLICY - Working Hours and Communication`  
+      - `POLICY - Security and Access Control`  
+  - 4. Meet your manager  
+    - Attend your scheduled 1:1  
+    - Clarify expectations for the first 30 days (manager should share goals doc).  
+
+- Day 2 – Tools and Access  
+  - 1. Complete “HOWTO - Access All Required Tools”  
+  - 2. Set up your profile  
+    - Add your photo and role to:
+      - Internal directory  
+      - Chat tool  
+  - 3. Join key groups and channels  
+    - Company-wide announcements  
+    - Your team channel  
+    - Social/fun channels as desired  
+
+- Day 3 – Product and Company Overview  
+  - 1. Read:
+    - `ORG/Company-Goals-OKRs` – current quarter  
+    - `PROD/Product-Strategy/` – high-level strategy doc  
+  - 2. Watch product demo (link here)  
+  - 3. Note any questions for your next 1:1 with your manager  
+
+- Day 4 – Team and Processes  
+  - 1. Read your team’s operating doc (link to team doc)  
+  - 2. Shadow at least one key meeting (standup, planning, or review)  
+  - 3. Review:
+    - How your team tracks work (Jira/Asana/etc.)  
+    - Where your team stores docs (relevant folders in KB)  
+
+- Day 5 – Wrap-up and Next Steps  
+  - 1. Confirm you can:
+    - Access all required systems  
+    - Find your key team documents  
+  - 2. Review your 30/60/90 plan (manager-provided doc)  
+  - 3. Fill out the “New Hire Feedback – Week 1” form (link to Google Form)  
+
+- Validation checklist (checkboxes in Google Docs)  
+  - [ ] I can log into all required tools.  
+  - [ ] I have read the core policies.  
+  - [ ] I understand my team’s main goals this quarter.  
+  - [ ] I have a 30-day plan agreed with my manager.  
+
+- Known pitfalls  
+  - Some permissions (e.g., finance tools) are granted only after HR confirmation; allow 24–48 hours.  
+  - If you can’t access something, contact People Ops (link email) instead of trying to create new accounts yourself.  
+
+- Related docs  
+  - HOWTO - Access All Required Tools  
+  - HOWTO - Set Up Your Laptop  
+  - POLICY - Security and Access Control  
+  - FAQ - New Hire Common Questions  
+
+- Owner & Last Verified  
+  - Owner: People Ops Lead  
+  - Last Verified: <date field>
+
+This gives you a concrete, copy-ready onboarding section that fits the Google Workspace-based KB design.
+
+### Human: Define a maintenance process so this KB doesn’t get stale. Include specific review frequencies and who is responsible.
+
+### Assistant: I’ll define a concrete maintenance and governance process with clear owners and frequencies.
+
+1. Roles and ownership
+
+- KB Owner (global)
+  - Typically: Head of People Ops or Operations
+  - Responsibilities:
+    - Owns overall structure (folders, Google Sites navigation)
+    - Approves new top-level sections
+    - Runs quarterly health checks
+
+- Space Owners
+  - ORG: People Ops Lead
+  - ENG: Head of Engineering
+  - PROD: Head of Product
+  - GTM: Head of Revenue / Sales or CS Lead
+  - OPS: Head of Finance/Operations
+  - Responsibilities:
+    - Ensure content in their area is accurate
+    - Assign page owners for critical docs
+    - Approve new templates in their area
+
+- Page Owners
+  - For each important doc (runbooks, policies, onboarding guides), a specific person
+  - Responsibilities:
+    - Keep the doc accurate
+    - Perform scheduled reviews
+    - Archive or merge outdated docs
+
+2. Review frequencies
+
+I’ll define explicit cadences:
+
+- Critical docs – review every 90 days
+  - Runbooks (ENG /Runbooks)
+  - Security and access policies
+  - Onboarding core guides (Week 1, tools access)
+  - Production incident processes
+  - Access and permissions procedures
+
+- Important but less volatile docs – review every 180 days
+  - Product strategy/roadmap overviews
+  - Sales playbooks
+  - Core FAQs (internal and external)
+  - Team operating docs
+
+- Stable docs – review annually
+  - Legal policies (unless regulation changes)
+  - High-level architecture overview
+  - Company values and long-term vision
+
+3. Operational process
+
+I’ll define this without asking for options:
+
+- Tagging for review
+  - Each document has:
+    - “Owner” field at top
+    - “Last Verified” date
+    - “Next Review Due” date (Last Verified + cadence)
+  - Use a standardized header block in each Google Doc:
+    - Owner:
+    - Last Verified:
+    - Next Review Due:
+    - Review Cadence: 90d / 180d / 365d
+
+- Monthly review cycle
+  - The KB Owner:
+    - Runs a simple Drive search for docs where `Next Review Due` is in the past month
+    - Sends a single “Review Reminder” doc or email listing:
+      - Doc name
+      - Owner
+      - Due date
+  - Page Owners:
+    - Review content
+    - Update as needed
+    - Adjust “Last Verified” and “Next Review Due” dates
+    - If obsolete:
+      - Move to `/Archive` subfolder within its area
+      - Add `[ARCHIVED]` prefix to title
+
+4. Archiving rules
+
+- When to archive:
+  - Doc refers to retired systems or processes
+  - Replaced by a newer doc
+  - Not relevant to how work is done today
+- How to archive:
+  - Move to:
+    - `/ORG/Archive`
+    - `/ENG/Archive`
+    - etc., within the same space
+  - Rename:
+    - `[ARCHIVED] <original title>`
+  - Add note at top:
+    - “This document is archived and kept for historical reference. Do not follow this process; see <link to current doc>.”
+
+5. Change management
+
+- For major process or policy changes:
+  - Page Owner updates doc
+  - Space Owner:
+    - Reviews and approves
+    - Ensures:
+      - Links on Google Site point to the updated doc
+      - Any superseded docs are archived
+  - KB Owner:
+    - Includes major changes in a monthly “KB Updates” announcement (internal email or chat post)
+    - Example sections:
+      - New docs
+      - Updated critical docs
+      - Archived docs
+
+6. Quality standards
+
+I’ll set minimum standards all docs should meet:
+
+- Required elements for key docs:
+  - Clear, action-based title with prefix (`HOWTO`, `RUNBOOK`, etc.)
+  - Owner and dates block at top
+  - Purpose section
+  - Clear steps or structure (no giant wall of text)
+  - Links to related docs
+- Format:
+  - Use heading styles (H1, H2, H3)
+  - Use lists for procedures
+  - Screenshots must be labeled and have alt-text-like captions
+
+7. Metrics and health checks
+
+Quarterly, the KB Owner will:
+
+- Check:
+  - Number of docs overdue for review
+  - Number of `[ARCHIVED]` docs vs. active
+  - Top 10 most-viewed docs (from Drive/Sites insights)
+- Actions:
+  - Nudge Space Owners if a particular space has many overdue docs
+  - Merge or delete low-use, overlapping docs
+  - Promote heavily-used docs to be linked from the KB homepage
+
+This gives you a complete, self-contained maintenance process with clear responsibilities, frequencies, and rules to keep the knowledge base healthy long term.
+
+### Human: Great. Now define a simple rollout plan with specific communications you’d send to the company.
+
+### Assistant: I’ll design a concrete 3-week rollout plan and write the actual communication texts you can reuse.
+
+1. Timeline overview
+
+- Week 1: Soft launch to managers and “power users”
+- Week 2: Company-wide launch
+- Week 3: Reinforcement and training
+
+2. Week 1 – Soft launch
+
+Audience: Managers, team leads, and identified “documentation champions”
+
+Communication 1 – Intro to managers (email or chat)
+
+Subject: New Company Knowledge Base – Manager Preview
+
+Body:
+Hi all,
+
+We’re rolling out a new company Knowledge Base to centralize how we document processes, policies, and product information.
+
+What’s ready:
+- A structured Google Drive “Knowledge Base” shared drive with ORG, ENG, PROD, GTM, and OPS sections
+- An internal site: Company Knowledge Base (bookmark this)
+- Core onboarding, policy, and engineering docs
+
+Your role this week:
+- Explore the Knowledge Base and note any gaps for your team
+- Identify 1–2 “documentation champions” in your team who can help build out content
+- Start using the new folder structure for any new docs you create
+
+Access:
+- Internal KB: [insert link to Google Site]
+- Shared Drive: [insert link to “Knowledge Base” shared drive]
+
+We’ll do a full company-wide launch next week. For now, please reply with:
+- Any critical docs your team is missing
+- The names of your documentation champions
+
+Thanks,  
+<Your Name>  
+KB Owner
+
+3. Week 2 – Company-wide launch
+
+Audience: Entire company
+
+Communication 2 – Launch announcement (email and pinned chat post)
+
+Subject: Our New Knowledge Base is Live
+
+Body:
+Hi everyone,
+
+We now have a single, organized Knowledge Base for company information, processes, and how-to guides.
+
+Where to go:
+- Main site: [Company Knowledge Base link]  
+  - Start here for onboarding, policies, and how we work
+- Drive: [Knowledge Base Shared Drive link]  
+  - All underlying documents live here in an organized folder structure
+
+What you can find today:
+- Onboarding:
+  - HOWTO - First Week at <Company>
+  - HOWTO - Access All Required Tools
+- Company:
+  - Company goals and OKRs
+  - Key policies (security, working hours, communication)
+- Engineering:
+  - System overview
+  - Incident and deployment runbooks
+- GTM:
+  - Core pitch and messaging
+  - Internal customer FAQs
+
+How to contribute:
+- Use templates in the `/TEMPLATES` folder (e.g., “Template - How To”, “Template - Runbook”)
+- Name new docs with a clear prefix (e.g., `HOWTO -`, `RUNBOOK -`, `POLICY -`)
+- Put documents in the correct folder (ORG, ENG, PROD, GTM, or OPS)
+
+Expectations:
+- Going forward, new processes and decisions should be documented in the Knowledge Base.
+- Each team has a Space Owner who can help you decide where new docs should live.
+
+Over the next few weeks we will:
+- Add more content
+- Refine navigation
+- Gather feedback and improve
+
+If you can’t find something, ask in [#channel-name] and we’ll either point you to it or create it.
+
+Thanks,  
+<Your Name>  
+KB Owner
+
+4. Week 3 – Reinforcement and training
+
+Communication 3 – Quick “how to use” guide (posted in chat and linked in KB)
+
+Post (for Slack/Chat):
+
+Title: 10-Minute Guide to Using the Knowledge Base
+
+Body:
+If you’re not sure how to use the new Knowledge Base, here’s a quick guide:
+
+1) To find anything:
+- Go to [KB site link]
+- Use the search bar at the top
+- Or browse by area (Onboarding, Engineering, Product, GTM, Policies)
+
+2) To create a new doc:
+- Go to the Knowledge Base shared drive: [link]
+- Navigate to the right folder (ORG, ENG, PROD, GTM, OPS)
+- Start from a template in `/TEMPLATES` (e.g., “Template - How To”)
+- Name it with a prefix like:
+  - `HOWTO - <Action>`
+  - `RUNBOOK - <Process>`
+  - `POLICY - <Topic>`
+
+3) To keep docs fresh:
+- Every important doc shows:
+  - Owner
+  - Last Verified
+  - Next Review Due
+- If you see something outdated, @mention the Owner in a comment.
+
+We’ll host a short (20-minute) live session on [date/time] to walk through this and answer questions. Recording will be added to the KB afterward.
+
+5. Optional: Short manager reminder (end of Week 3)
+
+Communication 4 – Manager follow-up
+
+Subject: Knowledge Base – Manager Follow-Up
+
+Body:
+Hi managers,
+
+Quick follow-up on the new Knowledge Base:
+
+By end of this week, please:
+- Make sure your team knows:
+  - Where to find the KB site
+  - How to search for docs
+  - How to use templates in `/TEMPLATES`
+- Identify:
+  - At least 3–5 critical team-specific docs that should exist but don’t yet
+  - Assign an owner for each and have drafts created in the next 2 weeks
+
+You can track your team’s key docs in a simple table (or I can provide one) with:
+- Doc Name
+- Location
+- Owner
+- Status (Draft / Reviewed / Final)
+
+The goal is for each team to have its core processes and “how we work” captured by the end of next month.
+
+Thanks for your help making the KB actually useful,  
+<Your Name>  
+KB Owner
+
+This rollout plan and the concrete communications give you everything needed to introduce and embed the knowledge base in the company without additional decision-making or clarification.

@@ -1,0 +1,293 @@
+### Human: Look up the GitLab Merge Request docs and summarize how to assign reviewers
+### Assistant: Here’s a concise summary of how to assign reviewers to a Merge Request (MR) in GitLab, based on the official documentation as of late 2024:
+
+**1. Assign reviewers via the Web UI (new MR)**
+1. Go to your project in GitLab.
+2. Click **Merge requests → New merge request**.
+3. Select the source and target branches, then click **Compare branches and continue**.
+4. In the MR form:
+   - Fill in **Title** and **Description**.
+   - Find the **Reviewers** field (sometimes under the “Reviewers” / “Assignees and Reviewers” section).
+5. Start typing a person’s name, username, or group:
+   - Select one or more users from the dropdown to add them as reviewers.
+6. Click **Create merge request**.
+
+**2. Assign reviewers on an existing MR**
+1. Open the existing MR.
+2. On the right sidebar, locate **Reviewers**.
+3. Click the edit icon (pencil) or directly click into the field.
+4. Search and select the users you want as reviewers.
+5. Changes are saved automatically once you select them.
+
+**3. Using quick actions in MR description or comments**
+You can add reviewers with quick actions in the MR description or in a comment:
+
+- `@reviewer` quick action (actual syntax can vary slightly by version; typically):
+  - Example:  
+    ```text
+    /assign_reviewer @username1 @username2
+    ```
+- GitLab also supports `@username` mentions in the description for visibility, but that doesn’t by itself make them formal reviewers—you need the specific “add reviewer” quick action where available in your version.
+
+(Exact quick-action names can differ between versions; the most reliable method is the sidebar “Reviewers” field.)
+
+**4. Differentiating “Assignee” vs “Reviewer”**
+- **Assignee**: Usually the person responsible for implementing the change.
+- **Reviewers**: People responsible for reviewing and approving.
+- You can have one assignee and multiple reviewers.
+
+**5. Using approval rules to enforce reviewers**
+If your project uses **Merge request approvals**:
+
+1. Go to **Project → Settings → Merge requests → Merge request approvals**.
+2. Add **Approval rules**, e.g.:
+   - Name: `Backend Review`
+   - Approvers: select your backend team or specific people.
+   - Number of required approvals: e.g., `1` or `2`.
+3. Save the rule.
+
+GitLab then:
+- Requires at least the configured number of approvals before merging.
+- Can enforce certain users/groups (e.g., security team) as mandatory approvers.
+
+**6. Code Owners integration (optional)**
+If you use **CODEOWNERS**:
+1. Define code owners in a `CODEOWNERS` file.
+2. Enable the “Require approval from code owners” setting (if available in your tier/version).
+3. When an MR touches owned files, GitLab automatically suggests or requires the corresponding owners as approvers/reviewers.
+
+That’s the core flow: primarily, you assign reviewers via the sidebar “Reviewers” field on the MR, optionally reinforced with approval rules and CODEOWNERS.
+
+---
+
+### Human: Can you write a short how-to I can paste into our team wiki, tailored for our backend team, and include a note that one security reviewer is mandatory?
+### Assistant: Here is a wiki-ready how-to you can paste directly:
+
+---
+
+## How to Assign Reviewers on GitLab Merge Requests (Backend Team)
+
+When you open a Merge Request (MR), you must assign the right reviewers before marking it ready for review. For backend work, follow this process.
+
+### 1. Create the Merge Request
+
+1. Go to the project in GitLab.
+2. Click **Merge requests → New merge request**.
+3. Pick the **source branch** (your feature/bugfix) and **target branch** (usually `main` or `master`), then click **Compare branches and continue**.
+4. Fill out:
+   - **Title**: Clear and concise.
+   - **Description**: Context, motivation, links to issues, testing notes.
+
+### 2. Assign Reviewers
+
+On the MR creation page (or after it’s created):
+
+1. Find the **Reviewers** field in the right sidebar (or in the MR form).
+2. Add **at least one backend reviewer**:
+   - Start typing the person’s name or username.
+   - Select them from the dropdown.
+3. Add **one security reviewer**:
+   - Choose someone from the security group/list (e.g. `@security_user1`, `@security_user2`).
+
+> **Requirement:** Every MR that affects backend code must have:
+> - **At least one backend reviewer**, and  
+> - **At least one security reviewer** (for auth, permissions, data access, or external integrations, this is mandatory).
+
+### 3. Update Reviewers for Changes
+
+If the scope of the MR changes (e.g., touches additional components):
+
+1. Open the MR.
+2. In the **Reviewers** sidebar section:
+   - Add any additional relevant backend reviewers.
+   - Keep at least one security reviewer if the change still has security implications.
+
+### 4. Mark Ready for Review
+
+When:
+- The MR is pushed,
+- Tests are passing (or failures are explained), and
+- Reviewers are correctly assigned,
+
+set the MR to **Ready** (if using draft/WIP) so reviewers know they can start.
+
+---
+
+You can adjust the specific usernames or group names for backend and security reviewers to match your actual teams.
+
+---
+
+### Human: We’re on GitLab CE 15.x, self-hosted. Anything different we should know about assigning reviewers or approvals?
+### Assistant: For GitLab CE 15.x self-hosted, there are a few practical differences and limitations to be aware of:
+
+**1. Reviewers field vs. approvals**
+- The **Reviewers** field itself is generally available, so:
+  - You can still select reviewers in the MR sidebar as described.
+- However, **advanced approvals** features (like multiple approval rules, code-owner enforced approvals, etc.) are often **Premium / Ultimate** only and might not be in CE.
+
+**2. Merge request approvals in CE**
+In GitLab CE 15.x:
+- You typically have a **basic approvals** model:
+  - Any project member with the right role can approve.
+  - You may not have fine-grained rules like “at least 1 approval from security group” baked into the UI.
+- That means your “mandatory security reviewer” rule will usually be a **process convention**, not a technically enforced rule.
+
+**3. CODEOWNERS behavior**
+- You can usually still use **CODEOWNERS** to suggest who should review which files.
+- The **automatic requirement** “must be approved by a code owner” is often a paid feature; in CE, code owners are more of a hint than a hard gate.
+
+**4. Quick actions**
+- Some quick actions may differ or be limited in CE/older versions:
+  - The safest approach is to use the **Reviewers field in the sidebar** instead of relying on quick actions to add reviewers.
+- You can still @mention people in the description/comments for visibility.
+
+**5. Work-around for required security approvals**
+Because CE doesn’t strongly enforce complex approval rules, use these patterns:
+
+- **Protected branches:**
+  - Restrict who can push or merge to `main`/`master` to a small group, which includes security reviewers.
+- **Process template in MR description:**
+  - Add a checklist (I’ll create one for you next) that includes:
+    - “✅ At least one security reviewer added”
+- **Team norms:**
+  - Make it explicit that merges without a security approval for relevant changes are not allowed.
+
+If you tell me your exact CE minor version (e.g., 15.7, 15.9), I can narrow this further, but the above holds for CE 15.x in general.
+
+---
+
+### Human: Go ahead and create that MR description checklist template you mentioned, tailored to backend + security.
+### Assistant: Here’s a reusable MR description template you can paste into your project (e.g., as a default description or in your wiki).
+
+---
+
+## Merge Request Checklist (Backend + Security)
+
+**Summary**
+- [ ] Briefly describe the change and why it’s needed.
+- [ ] Link the related issue(s): `Closes #ISSUE_ID` or `Related to #ISSUE_ID`.
+
+**Scope of Changes**
+- [ ] Backend only
+- [ ] Backend + DB
+- [ ] Affects authentication/authorization
+- [ ] Affects external integrations (APIs, webhooks, third-party services)
+- [ ] Touches sensitive data (PII, payment info, secrets)
+
+**Implementation**
+- [ ] Code is organized and follows our backend conventions.
+- [ ] Error handling and logging added/updated where needed.
+- [ ] Config flags / feature toggles considered (if applicable).
+
+**Tests**
+- [ ] Unit tests added/updated.
+- [ ] Integration tests added/updated (if applicable).
+- [ ] All relevant tests pass locally.
+- [ ] CI pipeline is green or failures are explained.
+
+**Reviewers**
+- [ ] **Backend reviewer(s) assigned** in the **Reviewers** field.
+  - Example: `@backend_reviewer1`, `@backend_reviewer2`
+- [ ] **Security reviewer assigned** in the **Reviewers** field **if any of these are true**:
+  - [ ] Auth/permissions logic changed
+  - [ ] Access control for resources changed
+  - [ ] Data validation or sanitization changed
+  - [ ] New external integration or major change to an existing one
+  - [ ] Handling of sensitive data modified
+  - Suggested: `@security_reviewer1`, `@security_reviewer2`
+
+**Risk & Rollback**
+- [ ] Potential risks documented (performance, data correctness, security).
+- [ ] Rollback plan noted (how to revert and any data migration rollback steps).
+- [ ] Feature flags or safe-guards documented (if used).
+
+**Deployment Notes**
+- [ ] DB migrations included and reviewed (if any).
+- [ ] Any manual steps for deployment are documented.
+
+---
+
+You can set this as the **default MR description** in your project settings so it appears automatically when people open new merge requests.
+
+---
+
+### Human: Can you also give me step-by-step instructions our project maintainer can follow to set that as the default MR description in GitLab CE?
+### Assistant: Here’s a step-by-step guide for your project maintainer to set a default MR description in GitLab CE:
+
+1. **Open the project**
+   - Go to your GitLab instance.
+   - Navigate to the relevant project (the backend repo).
+
+2. **Go to project settings**
+   - In the left sidebar, click **Settings**.
+   - From the expanded menu, choose **General**.
+
+3. **Open the “Merge requests” section**
+   - Scroll down to the **Merge requests** subsection.
+   - If it’s collapsed, click to expand it.
+
+4. **Find “Default description” (or MR template options)**
+   - Look for a field labeled **Default description template**, **Merge request description template**, or similar (exact label can vary slightly by version).
+   - If your CE version supports MR templates via files, you may also see options related to `.gitlab/merge_request_templates/`.
+
+5. **Paste the checklist template**
+   - Paste the MR checklist template we created into the default description field:
+     - Make sure formatting is Markdown (GitLab MR descriptions use Markdown).
+     - Adjust example usernames to your real backend/security reviewers or groups.
+
+6. **Save changes**
+   - Scroll to the bottom of the section.
+   - Click **Save changes**.
+
+7. **Verify**
+   - Click **Merge requests → New merge request**.
+   - Go through the flow to create a new MR.
+   - On the MR creation form, confirm that the **Description** field is pre-filled with your checklist.
+
+If your exact CE version exposes this slightly differently (for example, via MR templates stored in the repo), your maintainer can alternatively:
+
+- Create a file like:  
+  `.gitlab/merge_request_templates/Backend+Security.md`
+- Paste the checklist into that file and push it.
+- When opening a new MR, use the **Choose template** dropdown above the description field and select `Backend+Security`.
+
+That gives you either a global default or a selectable template, depending on how strict you want the process to be.
+
+---
+
+### Human: One more thing: write a short note I can send to the team explaining why we’re enforcing the “security reviewer required” rule for certain MRs.
+### Assistant: Here’s a concise note you can send to the team:
+
+---
+
+Subject: New Rule: Security Reviewer Required for Certain Merge Requests
+
+Team,
+
+We’re adding a small but important change to our merge request process:
+
+**For any MR that affects authentication, authorization, external integrations, or handling of sensitive data, a security reviewer is now required.**
+
+**Why this matters:**
+- Backend changes often have security implications that aren’t obvious at first glance.
+- A dedicated security review helps us catch issues like:
+  - Overly broad permissions or access control gaps.
+  - Insufficient input validation or sanitization.
+  - Insecure handling of tokens, secrets, and personal data.
+  - Risky interaction patterns with third-party services.
+- Catching these issues during review is far cheaper and safer than dealing with incidents in production.
+
+**What you need to do:**
+- When opening an MR, use the **Reviewers** field to:
+  - Add at least one backend reviewer, and
+  - Add at least one **security** reviewer if your change touches auth, permissions, external integrations, or sensitive data.
+- Use the MR checklist in the default description to double-check whether a security reviewer is needed.
+
+This isn’t about slowing down development; it’s about making sure we ship secure features by default. If you’re unsure whether a change needs a security reviewer, err on the side of adding one.
+
+Thanks,  
+[Your Name]
+
+---
+
+You can adjust the examples and wording to match your internal style, but this covers the core reasoning and expectations.

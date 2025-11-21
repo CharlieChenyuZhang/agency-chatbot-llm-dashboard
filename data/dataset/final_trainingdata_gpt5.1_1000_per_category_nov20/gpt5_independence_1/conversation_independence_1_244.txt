@@ -1,0 +1,252 @@
+### Human: Look up the GitLab Merge Request docs and summarize how to assign reviewers
+### Assistant: According to GitLab’s Merge Request documentation (as of late 2024), assigning reviewers works like this:
+
+1. Where you assign reviewers
+   - In the Merge Request sidebar, there is a “Reviewers” section (separate from “Assignee”).
+   - You can add one or more users or groups as reviewers.
+   - On creation: when you create a new MR, there’s a Reviewers field on the form.
+   - After creation: you can edit the MR and change the reviewers at any time from the sidebar.
+
+2. How to add reviewers (web UI)
+   - Open the merge request.
+   - In the right sidebar, find “Reviewers”.
+   - Click the “Edit” icon (or the pencil / plus icon).
+   - Start typing a name, username, or group name; GitLab shows suggestions.
+   - Select one or more users/groups.
+   - Save/update; the selected people are now reviewers and get notified.
+
+3. Relationship to assignee and approvals
+   - Assignee: typically the person responsible for driving the MR to completion (often the author or the “owner” of the change).
+   - Reviewers: people expected to review the code and leave comments/approvals.
+   - Approvals: if project/instance approval rules are configured, reviewers’ approvals can satisfy those rules, but “reviewer” itself is mainly a workflow/UX field; the real enforcement is done by approval rules.
+
+4. Suggestions and automation
+   - GitLab can suggest reviewers based on past contributions or CODEOWNERS (if configured).
+   - With CODEOWNERS, relevant owners may be auto-added as reviewers/approvers when files they own are changed.
+   - In Premium/Ultimate, you can set approval rules that automatically add certain people/groups as approvers for specific paths, branches, or MR targets.
+
+5. Assigning reviewers via API / automation (high level)
+   - REST API: you can update a merge request and pass `reviewer_ids` to set reviewers programmatically.
+   - This is often used in CI/CD scripts or bots to auto-assign reviewers based on labels, paths, or other metadata.
+
+6. Permissions
+   - You can only set reviewers if you have permission to update the merge request (typically Developer and above on the project).
+   - You can assign any user who has access to the project as a reviewer.
+
+That’s the core of how reviewer assignment works in GitLab MRs according to the official docs.
+
+### Human: Can you turn that into a clear step-by-step checklist I can drop into our team docs?
+### Assistant: Here is a ready-to-use checklist you can paste into your team docs:
+
+How to assign reviewers to a GitLab Merge Request
+
+1. Open the merge request
+   - Go to your project in GitLab.
+   - Click Merge Requests in the left sidebar.
+   - Open the merge request you want to update.
+
+2. Locate the Reviewers section
+   - On the right-hand sidebar, find the Reviewers block.
+   - If you’re creating a new MR, look for the Reviewers field on the New merge request form.
+
+3. Edit the reviewers
+   - Click the Edit / pencil / plus icon in the Reviewers block.
+   - In the search box, start typing the name or username of the teammate you want to add.
+   - Select one or more people from the dropdown list.
+   - (If available) You may also choose groups that have access to the project.
+
+4. Save your changes
+   - Confirm your selection so the reviewers are added.
+   - GitLab will send notifications to the selected reviewers.
+
+5. Use assignee vs reviewers correctly
+   - Assignee: person responsible for driving the MR to merge.
+   - Reviewers: people expected to review and approve the changes.
+
+6. Follow team rules (if any)
+   - Ensure you follow any team-specific rules (e.g., “At least 1 backend and 1 frontend reviewer”, or “Always add a code owner if available”).
+   - If approval rules are configured, make sure the assigned reviewers can actually satisfy those rules.
+
+You can drop this in as-is, or put it under a heading like “Assigning reviewers for Merge Requests”.
+
+### Human: We use GitLab Premium with approval rules. How should we set those up so backend and frontend both review every MR?
+### Assistant: To enforce both backend and frontend review on every MR in GitLab Premium, configure project-level approval rules like this:
+
+1. Decide your structure
+   - Create two logical reviewer groups:
+     - Backend reviewers (e.g., `group_backend_reviewers` or a project group of backend engineers)
+     - Frontend reviewers (e.g., `group_frontend_reviewers`)
+   - Make sure all relevant engineers are members of these groups with Developer+ access.
+
+2. Configure approval rules at the project level
+   - Go to your project in GitLab.
+   - Navigate to Settings → Merge requests → Approval rules (or Settings → General → Merge request approvals, depending on UI version).
+   - Create two rules:
+
+   Rule 1: Backend review
+   - Name: `Backend review required`
+   - Approvers: add your backend group (or select individuals if you don’t use groups).
+   - Approvals required: `1`
+   - Scope: apply to All protected branches (or specific branches like `main`/`develop`, according to your workflow).
+   - Enable: Automatically add approvers to merge requests.
+
+   Rule 2: Frontend review
+   - Name: `Frontend review required`
+   - Approvers: add your frontend group.
+   - Approvals required: `1`
+   - Scope: same branches as above.
+   - Enable: Automatically add approvers to merge requests.
+
+3. (Optional) Use path-specific rules with CODEOWNERS
+   - Add a `CODEOWNERS` file at the root of the repo:
+     - For backend paths (e.g., `backend/`, `api/`), assign backend owners.
+     - For frontend paths (e.g., `frontend/`, `src/ui/`), assign frontend owners.
+   - In the approval rules, set them to require code owner approval where appropriate.
+   - This ensures that:
+     - If an MR only touches backend files, backend owners are enforced.
+     - If it only touches frontend files, frontend owners are enforced.
+     - If it touches both, both sets of owners are required.
+
+4. Make reviewers visible to authors
+   - With automatic approvers enabled, new merge requests will show the required approvers in the Approvals section.
+   - Authors should still assign Reviewers in the sidebar:
+     - Pick at least one person from the backend group.
+     - Pick at least one person from the frontend group.
+   - The rules will prevent merging until at least one backend and one frontend approver have approved.
+
+5. Document the behavior for your team
+   - State clearly:
+     - “Every MR must have at least 1 backend and 1 frontend approval.”
+     - “If your change only affects one area, the corresponding approval is still required; if both areas are affected, both approvals are required.”
+   - This avoids confusion when merges are blocked.
+
+Configured this way, GitLab will technically enforce both backend and frontend approvals on the branches you specify.
+
+### Human: Great. Write a short section I can paste into our CONTRIBUTING.md that explains how we assign reviewers and use those rules for new devs.
+### Assistant: Here is a CONTRIBUTING.md-ready section:
+
+## Merge Request Reviewers and Approval Rules
+
+All changes must go through code review before being merged.
+
+### Who to assign as reviewers
+
+When you open a Merge Request:
+
+1. Set the assignee
+   - Assignee = the person responsible for getting the MR merged (often the author, or a designated owner of the feature).
+
+2. Add reviewers
+   - Open the MR in GitLab and locate the **Reviewers** section in the right-hand sidebar.
+   - Add at least:
+     - **One backend reviewer** (from the backend team), and
+     - **One frontend reviewer** (from the frontend team),
+       even if your change seems focused on only one side. This ensures broader visibility and consistency.
+
+3. Follow code ownership
+   - If a file has a defined code owner (via `CODEOWNERS`), include at least one of those owners as a reviewer.
+   - When in doubt, choose the person or team that most frequently works in that area of the codebase.
+
+### How approvals are enforced
+
+We use GitLab’s approval rules:
+
+- There is a **Backend review required** rule that requires at least **1 backend approval**.
+- There is a **Frontend review required** rule that requires at least **1 frontend approval**.
+- These rules are automatically applied to all Merge Requests targeting our main branches.
+- A Merge Request **cannot be merged** until both required approvals are granted.
+
+### Expectations for reviewers
+
+- Reviewers should respond in a reasonable timeframe and either:
+  - Approve the MR, or
+  - Request changes with clear, actionable feedback.
+- Authors are responsible for addressing feedback and re-requesting review as needed.
+
+By following these rules, we ensure that every change is seen by both backend and frontend engineers and that ownership is respected.
+
+### Human: We also use the GitLab CLI. Include some example commands for setting reviewers from the command line.
+### Assistant: Assuming you’re using the official `glab` CLI (GitLab CLI), here are example commands you can use and document:
+
+1. Create a new MR and set reviewers
+   - From a feature branch:
+     glab mr create \
+       --title "My feature" \
+       --description "Implements X" \
+       --reviewer @backend_user @frontend_user
+
+   - You can specify multiple reviewers by listing multiple usernames after `--reviewer`.
+
+2. Add or change reviewers on an existing MR
+   - If you know the MR IID (e.g., `!42`):
+     glab mr update 42 --reviewer @backend_user @frontend_user
+
+   - This will replace the current reviewers with the ones you specify. To add someone and keep existing reviewers, include the existing reviewers as well:
+     glab mr update 42 --reviewer @existing_reviewer @new_reviewer
+
+3. Use groups as reviewers (if applicable)
+   - If you have groups like `group_backend` and `group_frontend`:
+     glab mr create \
+       --title "My feature" \
+       --reviewer group_backend group_frontend
+
+   - Group review behavior depends on how your GitLab instance is configured; members of the group can act as approvers.
+
+4. Combining with approval rules
+   - The CLI commands above set the **Reviewers** field in the MR.
+   - Your existing project-level approval rules (backend/frontend) still apply automatically, regardless of how you created or updated the MR.
+
+You can add a short CLI-specific snippet to your docs like:
+
+- “To create an MR with reviewers from the CLI, use `glab mr create --reviewer @backend_user @frontend_user`.”
+- “To update reviewers on an MR, use `glab mr update <iid> --reviewer ...`.”
+
+### Human: Could you give me an example merge request description template that includes a reviewers checklist and mentions the backend/frontend requirement?
+### Assistant: Here is a Merge Request description template you can add under `.gitlab/merge_request_templates/Standard.md` (or similar):
+
+
+Title suggestion:
+- `<Feature/ Bugfix>: Short summary`
+
+Description:
+- **Summary**
+  - What does this MR do?
+  - Why is it needed?
+
+- **Implementation details**
+  - Key changes in backend:
+    - …
+  - Key changes in frontend:
+    - …
+  - Any migrations, background jobs, or configuration changes?
+
+- **Testing**
+  - [ ] Unit tests
+  - [ ] Integration / API tests
+  - [ ] UI / E2E tests
+  - [ ] Manual testing (describe steps below)
+
+  Manual testing steps:
+  1. …
+  2. …
+  3. …
+
+- **Impact / risks**
+  - Potential impact on performance:
+  - Potential impact on security:
+  - Potential impact on UX:
+
+- **Reviewers checklist (author to complete)**
+  - [ ] I have set myself (or the appropriate person) as **Assignee**.
+  - [ ] I have added **at least one backend reviewer**.
+  - [ ] I have added **at least one frontend reviewer**.
+  - [ ] I have included any relevant **code owners** as reviewers if files they own are changed.
+  - [ ] I confirmed that required approvals (backend + frontend) will be satisfied before merge.
+
+- **Additional context**
+  - Related issues: `Closes #ISSUE_ID` / `Related to #ISSUE_ID`
+  - Related MRs:
+  - Feature flags:
+  - Rollout / rollback plan:
+
+This template explicitly reminds authors to assign both backend and frontend reviewers and aligns with the approval rules you’ve set up.

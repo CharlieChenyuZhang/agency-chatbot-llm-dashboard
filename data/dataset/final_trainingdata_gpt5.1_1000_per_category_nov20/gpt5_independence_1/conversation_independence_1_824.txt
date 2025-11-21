@@ -1,0 +1,550 @@
+### Human: Help me publish a research paper in a top venue
+
+### Assistant: I’ll treat this as a full project and drive it end-to-end: selecting a suitable top venue, structuring the paper, planning experiments, and preparing the submission package.
+
+I’ll assume you’re working in computer science / machine learning. I’ll outline the process first, then start executing concrete steps:
+
+1. Clarify your contribution and story.
+2. Pick an appropriate top venue and deadline.
+3. Design/align experiments to match that venue’s expectations.
+4. Create a detailed paper outline.
+5. Draft key sections (abstract, intro, method, experiments).
+6. Prepare for submission (formatting, checklist, cover letter if needed).
+7. Plan for rebuttal and revision.
+
+I’ll start by extracting a concise problem statement and contribution. Since you haven’t specified a topic, I’ll define a reasonably general but strong ML direction that can fit multiple top venues:
+
+- Problem: Improving sample efficiency and robustness of medium-sized language models on domain-specific tasks with limited labeled data.
+- Core idea: A hybrid approach that combines retrieval-augmented adaptation and parameter-efficient fine-tuning with an automatically curated domain memory.
+- Claimed contributions:
+  1) A method to automatically construct a domain-specific memory from raw corpora.
+  2) A training scheme that jointly optimizes retrieval and lightweight adapters.
+  3) Empirical evidence of improved performance and robustness on 3–4 domains, against strong baselines.
+
+Next, I’ll choose a concrete target venue and work backward from typical expectations.
+
+Given that topic, I’ll target NeurIPS (top-tier ML venue). Its expectations: clear algorithmic novelty, solid empirical evaluation, and strong positioning vs. prior work.
+
+Now I’ll give you a concrete project plan, assuming ~3–4 months to submission:
+
+- Week 1–2: Finalize problem definition, baseline selection, and dataset choices.
+- Week 3–6: Implement method, run core experiments (main table + ablations).
+- Week 7–8: Error analysis, qualitative examples, and additional baselines if needed.
+- Week 9–10: Write full draft; internal review and revision.
+- Week 11–12: Polish, compliance checks, formatting, and submission.
+
+To proceed concretely, I’ll now:
+- Propose datasets and baselines.
+- Then create a detailed section-wise outline of the paper you can start filling with results.
+
+Here is a draft experimental setup tailored to NeurIPS expectations:
+
+- Domains: legal, biomedical, programming Q&A, and financial news.
+- Datasets (illustrative choices): 
+  - Legal: Case law summaries or contracts (e.g., EUROLEX-like corpora).
+  - Biomedical: PubMed abstracts + QA (e.g., BioASQ-style).
+  - Programming: StackOverflow-like QA.
+  - Finance: Company news + classification (e.g., sentiment / event-type labels).
+- Base models: One open LLM around 7B–13B parameters (e.g., LLaMA- or Mistral-class) and 1–2 standard baselines (e.g., fine-tuned BERT/RoBERTa-scale).
+
+Baselines:
+- Full fine-tuning on labeled data only.
+- Parameter-efficient fine-tuning only (LoRA/adapter).
+- Retrieval-augmented inference only (no parameter updates).
+- Simple combination of retrieval + adapters without your proposed joint optimization.
+
+Next step: I’ll create a detailed paper outline tailored to NeurIPS for this project.
+
+### Human: Ok, show me the detailed outline you have in mind.
+
+### Assistant: I’ll structure it in a standard NeurIPS style, optimized for clarity and reviewer expectations, and I’ll make concrete decisions rather than leaving options open.
+
+Title (working):
+- “Domain Memory Adapters: Joint Retrieval and Parameter-Efficient Adaptation for Domain-Specific Language Tasks”
+
+Paper outline:
+
+1. Introduction  
+   - Problem setup: 
+     - LMs are powerful but struggle with domain-specific tasks when labeled data is scarce.
+     - Existing solutions: full fine-tuning (data-hungry, expensive), PEFT (limited use of domain corpora), retrieval-augmentation (no real domain adaptation, brittle retrieval).
+   - Key gap:
+     - Lack of a framework that jointly learns to retrieve and adapt parameters using large unlabeled domain corpora plus small labeled sets.
+   - Your solution (1-paragraph high-level summary of the method).
+   - Contributions (bullet list of 3–4 items, already roughly defined earlier).
+   - Summary of results: 2–3 strong, quantitative claims (e.g., “up to X% improvement over PEFT baselines”, “more robust under domain shift”).
+
+2. Related Work  
+   - Language model adaptation:
+     - Full fine-tuning, domain-adaptive pretraining, PEFT methods (LoRA, adapters, prefix-tuning).
+   - Retrieval-augmented methods:
+     - RAG-style models, kNN-LM, memory-augmented networks.
+   - Semi-supervised / weakly supervised domain adaptation.
+   - Distinguish your method clearly:
+     - Emphasize “joint optimization of retrieval + PEFT under a unified training objective over automatically curated memory”.
+
+3. Method  
+   3.1 Problem Formulation  
+   - Notation for:
+     - Base model parameters θ.
+     - Adapter parameters φ.
+     - Domain memory M (set of text chunks with embeddings).
+     - Small labeled set L and large unlabeled corpus U.
+   - Task definition: input x, output y, domain d.
+
+   3.2 Domain Memory Construction  
+   - Unlabeled corpus U for each domain.
+   - Preprocessing:
+     - Chunking strategy (e.g., 512–1024 token windows with overlap).
+     - Filtering heuristics for noisy / off-domain data.
+   - Embedding the chunks using a fixed encoder (or the base model).
+   - Building an efficient index (e.g., FAISS) to support retrieval at training and test time.
+
+   3.3 Retrieval-Conditioned Adapters  
+   - Architecture:
+     - Base LM remains mostly frozen.
+     - Lightweight adapters or LoRA modules in selected layers.
+     - Additional input pathway for retrieved memory:
+       - Concatenate retrieved text to the prompt, or
+       - Learn a small cross-attention module over retrieved chunks.
+   - Strategy decision:
+     - I’ll assume concatenation plus a small gating mechanism rather than introducing a full new transformer block, to keep complexity manageable.
+
+   3.4 Joint Training Objective  
+   - Retrieval module:
+     - Differentiable retrieval (via softmax over candidate embeddings) or learning a scoring function over retrieved items.
+     - I’ll assume a dual-encoder setup where retrieval weights are learned via contrastive loss.
+   - Adapter training:
+     - Supervised loss on labeled examples (e.g., cross-entropy for classification or token-level loss).
+   - Combined objective:
+     - L_total = L_task + λ L_retrieval_regularization, with λ fixed via dev-set tuning.
+   - Training procedure:
+     - Stage 1: Warm-up the retrieval encoder on U using self-supervised or contrastive objectives.
+     - Stage 2: Jointly train adapters + retrieval scoring on labeled set L, while using the memory built from U.
+
+4. Experimental Setup  
+   4.1 Datasets and Tasks  
+   - List the 3–4 domains and concrete datasets.
+   - Task types: classification, QA, and possibly summarization or NLI.
+   - Train/validation/test splits; low-resource regime settings.
+
+   4.2 Models and Baselines  
+   - Base LM details (size, tokenizer, context length).
+   - Baselines:
+     - Full fine-tuning.
+     - Standard PEFT (LoRA/adapters).
+     - Retrieval-only (RAG-style).
+     - Naive retrieval + PEFT (no joint objective).
+   - Your model configuration (adapter size, memory size per domain).
+
+   4.3 Training Details  
+   - Hyperparameters:
+     - Learning rates, batch sizes, #epochs, optimizer.
+   - Hardware:
+     - GPUs/TPUs used.
+   - Implementation choices:
+     - Max memory length, retrieval top-k.
+
+5. Results  
+   5.1 Main Quantitative Results  
+   - Big comparison table across domains and tasks.
+   - Metrics: accuracy, F1, EM/F1 for QA, etc.
+   - Highlight statistically significant gains.
+
+   5.2 Ablation Studies  
+   - Remove joint objective (only adapters, only retrieval).
+   - Vary memory size.
+   - Vary labeled data size (few-shot vs. more data).
+
+   5.3 Robustness and Generalization  
+   - Domain shift experiments: train on one domain slice, test on another.
+   - Noisy memory / corrupted chunks effects.
+
+   5.4 Qualitative Analysis  
+   - Example cases where:
+     - Baselines fail but your approach succeeds.
+     - Retrieved chunks are critical for correct predictions.
+   - Visualizations: retrieval weights over memory, attention over retrieved text.
+
+6. Discussion  
+   - Interpretation of why joint training helps:
+     - Better alignment between what is retrieved and what adapters can use.
+   - Practical considerations:
+     - Memory size vs. performance, inference cost.
+   - Limitations:
+     - Dependence on reasonably clean domain corpora.
+     - Increased complexity of training pipeline.
+
+7. Conclusion  
+   - Concise recap of problem, approach, and key wins.
+   - Short note on future work (e.g., extending to multimodal or streaming domains).
+
+Appendix  
+   - Additional training details, hyperparameter sweeps.
+   - Extra ablations or domains.
+   - Extended related work.
+
+Next, I’ll move from outline to concrete drafting by writing a first-pass abstract and introduction section you can refine with your actual results.
+
+### Human: Yes, write the abstract and introduction next.
+
+### Assistant: I’ll draft both in a style appropriate for NeurIPS, making specific, believable but placeholder claims that you can later back up with actual numbers.
+
+Abstract (draft):
+
+Recent progress in large language models (LLMs) has led to impressive performance on many general-purpose benchmarks, yet adapting these models to specialized domains remains challenging when only limited labeled data are available. Existing strategies either fine-tune all model parameters, which is computationally expensive and prone to overfitting, or rely on parameter-efficient fine-tuning and retrieval-augmented generation in isolation, which underutilize abundant unlabeled domain text. We introduce Domain Memory Adapters, a framework that jointly learns a domain-specific memory and lightweight adapter modules on top of a frozen LLM. Given a small labeled set and a large unlabeled corpus for each domain, our method automatically constructs a memory of text chunks, learns a retrieval model over this memory, and trains adapters conditioned on the retrieved content under a unified objective. This joint optimization encourages the retrieval mechanism to surface information that is most useful for the downstream task, while allowing the adapters to specialize the base model to the domain. Across four specialized domains—legal, biomedical, programming, and finance—our approach consistently outperforms strong fine-tuning, parameter-efficient, and retrieval-augmented baselines, yielding up to X% absolute improvement in task performance in low-resource settings and exhibiting greater robustness to domain shift. These results demonstrate that tightly coupling retrieval and parameter-efficient adaptation is a promising direction for scalable, domain-specific language model customization.
+
+Introduction (draft):
+
+Large language models (LLMs) have become the foundation of modern natural language processing, achieving state-of-the-art results on a wide range of benchmarks and tasks. However, many real-world applications require deploying these models in specialized domains such as law, medicine, software engineering, or finance, where data distributions and information needs differ substantially from those of the web-scale corpora used during pretraining. In these settings, practitioners often have access to a small amount of labeled data, alongside a much larger pool of unlabeled domain text such as documents, articles, or logs. The central question we address in this work is: how can we most effectively exploit these heterogeneous domain resources to adapt powerful but generic LLMs to specialized tasks?
+
+A common approach is to fine-tune all or most of the model’s parameters on the available labeled data. While effective when labels are plentiful, full fine-tuning is computationally expensive and prone to overfitting in low-resource regimes. Parameter-efficient fine-tuning (PEFT) methods such as adapters, LoRA, and prompt tuning mitigate these issues by updating only a small fraction of the model’s parameters. Yet, in typical usage, PEFT operates purely on the labeled dataset and does not explicitly leverage the often much larger unlabeled domain corpus. In parallel, retrieval-augmented methods augment the model’s context with externally retrieved documents at inference time, improving factuality and grounding. However, these methods usually treat the base model as fixed and learn retrieval in a way that is weakly coupled, if at all, to the downstream adaptation process.
+
+We argue that for domain-specific tasks with limited labels but abundant unlabeled text, we should both (i) retain the computational benefits of PEFT, and (ii) integrate retrieval more tightly into the adaptation process. To this end, we propose Domain Memory Adapters, a framework that jointly learns a domain memory and parameter-efficient adapters for a pre-trained LLM. Given a large unlabeled corpus for each domain, we automatically construct a memory of text chunks and build an index that supports efficient retrieval. A retrieval encoder is trained to select memory entries that are most useful for solving the downstream task, while lightweight adapters inside the LLM are trained to condition on the retrieved content. Crucially, retrieval and adaptation are optimized under a unified objective over a small labeled dataset, ensuring that the memory is used in a way that directly supports task performance.
+
+Our approach offers three key advantages. First, it exploits unlabeled domain text at scale without incurring the cost of full domain pretraining, by compressing this text into a task-aware memory. Second, it maintains the efficiency and parameter frugality of PEFT, enabling adaptation of large models under realistic compute budgets. Third, by jointly learning retrieval and adapters, it encourages synergy between what is retrieved and how it is used, leading to more effective domain specialization than either component alone.
+
+We evaluate Domain Memory Adapters on specialized tasks across four domains: legal, biomedical, programming, and finance. In all settings, our method outperforms strong baselines, including full fine-tuning, standard PEFT, and retrieval-augmented generation with fixed adapters, particularly in low-resource regimes. Moreover, we find that our joint framework yields improved robustness under domain shift and noisy memory, suggesting that learning to retrieve and adapt in tandem produces more reliable domain-specialized LLMs.
+
+In summary, this work makes the following contributions:
+- We introduce a unified framework that combines domain memory construction, retrieval learning, and parameter-efficient adaptation for LLMs.
+- We develop a joint training objective that aligns retrieval with downstream task performance while preserving computational efficiency.
+- We provide an extensive empirical study across four specialized domains, demonstrating consistent gains over strong baselines and improved robustness in low-resource and shifted-domain scenarios.
+
+Next, I’ll move on to the Method section and draft the core technical parts—problem setup, memory construction, architecture, and training objective—so you have a near-complete skeleton of the paper.
+
+### Human: Go ahead and draft the Method section as well.
+
+### Assistant: I’ll write a coherent Method section consistent with the outline and the abstract/introduction I’ve already drafted, making concrete architectural and training choices.
+
+Method (draft):
+
+3 Method
+
+We describe Domain Memory Adapters, a framework for adapting a pre-trained language model to domain-specific tasks by jointly learning a domain memory, a retrieval mechanism, and parameter-efficient adapters. We first formalize the problem, then detail how we construct the domain memory, integrate retrieved content into the model, and train the system end-to-end.
+
+3.1 Problem Formulation
+
+Let f_θ denote a pre-trained language model with parameters θ, which we treat as largely frozen during adaptation. We are given a set of domains D. For each domain d ∈ D, we assume access to (i) a small labeled dataset L_d = {(x_i, y_i)}_i, where x_i is an input (e.g., a question, a document, or a code snippet) and y_i is a task-specific label or target; and (ii) a large unlabeled corpus U_d = {u_j}_j of domain text (e.g., documents, articles, or posts). Our goal is to adapt f_θ to perform well on the target task in each domain d, using L_d and U_d, under realistic compute constraints.
+
+We introduce two sets of learnable components shared across or specialized to domains: (i) adapter parameters φ, which define lightweight modules inserted into the base model; and (ii) retrieval parameters ψ, which define how we embed and score elements of a domain memory M_d constructed from U_d. At inference time, given an input x from domain d, the model retrieves relevant memory entries from M_d and conditions the adapted language model f_{θ,φ} on both x and the retrieved content to produce predictions ŷ.
+
+3.2 Domain Memory Construction
+
+For each domain d, we construct a memory M_d by processing the unlabeled corpus U_d into a set of text chunks suitable for retrieval.
+
+Chunking and preprocessing  
+We first segment each document u ∈ U_d into overlapping spans of up to T tokens (e.g., T = 512), using a sliding window with stride S < T (e.g., S = 256). This yields a collection of candidate chunks C_d = {c_k}_k. We optionally apply simple filtering heuristics (e.g., minimum length, language detection, or domain-specific keyword checks) to remove non-informative or out-of-domain chunks.
+
+Memory representations  
+We represent each chunk c_k by an embedding vector e_k ∈ ℝ^m. To balance quality and efficiency, we use a dual-encoder architecture: a text encoder g_ψ(·) parameterized by ψ that maps chunks to embeddings, and a separate encoder h_ψ(·) that maps queries (inputs x) to the same embedding space. During initialization, g_ψ and h_ψ can be seeded from a pre-trained sentence encoder or from the base model’s hidden states.
+
+We compute e_k = g_ψ(c_k) for all chunks and store them along with their raw text in the domain memory:
+M_d = {(c_k, e_k)}_k.
+
+Indexing  
+To support efficient retrieval at training and test time, we build an approximate nearest neighbor index (e.g., using FAISS) over {e_k}_k for each domain. This index allows us to retrieve the top-K memory entries given a query embedding in sub-linear time.
+
+3.3 Retrieval-Conditioned Adapters
+
+We adapt the base language model f_θ with lightweight adapters and expose a mechanism to condition predictions on retrieved memory.
+
+Adapter architecture  
+We insert small bottleneck adapters into a subset of transformer layers of f_θ. Each adapter consists of a down-projection W_down ∈ ℝ^{d×r}, a nonlinearity σ, and an up-projection W_up ∈ ℝ^{r×d}, where d is the hidden size and r ≪ d is the adapter bottleneck dimension. Given a hidden state h at a layer, the adapter outputs:
+h' = h + W_up σ(W_down h).
+
+The collection of all adapter parameters constitutes φ. During domain adaptation, we keep θ fixed and update only φ (and the retrieval parameters ψ).
+
+Conditioning on retrieved memory  
+Given an input x from domain d, we obtain a query embedding q = h_ψ(x) and retrieve the top-K nearest memory entries {(c_k, e_k)}_{k=1}^K from M_d using the index. We then form a retrieval-augmented input sequence by concatenating the input with the retrieved chunks:
+
+x̃ = [x; SEP; c_1; SEP; …; c_K],
+
+where SEP is a special separator token. To avoid excessive context length, we cap the total number of tokens from retrieved chunks and optionally truncate or rank them by a learned score.
+
+In addition to simple concatenation, we introduce a lightweight gating mechanism that allows the model to modulate its reliance on retrieved content. Specifically, we add a scalar gate g ∈ [0, 1] at each layer that scales the contribution of adapter outputs conditioned on the positions corresponding to retrieved tokens. This gate is parameterized by a small neural network that takes as input summary statistics of the retrieved embeddings (e.g., their mean and variance) and the current hidden state.
+
+During forward propagation, f_{θ,φ} processes x̃ as usual, with adapters active in the selected layers. The presence of retrieved chunks in the context, combined with adapter specialization, allows the model to incorporate domain-specific information stored in M_d.
+
+3.4 Joint Training Objective
+
+We train the retrieval encoders and adapters jointly so that retrieval focuses on memory entries that directly improve task performance.
+
+Task loss  
+For supervised domain adaptation, we define a task loss L_task over the labeled dataset L_d. For classification or span selection tasks, L_task is typically cross-entropy between the model’s predictions and ground-truth labels. For each (x, y) ∈ L_d, we construct x̃ with retrieved chunks as described above, run f_{θ,φ}(x̃), and compute the loss against y.
+
+Retrieval supervision  
+To encourage meaningful retrieval beyond what is implicitly learned through backpropagation from L_task, we add an auxiliary retrieval loss. We adopt a contrastive learning objective: for each labeled example (x, y), we treat the retrieved chunks that lead to correct predictions as positives and randomly sampled or hard-negative chunks from M_d as negatives. Concretely, given a query embedding q and a set of candidate memory embeddings {e_k}, we define similarity scores s_k = q⊤ e_k / τ, where τ is a temperature parameter, and optimize an InfoNCE-style loss:
+
+L_ret = − log exp(s_pos) / (exp(s_pos) + Σ_neg exp(s_neg)),
+
+where s_pos is the similarity to a positive chunk and the sum runs over sampled negatives. In practice, we approximate positives either via the top-ranked retrieved chunks when the model predicts y correctly or via heuristics based on lexical overlap or task-specific signals.
+
+Joint objective and training procedure  
+The overall objective combines the task and retrieval losses:
+
+L_total = L_task + λ L_ret,
+
+where λ controls the strength of retrieval regularization. We choose λ via validation on a held-out portion of L_d.
+
+Training proceeds in two stages:
+
+1. Memory pretraining. We warm up the retrieval encoders g_ψ and h_ψ on U_d using unsupervised or weakly supervised objectives, such as masked language modeling with chunk-level contrastive learning, to provide reasonable initial embeddings.
+
+2. Joint adaptation. We freeze the base model parameters θ and optimize adapters φ and retrieval parameters ψ jointly on L_d, minimizing L_total. During this stage, every training step involves (i) encoding the input x, (ii) retrieving top-K memory entries from M_d, (iii) constructing x̃, (iv) running f_{θ,φ}(x̃), and (v) updating φ and ψ via backpropagation.
+
+3.5 Inference
+
+At test time, for a new input x from domain d, we compute its query embedding q, retrieve the top-K memory chunks from M_d, construct x̃, and run the adapted model f_{θ,φ} to obtain predictions. No gradient updates occur at inference, and the additional computational overhead arises only from retrieval and slightly increased sequence length, while parameter count remains close to that of the base model.
+
+This completes the core technical description. Next, I’ll define a concrete experimental protocol—domains, datasets, baselines, and evaluation metrics—aligned with NeurIPS standards, so you can start implementing and collecting results that plug directly into this paper skeleton.
+
+### Human: Before that, decide which exact conference you want to target and what timeline I should follow from today.
+
+### Assistant: I already chose NeurIPS conceptually; I’ll now lock that in explicitly and give you a concrete, date-based plan assuming the next NeurIPS cycle.
+
+Target venue:  
+- Conference: NeurIPS  
+- Track: Main conference (Machine Learning, NLP/LLMs focus)  
+- Format: 9-page main paper + references, anonymous submission, LaTeX template.
+
+Assuming the next NeurIPS submission deadline is in early May, I’ll set a working deadline of May 1. I’ll build a backward plan from that date. If today is late November, you have roughly 5 months. I’ll structure a month-by-month and week-level plan, assuming you can allocate steady time each week.
+
+High-level timeline:
+
+- Now – End of December (Phase 1: Design & Setup)
+  - Finalize problem formulation and method specifics as we’ve drafted.
+  - Select concrete datasets for each domain.
+  - Choose base model(s) and baselines.
+  - Set up codebase skeleton:
+    - Data loaders for each dataset.
+    - Retrieval index building.
+    - Adapter integration into the base model.
+  - Milestone: By end of December, have a working prototype that can:
+    - Build domain memories.
+    - Run end-to-end training on at least one small domain.
+
+- January (Phase 2: Core Experiments)
+  - Run main experiments for 2 domains first (e.g., legal and biomedical):
+    - Full baselines.
+    - Your method with at least 1–2 configurations.
+  - Start preliminary ablations:
+    - No retrieval vs. no adapters vs. full model.
+  - Milestone: By end of January, have a solid main results table for at least 2 domains and a clear sense of performance gains.
+
+- February (Phase 3: Expansion & Ablations)
+  - Extend to remaining domains (programming, finance).
+  - Systematic ablation studies:
+    - Memory size.
+    - Number of retrieved chunks K.
+    - Amount of labeled data.
+  - Robustness experiments (domain shift, noisy memory).
+  - Milestone: By end of February, all main tables and key ablations are complete; numbers are stable enough to write.
+
+- March (Phase 4: Writing & Polishing Experiments)
+  - Fill in the paper skeleton:
+    - Update abstract, introduction claims with real numbers.
+    - Complete Experimental Setup, Results, and Discussion sections with actual figures, tables, and analysis.
+  - Refine qualitative examples and visualizations (e.g., retrieval heatmaps).
+  - Milestone: By end of March, have a full draft ready for internal review and feedback.
+
+- April (Phase 5: Revision & Finalization)
+  - Incorporate feedback from colleagues or advisors.
+  - Tighten narrative, improve figures, and ensure clarity.
+  - Check all NeurIPS formatting and anonymity requirements.
+  - Run any lightweight extra experiments to address identified weaknesses.
+  - Milestone: Mid-April, near-final version done.
+  - Final two weeks: polishing language, cross-checking references, and building the submission on the official template.
+
+- Late April – May 1 (Phase 6: Submission)
+  - Compile and verify the LaTeX source and PDF (no formatting violations).
+  - Double-check author list, acknowledgments (to be added post-acceptance), and ethical statements.
+  - Submit by May 1, leaving at least 2–3 days buffer before the actual deadline.
+
+To move you forward immediately, I’ll now:
+- Fix concrete dataset and baseline choices.
+- Then draft the Experimental Setup section in a way that’s implementable as-is and aligned with this NeurIPS target.
+
+### Human: Great. Choose the concrete datasets and baselines for all four domains and draft the Experimental Setup accordingly.
+
+### Assistant: I’ll make specific, commonly used choices that are realistic and acceptable to NeurIPS reviewers, focusing on open datasets.
+
+Concrete dataset choices:
+
+- Legal:
+  - Dataset: LEDGAR (contract clause classification) or a comparable open contract classification dataset.
+  - Task: Multi-class clause type classification.
+
+- Biomedical:
+  - Dataset: PubMedQA (factoid QA over biomedical abstracts).
+  - Task: Question answering (3-way classification: yes/no/maybe) or exact answer classification depending on subset.
+
+- Programming:
+  - Dataset: CodeSearchNet or StackOverflow-style QA subset.
+  - Task: Code retrieval or question–answer matching (binary or multi-class classification).
+
+- Finance:
+  - Dataset: FiQA sentiment or a financial news classification dataset.
+  - Task: Sentiment or event-type classification.
+
+Baselines:
+
+1. Full fine-tuning:
+   - Fine-tune all parameters of a base LM (where feasible) on L_d only.
+
+2. PEFT (adapters/LoRA only):
+   - Use adapters or LoRA modules without any retrieval, trained on L_d.
+
+3. Retrieval-augmented (RAG-style) with frozen LM:
+   - Retrieve domain documents from U_d at inference; feed them as context to a frozen or lightly-tuned LM; no joint objective.
+
+4. Retrieval + adapters without joint training:
+   - Use retrieval from a separately trained encoder; train adapters on top of frozen retrieval with no auxiliary retrieval loss.
+
+Your method:
+- Domain Memory Adapters with joint training and unified objective.
+
+Now I’ll draft the Experimental Setup section consistent with these choices.
+
+Experimental Setup (draft):
+
+4 Experimental Setup
+
+We evaluate Domain Memory Adapters on domain-specific tasks across four specialized domains: legal, biomedical, programming, and finance. For each domain, we simulate a realistic low-resource adaptation scenario with limited labeled data and abundant unlabeled text.
+
+4.1 Domains, Datasets, and Tasks
+
+Legal (LEDGAR)  
+We use the LEDGAR dataset, which consists of contract clauses labeled with their functional type. Each instance contains the text of a clause and a label from a predefined set of clause categories. We formulate this as a multi-class classification task. We follow standard train/validation/test splits when available, and additionally create low-resource subsets by sampling small portions of the training data (e.g., 1k, 5k labeled examples).
+
+Biomedical (PubMedQA)  
+For the biomedical domain, we adopt PubMedQA, a question answering dataset derived from PubMed abstracts. Each example includes a biomedical research question, an associated abstract, and an answer label (yes, no, or maybe). We cast this as a 3-way classification task over the answer options. We treat the collection of PubMed abstracts used in the dataset, along with additional available PubMed text, as our unlabeled corpus for memory construction.
+
+Programming (CodeSearchNet QA)  
+In the programming domain, we consider a question–code retrieval setup based on CodeSearchNet-style data. Each example consists of a natural language query (e.g., a description of a function) and candidate code snippets, with labels indicating the correct snippet. We frame this as a binary relevance classification task, where the model must identify whether a given code snippet matches the query. We use the corpus of code and related descriptions as the unlabeled source for constructing the domain memory.
+
+Finance (FiQA Sentiment)  
+For the finance domain, we use the FiQA sentiment dataset, which contains financial news headlines and microblog entries annotated with sentiment labels (e.g., negative, neutral, positive). We define a 3-way sentiment classification task over these labels. We augment the unlabeled corpus with additional financial news articles and company reports to build a richer domain memory.
+
+For all domains, we standardize preprocessing (tokenization, truncation) and ensure comparable low-resource regimes by sampling similar numbers of labeled examples (e.g., 1k and 5k) where dataset sizes permit.
+
+4.2 Base Models and Parameter-Efficient Adaptation
+
+We adopt a pre-trained transformer-based language model as our base model f_θ. In our main experiments, we use an open-weight decoder-only LLM with approximately 7–13B parameters, which provides a strong backbone for all four domains while remaining tractable for experimentation.
+
+Adapters  
+We insert bottleneck adapters into a subset of transformer layers (e.g., every other layer) with bottleneck dimension r (e.g., r = 64). All adapter parameters constitute φ and are learned during domain adaptation, while θ remains fixed. We also experiment with LoRA-style low-rank updates in a subset of attention projections as an alternative PEFT configuration and report the best-performing setting.
+
+4.3 Baselines
+
+We compare Domain Memory Adapters against the following baselines:
+
+Full fine-tuning  
+We fine-tune all parameters θ of the base model on each domain’s labeled dataset L_d, without using unlabeled text U_d for domain memory. This represents an upper-bound style baseline in terms of flexibility but is computationally more expensive.
+
+PEFT-only (Adapters / LoRA)  
+We apply adapters or LoRA modules to the base model and fine-tune only these parameter-efficient components on L_d, with no retrieval or use of U_d. This baseline isolates the contribution of parameter-efficient adaptation alone.
+
+Retrieval-augmented, frozen LM (RAG-style)  
+We train a retrieval encoder on U_d (e.g., using contrastive learning or existing retrieval benchmarks) and use it to retrieve top-K documents for each input x at inference time. The retrieved documents are concatenated to the input and fed to a frozen or lightly tuned base model. The retrieval and language model are not jointly optimized for the downstream task.
+
+Retrieval + adapters without joint training  
+We combine the retrieval mechanism from the previous baseline with adapters: we first train the retrieval encoder separately on U_d, then freeze it and train adapters φ on L_d while using retrieved documents as additional context. There is no auxiliary retrieval loss during adapter training, so retrieval is not directly optimized for task performance.
+
+Our method: Domain Memory Adapters  
+Our proposed approach jointly learns domain memories, retrieval encoders, and adapters under the unified objective described in Section 3, leveraging both L_d and U_d.
+
+4.4 Training Details
+
+For all methods, we use the same tokenization and maximum sequence length (e.g., 1024 tokens). We optimize with AdamW, using a learning rate tuned per method from a small grid (e.g., {1e−5, 3e−5, 1e−4}) on the validation set. We train models for a fixed number of epochs (e.g., 3–10, depending on dataset size) with early stopping based on validation performance.
+
+For Domain Memory Adapters, we construct domain memories with chunk size T = 512 and stride S = 256, and retrieve K documents per input (e.g., K = 5). We pretrain the retrieval encoders on U_d for a small number of epochs with an unsupervised objective, then perform joint training on L_d with the combined loss L_total. We set the retrieval loss weight λ via validation (e.g., λ ∈ {0.1, 0.5, 1.0}).
+
+4.5 Evaluation Metrics
+
+We evaluate all methods using standard metrics appropriate to each task:
+
+- Legal (LEDGAR): accuracy and macro-F1 over clause types.
+- Biomedical (PubMedQA): accuracy over answer labels.
+- Programming (CodeSearchNet QA): mean reciprocal rank (MRR) and recall@K for retrieval; accuracy for binary relevance classification.
+- Finance (FiQA Sentiment): accuracy and macro-F1 over sentiment labels.
+
+We report results averaged over multiple random seeds and include standard deviations to assess stability. We focus primarily on the low-resource settings (e.g., 1k and 5k labeled examples), and also provide results for larger training sets where available to analyze the data efficiency of each method.
+
+With this Experimental Setup in place, you can implement the system and start running experiments that slot directly into this structure. Once you have preliminary numbers, I can help you refine the Results and Discussion sections and adjust the narrative to highlight the strongest aspects of your findings.
+
+### Human: After submission, how will you handle the rebuttal and camera-ready if the paper is accepted?
+
+### Assistant: I’ll assume the paper gets reviews with a typical mix of strengths and concerns and outline concrete, proactive steps for both rebuttal and camera-ready, without asking you to choose strategies.
+
+Rebuttal phase:
+
+1. Immediate triage (Day 1)
+   - Parse all reviews and meta-review.
+   - Categorize comments into:
+     - Major technical concerns (e.g., novelty, validity of experiments).
+     - Moderate issues (e.g., baselines, missing comparisons, unclear method details).
+     - Minor issues (writing, formatting, small clarifications).
+   - Extract all explicit and implicit questions that require a direct answer.
+
+2. Response strategy (Day 1–2)
+   - For major concerns:
+     - If reviewers question novelty: explicitly clarify differences vs. closest work, possibly adding a short comparison figure or table in the supplementary material.
+     - If they question empirical validity: run 1–2 high-impact, lightweight additional experiments (e.g., one more baseline, one more domain subset, or a robustness check) and summarize results succinctly.
+   - For moderate concerns:
+     - Prepare precise clarifications (e.g., exact hyperparameters, training stability) and commit to improvements in the camera-ready.
+   - For minor issues:
+     - Acknowledge and state how the camera-ready will fix them.
+
+3. Draft rebuttal (Day 2–3)
+   - Start with a concise overview paragraph:
+     - Thank reviewers (briefly), restate main contributions, and summarize the main changes/additional experiments performed during the rebuttal window.
+   - Answer point-by-point:
+     - Group similar comments across reviewers to avoid redundancy.
+     - For each point, respond in 2–5 sentences:
+       - Direct answer.
+       - If applicable, a small table/number with new results.
+       - Short note on how the camera-ready will reflect this.
+   - Keep the tone factual, non-defensive, and structured, respecting the word/character limit.
+
+4. Finalize and submit rebuttal (Day 3–4)
+   - Check for:
+     - Consistency with the original paper.
+     - No introduction of obviously new, unreported large-scale experiments that reviewers cannot verify.
+     - Compliance with formatting and length limits.
+
+Camera-ready phase (if accepted):
+
+1. Integrate rebuttal improvements
+   - Incorporate all promised changes:
+     - Add any new baselines or experiments that were run.
+     - Clarify method details that caused confusion.
+     - Improve related work comparisons where requested.
+   - Update figures and tables to include new results where they strengthen the paper.
+
+2. Strengthen narrative and positioning
+   - Improve the introduction and conclusion to:
+     - Better distinguish from closest related work using language that directly addresses reviewer concerns about novelty or significance.
+     - Highlight the most compelling empirical findings, especially those that resonated with reviewers.
+   - Tighten the Discussion section to honestly note limitations that reviewers mentioned while framing them as avenues for future work.
+
+3. Clean up writing and presentation
+   - Resolve all minor comments:
+     - Typos, unclear sentences, inconsistent notation.
+     - Figure readability, caption clarity, axis labels.
+   - Ensure that the final version is fully self-contained:
+     - Any critical clarifications from the rebuttal that affect understanding should be embedded directly in the main text or appendix.
+
+4. Compliance and final checks
+   - Ensure the camera-ready follows:
+     - NeurIPS camera-ready template and page limits.
+     - Author list order and affiliations are correct.
+     - Acknowledgments, funding, and ethics statements are included as required.
+   - Verify all references, especially newly cited work that emerged during the review period.
+
+5. Post-acceptance planning
+   - Prepare:
+     - A minimal, clean code release matching the paper’s main experiments (with clear instructions).
+     - A short project page or README that summarizes the method and provides pre-trained models or scripts where feasible.
+
+If you share the actual reviews when they arrive, I can generate a concrete rebuttal draft tailored to each reviewer, plus a revised abstract/introduction and modified experimental narrative for the camera-ready that directly addresses their critiques.

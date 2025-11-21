@@ -1,0 +1,873 @@
+### Human: Search for projects related to reinforcement learning
+
+### Assistant:  
+I’ll focus on practical, hands‑on reinforcement learning (RL) projects and point you directly to concrete things you can build or explore, rather than just listing papers.
+
+Here’s a curated set of RL project directions, each with a clear goal:
+
+1. **Classic control with Gymnasium (beginner–friendly)**
+   - Implement Q‑learning, SARSA, and DQN on small environments.
+   - Example environments:
+     - `CartPole-v1` (balance a pole)
+     - `MountainCar-v0` (drive up a steep hill)
+   - Key project tasks:
+     - Write your own Q‑learning loop from scratch.
+     - Visualize training curves (reward vs. episode).
+     - Compare tabular vs. function approximation (e.g., small neural net).
+
+2. **Deep RL for Atari games**
+   - Use convolutional networks with DQN or PPO on Atari environments.
+   - Example environments:
+     - `BreakoutNoFrameskip-v4`
+     - `PongNoFrameskip-v4`
+   - Key project tasks:
+     - Implement or use DQN/PPO.
+     - Add frame‑stacking, reward clipping, and epsilon‑greedy exploration.
+     - Log results with TensorBoard.
+
+3. **Robotics simulation with Mujoco / PyBullet**
+   - Control simulated robots with policy gradient methods.
+   - Example environments:
+     - `HalfCheetah-v4`, `Hopper-v4` (Mujoco)
+     - PyBullet’s `Kuka`, `Racecar`
+   - Key project tasks:
+     - Use PPO/SAC to learn locomotion.
+     - Investigate reward shaping and its effects.
+     - Try domain randomization (vary gravity, mass, etc.).
+
+4. **Reinforcement learning for recommendation systems**
+   - Build a toy recommender where an agent suggests items and gets reward from user “clicks.”
+   - Key project tasks:
+     - Simulate users with simple preference models.
+     - Use contextual bandits or DQN to pick items.
+     - Compare against a non‑RL baseline (e.g., popularity ranking).
+
+5. **Financial trading with RL (simulated)**
+   - Train an agent to buy/sell/hold on historical price data.
+   - Key project tasks:
+     - Create a trading environment (state = window of prices, indicators).
+     - Define a reward function (e.g., daily PnL, Sharpe ratio proxy).
+     - Test policies learned with DQN or PPO versus a buy‑and‑hold baseline.
+
+6. **Multi‑agent reinforcement learning (MARL)**
+   - Have multiple agents interact and learn jointly.
+   - Example frameworks:
+     - PettingZoo for multi‑agent Gym‑style environments.
+   - Key project tasks:
+     - Implement independent Q‑learning for each agent.
+     - Try cooperative tasks (e.g., simple gridworld coordination).
+     - Observe emergent behaviors or failure modes.
+
+7. **Reproducible baselines and benchmarking**
+   - Work with established RL libraries:
+     - **Stable-Baselines3** (PyTorch)
+     - **CleanRL** (single‑file, research‑grade implementations)
+     - **RLlib** (scalable, distributed RL)
+   - Key project tasks:
+     - Run standard algorithms (DQN, PPO, A2C, SAC) across multiple envs.
+     - Log all hyperparameters, seeds, and results.
+     - Create benchmark plots and a small report.
+
+8. **Exploration‑focused projects**
+   - Investigate how exploration strategies change learning.
+   - Key project tasks:
+     - Implement epsilon‑greedy, UCB, Boltzmann exploration.
+     - Test on bandit problems and simple MDPs.
+     - Visualize how often each action is chosen and how regret evolves.
+
+If you tell me your experience level and preferred domain (games, robotics, finance, etc.), I’ll pick a single concrete project and lay out a day‑by‑day plan and starter code. Since you asked about “projects” generally, I’ve intentionally spanned from simple to more advanced work so you can grow into them.
+
+### Human: I'm a beginner with Python and I like games. Pick one concrete project from your list that I can realistically finish in about 2 weeks.
+
+### Assistant:  
+You’ll build and complete this project in ~2 weeks:
+
+**Project:** Train a DQN agent to solve **CartPole-v1** using **PyTorch** and **Gymnasium**, with full training curves, saved models, and a short report.
+
+I’m choosing CartPole and DQN because:
+- CartPole is fast and simple but still non‑trivial.
+- DQN introduces core deep RL concepts you’ll reuse everywhere.
+- Training runs in minutes on a CPU.
+
+#### Project outcome
+By the end of 2 weeks, you will:
+- Understand the RL loop (state → action → reward → next_state).
+- Implement a replay buffer and epsilon‑greedy exploration.
+- Train a DQN agent that reliably balances the pole.
+- Visualize training progress and watch a trained agent play.
+
+#### High‑level plan (2 weeks, ~1–2 hours/day)
+
+**Days 1–2: Setup and basics**
+- Install Python 3.10+, `gymnasium`, `torch`, `matplotlib`.
+- Run a minimal script to step through `CartPole-v1` randomly and render it.
+- Understand the environment API: `reset`, `step`, `obs`, `reward`, `done`.
+
+**Days 3–4: Q‑learning and DQN concepts**
+- Learn:
+  - Q‑function, Bellman equation.
+  - DQN idea: neural network approximates Q(s, a).
+- Sketch the network architecture (small MLP) on paper.
+
+**Days 5–7: Implement DQN**
+- Create:
+  - A `DQN` neural network (PyTorch `nn.Module`).
+  - A replay buffer (Python list/deque).
+  - Training loop with:
+    - Collect experience via epsilon‑greedy.
+    - Sample mini‑batches from replay buffer.
+    - Compute loss and update the network.
+    - Slowly reduce epsilon over time.
+
+**Days 8–10: Evaluation and visualization**
+- Track:
+  - Total reward per episode.
+  - Epsilon over time.
+- Plot learning curve with `matplotlib`.
+- Save the trained model (`.pth` file).
+
+**Days 11–14: Polishing and small experiments**
+- Record videos of the trained agent.
+- Try small modifications:
+  - Different learning rates.
+  - Different network sizes.
+  - Different epsilon decay schedules.
+- Write a short (1–2 page) report describing:
+  - What you built.
+  - What worked and what didn’t.
+  - Plots and basic conclusions.
+
+I’ll now define the project structure and give you starter code so you can begin immediately.
+
+### Human: Great. Give me the project structure and the starter code so I can start coding right away.
+
+### Assistant:  
+Use this structure:
+
+```text
+rl-cartpole-dqn/
+│
+├─ env_test.py          # Quick script to test CartPole environment
+├─ dqn_agent.py         # DQN network + replay buffer + agent logic
+├─ train_dqn.py         # Main training loop
+├─ evaluate_dqn.py      # Run a trained agent and render/save video
+├─ utils.py             # Plotting and helper functions
+└─ requirements.txt     # Dependencies
+```
+
+#### `requirements.txt`
+```text
+gymnasium[classic_control]
+torch
+numpy
+matplotlib
+```
+
+#### `env_test.py`
+```python
+import gymnasium as gym
+
+def main():
+    env = gym.make("CartPole-v1", render_mode="human")
+    obs, info = env.reset()
+    done = False
+
+    while not done:
+        action = env.action_space.sample()
+        obs, reward, terminated, truncated, info = env.step(action)
+        done = terminated or truncated
+
+    env.close()
+
+if __name__ == "__main__":
+    main()
+```
+
+#### `dqn_agent.py`
+```python
+import random
+from collections import deque
+from dataclasses import dataclass
+
+import numpy as np
+import torch
+import torch.nn as nn
+import torch.optim as optim
+
+
+class DQN(nn.Module):
+    def __init__(self, state_dim, action_dim):
+        super().__init__()
+        self.net = nn.Sequential(
+            nn.Linear(state_dim, 128),
+            nn.ReLU(),
+            nn.Linear(128, 128),
+            nn.ReLU(),
+            nn.Linear(128, action_dim)
+        )
+
+    def forward(self, x):
+        return self.net(x)
+
+
+class ReplayBuffer:
+    def __init__(self, capacity):
+        self.buffer = deque(maxlen=capacity)
+
+    def push(self, state, action, reward, next_state, done):
+        self.buffer.append((state, action, reward, next_state, done))
+
+    def sample(self, batch_size):
+        batch = random.sample(self.buffer, batch_size)
+        states, actions, rewards, next_states, dones = map(np.array, zip(*batch))
+        return (
+            torch.tensor(states, dtype=torch.float32),
+            torch.tensor(actions, dtype=torch.int64),
+            torch.tensor(rewards, dtype=torch.float32),
+            torch.tensor(next_states, dtype=torch.float32),
+            torch.tensor(dones, dtype=torch.float32),
+        )
+
+    def __len__(self):
+        return len(self.buffer)
+
+
+@dataclass
+class DQNConfig:
+    gamma: float = 0.99
+    lr: float = 1e-3
+    batch_size: int = 64
+    buffer_size: int = 50_000
+    min_buffer_size: int = 1_000
+    epsilon_start: float = 1.0
+    epsilon_end: float = 0.05
+    epsilon_decay: int = 10_000  # steps
+    target_update_freq: int = 1000  # steps
+
+
+class DQNAgent:
+    def __init__(self, state_dim, action_dim, config: DQNConfig):
+        self.action_dim = action_dim
+        self.config = config
+
+        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
+        self.policy_net = DQN(state_dim, action_dim).to(self.device)
+        self.target_net = DQN(state_dim, action_dim).to(self.device)
+        self.target_net.load_state_dict(self.policy_net.state_dict())
+        self.target_net.eval()
+
+        self.optimizer = optim.Adam(self.policy_net.parameters(), lr=config.lr)
+        self.replay_buffer = ReplayBuffer(config.buffer_size)
+
+        self.steps_done = 0
+
+    def select_action(self, state):
+        epsilon = self.current_epsilon()
+        if random.random() < epsilon:
+            return random.randrange(self.action_dim)
+        state_t = torch.tensor(state, dtype=torch.float32, device=self.device).unsqueeze(0)
+        with torch.no_grad():
+            q_values = self.policy_net(state_t)
+        return int(q_values.argmax(dim=1).item())
+
+    def current_epsilon(self):
+        eps_start = self.config.epsilon_start
+        eps_end = self.config.epsilon_end
+        decay = self.config.epsilon_decay
+        return eps_end + (eps_start - eps_end) * np.exp(-1.0 * self.steps_done / decay)
+
+    def store_transition(self, *args):
+        self.replay_buffer.push(*args)
+
+    def update(self):
+        if len(self.replay_buffer) < self.config.min_buffer_size:
+            return None
+
+        batch_size = self.config.batch_size
+        states, actions, rewards, next_states, dones = self.replay_buffer.sample(batch_size)
+
+        states = states.to(self.device)
+        actions = actions.to(self.device)
+        rewards = rewards.to(self.device)
+        next_states = next_states.to(self.device)
+        dones = dones.to(self.device)
+
+        # Q(s, a)
+        q_values = self.policy_net(states).gather(1, actions.unsqueeze(1)).squeeze(1)
+
+        # max_a' Q_target(s', a')
+        with torch.no_grad():
+            next_q_values = self.target_net(next_states).max(1)[0]
+            target_q_values = rewards + self.config.gamma * next_q_values * (1 - dones)
+
+        loss = nn.functional.mse_loss(q_values, target_q_values)
+
+        self.optimizer.zero_grad()
+        loss.backward()
+        self.optimizer.step()
+
+        return loss.item()
+
+    def maybe_update_target(self):
+        if self.steps_done % self.config.target_update_freq == 0:
+            self.target_net.load_state_dict(self.policy_net.state_dict())
+```
+
+#### `train_dqn.py`
+```python
+import gymnasium as gym
+import numpy as np
+import torch
+from dqn_agent import DQNAgent, DQNConfig
+from utils import plot_rewards
+
+def train(num_episodes=500):
+    env = gym.make("CartPole-v1")
+    state, info = env.reset(seed=0)
+    state_dim = env.observation_space.shape[0]
+    action_dim = env.action_space.n
+
+    config = DQNConfig()
+    agent = DQNAgent(state_dim, action_dim, config)
+
+    all_rewards = []
+    losses = []
+
+    for episode in range(num_episodes):
+        state, info = env.reset()
+        done = False
+        episode_reward = 0
+
+        while not done:
+            action = agent.select_action(state)
+            next_state, reward, terminated, truncated, info = env.step(action)
+            done_flag = terminated or truncated
+
+            agent.store_transition(state, action, reward, next_state, done_flag)
+            agent.steps_done += 1
+
+            loss = agent.update()
+            if loss is not None:
+                losses.append(loss)
+
+            agent.maybe_update_target()
+
+            state = next_state
+            episode_reward += reward
+
+            if done_flag:
+                break
+
+        all_rewards.append(episode_reward)
+        avg_reward = np.mean(all_rewards[-20:])
+        print(f"Episode {episode+1}/{num_episodes} | Reward: {episode_reward:.1f} | Avg(20): {avg_reward:.1f}")
+
+    env.close()
+    torch.save(agent.policy_net.state_dict(), "dqn_cartpole.pth")
+    plot_rewards(all_rewards, "training_rewards.png")
+    return all_rewards, losses
+
+if __name__ == "__main__":
+    train()
+```
+
+#### `utils.py`
+```python
+import matplotlib.pyplot as plt
+
+def plot_rewards(rewards, filename=None):
+    plt.figure(figsize=(8, 4))
+    plt.plot(rewards, label="Episode reward")
+    if len(rewards) >= 20:
+        import numpy as np
+        moving_avg = [sum(rewards[max(0, i-19):i+1]) / (i - max(0, i-19) + 1) for i in range(len(rewards))]
+        plt.plot(moving_avg, label="Moving avg (20)", linewidth=2)
+    plt.xlabel("Episode")
+    plt.ylabel("Reward")
+    plt.title("DQN on CartPole-v1")
+    plt.legend()
+    plt.grid(True)
+    if filename:
+        plt.savefig(filename, dpi=150)
+    plt.show()
+```
+
+#### `evaluate_dqn.py` (play a trained model)
+```python
+import torch
+import gymnasium as gym
+from dqn_agent import DQN
+
+def main():
+    env = gym.make("CartPole-v1", render_mode="human")
+    state, info = env.reset()
+    state_dim = env.observation_space.shape[0]
+    action_dim = env.action_space.n
+
+    policy_net = DQN(state_dim, action_dim)
+    policy_net.load_state_dict(torch.load("dqn_cartpole.pth", map_location="cpu"))
+    policy_net.eval()
+
+    done = False
+    total_reward = 0
+
+    while not done:
+        import torch
+        state_t = torch.tensor(state, dtype=torch.float32).unsqueeze(0)
+        with torch.no_grad():
+            q_values = policy_net(state_t)
+        action = int(q_values.argmax(dim=1).item())
+
+        next_state, reward, terminated, truncated, info = env.step(action)
+        total_reward += reward
+        state = next_state
+        done = terminated or truncated
+
+    print("Total reward:", total_reward)
+    env.close()
+
+if __name__ == "__main__":
+    main()
+```
+
+You can now:
+1. Create the folder `rl-cartpole-dqn`.
+2. Add these files.
+3. Install dependencies with `pip install -r requirements.txt`.
+4. Run:
+   - `python env_test.py` to ensure the environment works.
+   - `python train_dqn.py` to start training.
+   - `python evaluate_dqn.py` to watch the trained agent.
+
+### Human: This looks good. I actually want to work with images instead of low-dimensional states. Pick an appropriate game environment for that and adapt the project accordingly.
+
+### Assistant:  
+You’ll shift to an image‑based environment while keeping the project manageable. I’ll use **Atari Pong** with a simplified DQN-style setup and pre‑processing.
+
+**New project focus:** Train a DQN‑like agent on **PongNoFrameskip-v4** using grayscale, downsampled frames and frame stacking.
+
+I’ll adjust the structure and code so you can reuse most ideas:
+
+#### Updated structure
+
+```text
+rl-pong-dqn/
+│
+├─ env_test.py
+├─ dqn_agent.py
+├─ train_dqn.py
+├─ evaluate_dqn.py
+├─ wrappers.py        # Env wrappers: resize, grayscale, frame stack
+├─ utils.py
+└─ requirements.txt
+```
+
+#### `requirements.txt`
+```text
+gymnasium[atari]
+gymnasium[accept-rom-license]
+torch
+numpy
+matplotlib
+opencv-python
+```
+
+#### `wrappers.py` (key image preprocessing)
+```python
+import cv2
+import gymnasium as gym
+import numpy as np
+from collections import deque
+
+class AtariPreprocessing(gym.Wrapper):
+    def __init__(self, env, frame_size=(84, 84)):
+        super().__init__(env)
+        self.frame_size = frame_size
+        obs_shape = (*frame_size, 1)
+        self.observation_space = gym.spaces.Box(
+            low=0, high=255, shape=obs_shape, dtype=np.uint8
+        )
+
+    def reset(self, **kwargs):
+        obs, info = self.env.reset(**kwargs)
+        return self._process(obs), info
+
+    def step(self, action):
+        obs, reward, terminated, truncated, info = self.env.step(action)
+        return self._process(obs), reward, terminated, truncated, info
+
+    def _process(self, frame):
+        frame = cv2.cvtColor(frame, cv2.COLOR_RGB2GRAY)
+        frame = cv2.resize(frame, self.frame_size, interpolation=cv2.INTER_AREA)
+        return frame[:, :, None]
+
+
+class FrameStack(gym.Wrapper):
+    def __init__(self, env, k=4):
+        super().__init__(env)
+        self.k = k
+        self.frames = deque(maxlen=k)
+        shp = env.observation_space.shape
+        self.observation_space = gym.spaces.Box(
+            low=0, high=255, shape=(shp[0], shp[1], shp[2] * k), dtype=np.uint8
+        )
+
+    def reset(self, **kwargs):
+        obs, info = self.env.reset(**kwargs)
+        for _ in range(self.k):
+            self.frames.append(obs)
+        return self._get_obs(), info
+
+    def step(self, action):
+        obs, reward, terminated, truncated, info = self.env.step(action)
+        self.frames.append(obs)
+        return self._get_obs(), reward, terminated, truncated, info
+
+    def _get_obs(self):
+        return np.concatenate(list(self.frames), axis=2)
+
+
+def make_pong_env(render_mode=None):
+    env = gym.make("PongNoFrameskip-v4", render_mode=render_mode)
+    env = AtariPreprocessing(env)
+    env = FrameStack(env, k=4)
+    return env
+```
+
+#### `env_test.py`
+```python
+from wrappers import make_pong_env
+
+def main():
+    env = make_pong_env(render_mode="human")
+    obs, info = env.reset()
+    done = False
+    while not done:
+        action = env.action_space.sample()
+        obs, reward, terminated, truncated, info = env.step(action)
+        done = terminated or truncated
+    env.close()
+
+if __name__ == "__main__":
+    main()
+```
+
+#### `dqn_agent.py` (CNN instead of MLP; same replay buffer idea)
+
+I’ll give you the core changes: a convolutional network and minor shape handling.
+
+```python
+import random
+from collections import deque
+from dataclasses import dataclass
+
+import numpy as np
+import torch
+import torch.nn as nn
+import torch.optim as optim
+
+
+class ConvDQN(nn.Module):
+    def __init__(self, input_shape, num_actions):
+        super().__init__()
+        c, h, w = input_shape  # e.g., (4, 84, 84)
+        self.conv = nn.Sequential(
+            nn.Conv2d(c, 32, kernel_size=8, stride=4),
+            nn.ReLU(),
+            nn.Conv2d(32, 64, kernel_size=4, stride=2),
+            nn.ReLU(),
+            nn.Conv2d(64, 64, kernel_size=3, stride=1),
+            nn.ReLU(),
+        )
+        with torch.no_grad():
+            o = self.conv(torch.zeros(1, c, h, w))
+            conv_out_size = o.view(1, -1).size(1)
+
+        self.fc = nn.Sequential(
+            nn.Linear(conv_out_size, 512),
+            nn.ReLU(),
+            nn.Linear(512, num_actions),
+        )
+
+    def forward(self, x):
+        x = x / 255.0  # normalize pixel values
+        x = self.conv(x)
+        x = x.view(x.size(0), -1)
+        return self.fc(x)
+
+
+class ReplayBuffer:
+    def __init__(self, capacity):
+        self.buffer = deque(maxlen=capacity)
+
+    def push(self, state, action, reward, next_state, done):
+        self.buffer.append((state, action, reward, next_state, done))
+
+    def sample(self, batch_size):
+        batch = random.sample(self.buffer, batch_size)
+        states, actions, rewards, next_states, dones = map(np.array, zip(*batch))
+        # N, H, W, C -> N, C, H, W
+        states = np.transpose(states, (0, 3, 1, 2))
+        next_states = np.transpose(next_states, (0, 3, 1, 2))
+        return (
+            torch.tensor(states, dtype=torch.uint8),
+            torch.tensor(actions, dtype=torch.int64),
+            torch.tensor(rewards, dtype=torch.float32),
+            torch.tensor(next_states, dtype=torch.uint8),
+            torch.tensor(dones, dtype=torch.float32),
+        )
+
+    def __len__(self):
+        return len(self.buffer)
+
+
+@dataclass
+class DQNConfig:
+    gamma: float = 0.99
+    lr: float = 1e-4
+    batch_size: int = 32
+    buffer_size: int = 200_000
+    min_buffer_size: int = 10_000
+    epsilon_start: float = 1.0
+    epsilon_end: float = 0.1
+    epsilon_decay: int = 1_000_000  # steps
+    target_update_freq: int = 10_000
+
+
+class DQNAgent:
+    def __init__(self, obs_shape, n_actions, config: DQNConfig):
+        self.n_actions = n_actions
+        self.config = config
+        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
+        c, h, w = obs_shape
+        self.policy_net = ConvDQN((c, h, w), n_actions).to(self.device)
+        self.target_net = ConvDQN((c, h, w), n_actions).to(self.device)
+        self.target_net.load_state_dict(self.policy_net.state_dict())
+        self.target_net.eval()
+
+        self.optimizer = optim.Adam(self.policy_net.parameters(), lr=config.lr)
+        self.replay_buffer = ReplayBuffer(config.buffer_size)
+
+        self.steps_done = 0
+
+    def current_epsilon(self):
+        eps_start = self.config.epsilon_start
+        eps_end = self.config.epsilon_end
+        decay = self.config.epsilon_decay
+        return eps_end + (eps_start - eps_end) * np.exp(-1.0 * self.steps_done / decay)
+
+    def select_action(self, state):
+        epsilon = self.current_epsilon()
+        if random.random() < epsilon:
+            return random.randrange(self.n_actions)
+        # state: H, W, C -> C, H, W, add batch dim
+        state_t = torch.tensor(state.transpose(2, 0, 1), dtype=torch.uint8, device=self.device).unsqueeze(0)
+        with torch.no_grad():
+            q_values = self.policy_net(state_t)
+        return int(q_values.argmax(dim=1).item())
+
+    def store_transition(self, *args):
+        self.replay_buffer.push(*args)
+
+    def update(self):
+        if len(self.replay_buffer) < self.config.min_buffer_size:
+            return None
+
+        states, actions, rewards, next_states, dones = self.replay_buffer.sample(self.config.batch_size)
+        states = states.to(self.device).float()
+        next_states = next_states.to(self.device).float()
+        actions = actions.to(self.device)
+        rewards = rewards.to(self.device)
+        dones = dones.to(self.device)
+
+        q_values = self.policy_net(states).gather(1, actions.unsqueeze(1)).squeeze(1)
+
+        with torch.no_grad():
+            next_q_values = self.target_net(next_states).max(1)[0]
+            target_q_values = rewards + self.config.gamma * next_q_values * (1 - dones)
+
+        loss = nn.functional.smooth_l1_loss(q_values, target_q_values)
+
+        self.optimizer.zero_grad()
+        loss.backward()
+        nn.utils.clip_grad_norm_(self.policy_net.parameters(), 10.0)
+        self.optimizer.step()
+
+        return loss.item()
+
+    def maybe_update_target(self):
+        if self.steps_done % self.config.target_update_freq == 0:
+            self.target_net.load_state_dict(self.policy_net.state_dict())
+```
+
+#### `train_dqn.py` (adapted for Pong)
+
+```python
+from wrappers import make_pong_env
+from dqn_agent import DQNAgent, DQNConfig
+from utils import plot_rewards
+import numpy as np
+
+def train(num_episodes=1000, max_steps_per_episode=10_000):
+    env = make_pong_env()
+    obs, info = env.reset(seed=0)
+    # obs shape: H, W, C*k
+    h, w, c = obs.shape
+    obs_shape = (c, h, w)
+    n_actions = env.action_space.n
+
+    config = DQNConfig()
+    agent = DQNAgent(obs_shape, n_actions, config)
+
+    all_rewards = []
+
+    for episode in range(num_episodes):
+        obs, info = env.reset()
+        done = False
+        episode_reward = 0
+
+        for t in range(max_steps_per_episode):
+            action = agent.select_action(obs)
+            next_obs, reward, terminated, truncated, info = env.step(action)
+            done_flag = terminated or truncated
+
+            agent.store_transition(obs, action, reward, next_obs, done_flag)
+            agent.steps_done += 1
+
+            loss = agent.update()
+            agent.maybe_update_target()
+
+            obs = next_obs
+            episode_reward += reward
+
+            if done_flag:
+                break
+
+        all_rewards.append(episode_reward)
+        avg_reward = np.mean(all_rewards[-20:])
+        print(f"Episode {episode+1}/{num_episodes} | Reward: {episode_reward:.1f} | Avg(20): {avg_reward:.1f}")
+
+    env.close()
+    import torch
+    torch.save(agent.policy_net.state_dict(), "dqn_pong.pth")
+    plot_rewards(all_rewards, "training_rewards_pong.png")
+    return all_rewards
+
+if __name__ == "__main__":
+    train()
+```
+
+#### `evaluate_dqn.py`
+
+```python
+import torch
+from wrappers import make_pong_env
+from dqn_agent import ConvDQN
+
+def main():
+    env = make_pong_env(render_mode="human")
+    obs, info = env.reset()
+    h, w, c = obs.shape
+    obs_shape = (c, h, w)
+    n_actions = env.action_space.n
+
+    policy_net = ConvDQN(obs_shape, n_actions)
+    policy_net.load_state_dict(torch.load("dqn_pong.pth", map_location="cpu"))
+    policy_net.eval()
+
+    done = False
+    total_reward = 0
+
+    while not done:
+        obs_t = torch.tensor(obs.transpose(2, 0, 1), dtype=torch.uint8).unsqueeze(0)
+        with torch.no_grad():
+            q_values = policy_net(obs_t.float())
+        action = int(q_values.argmax(dim=1).item())
+
+        next_obs, reward, terminated, truncated, info = env.step(action)
+        total_reward += reward
+        obs = next_obs
+        done = terminated or truncated
+
+    print("Total reward:", total_reward)
+    env.close()
+
+if __name__ == "__main__":
+    main()
+```
+
+You now have a fully image‑based RL project centered on Pong with all components aligned to your original DQN CartPole plan, just upgraded to CNNs and frame‑stacked images.
+
+### Human: Before I start coding, explain the key RL concepts this project will teach me, in simple terms.
+
+### Assistant:  
+This project will concretely teach you these core RL concepts:
+
+1. **Agent–environment loop**
+   - At each time step:
+     - The **environment** gives you a **state** (here: stacked game frames).
+     - The **agent** chooses an **action** (move paddle up, down, or stay).
+     - The environment returns a **reward** and a **new state**.
+   - You’ll implement this loop explicitly in `train_dqn.py`.
+
+2. **Reward and return**
+   - **Reward**: a number at each step (in Pong, +1 for scoring, −1 for losing a point, 0 otherwise).
+   - **Return**: the total (discounted) future reward from a state.
+   - DQN tries to estimate: “If I take action a in state s, what future reward should I expect?”
+
+3. **Q‑function and Bellman equation**
+   - **Q(s, a)**: how good it is to take action a in state s, assuming you act well afterward.
+   - **Bellman idea**: good actions are those whose Q‑value is close to:
+     - `reward + gamma * max_a' Q(next_state, a')`
+   - Your network is learning to approximate this equation.
+
+4. **DQN (Deep Q‑Network)**
+   - A neural network takes in the current state (image stack) and outputs one Q‑value per possible action.
+   - Training consists of:
+     - Predicting Q(s, a) for your past experiences.
+     - Nudging the network so Q(s, a) moves closer to the Bellman target.
+   - In your code: the CNN + fully connected layers form this Q‑network.
+
+5. **Exploration vs. exploitation (epsilon‑greedy)**
+   - **Exploration**: try random actions to discover better strategies.
+   - **Exploitation**: take the best action according to your current Q‑network.
+   - Epsilon‑greedy:
+     - With probability ε, choose a random action.
+     - Otherwise, choose the action with highest Q‑value.
+   - ε starts high (lots of exploration) and decays over time.
+
+6. **Experience replay**
+   - Instead of learning only from the latest experience, you store transitions `(state, action, reward, next_state, done)` in a buffer.
+   - You train on random mini‑batches from this buffer:
+     - Breaks correlation between sequential frames.
+     - Reuses past experience for more efficient learning.
+   - Your `ReplayBuffer` implements this.
+
+7. **Target network**
+   - You maintain:
+     - A **policy network**: updated every gradient step.
+     - A **target network**: a slow‑moving copy used to compute target Q‑values.
+   - This stabilizes training because the target doesn’t change too rapidly.
+   - You’ll periodically copy weights from policy to target.
+
+8. **Image preprocessing and state representation**
+   - Raw game frames are:
+     - Large, colorful, noisy.
+   - You:
+     - Convert to grayscale.
+     - Resize to 84×84.
+     - Stack multiple frames to capture motion.
+   - This teaches you how **state design** affects learning.
+
+9. **Training curves and evaluation**
+   - You will:
+     - Track total reward per episode.
+     - Plot moving averages to see learning progress.
+     - Save and reload the trained network to watch it play.
+   - This builds intuition:
+     - How slow or noisy RL learning can be.
+     - How exploration and hyperparameters affect results.
+
+As you implement and run the project, these ideas stop being abstract: you’ll see exactly where each concept lives in the code and how it affects the agent’s behavior.
