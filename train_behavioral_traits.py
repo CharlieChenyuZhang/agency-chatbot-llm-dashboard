@@ -150,7 +150,7 @@ DATASET_FAMILY = 'gpt5' # or 'gpt5'
 
 # Use training data from final_trainingdata_gpt5 directory
 # TODO: edit this to the corresponding dataset directory
-BASE_DATASET_DIR = "data/dataset/final_trainingdata_gpt5.1_1000_per_category_nov20_subset"
+BASE_DATASET_DIR = "data/dataset/final_trainingdata_gpt5.1_1000_per_category_flattened"
 
 # Build selected dataset directories based on the chosen family
 if DATASET_FAMILY == 'gpt5':
