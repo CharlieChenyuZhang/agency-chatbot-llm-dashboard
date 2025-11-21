@@ -1,252 +1,350 @@
-### Human: Set up cloud backups with a weekly schedule
-### Assistant: I can help with that. To give you concrete steps, I need a bit more detail:
-- What device/OS are you using (e.g., Windows 11, macOS, Linux)?
-- Which cloud service do you prefer (e.g., Google Drive, OneDrive, Dropbox, iCloud, Backblaze)?
-- What do you want to back up (entire system, or just specific folders like Documents and Photos)?
+### Human: Rename files to match precisely this pattern
 
-Once I know those, I can walk you through a specific setup.
+### Assistant: I can help with that. What do your current filenames look like (a few real examples), and what exact pattern do you want them to follow (including order of parts, separators, and zero‑padding)? Also, which operating system are you on (Windows, macOS, Linux)?
 
-### Human: I'm on Windows 11. I just want my Documents and Photos backed up to Google Drive once a week.
-### Assistant: Perfect, that’s clear.
+### Human: I’m on Windows 10. Right now the files look like this:
 
-Google Drive’s official app (Google Drive for desktop) is designed for continuous sync, not scheduled weekly backups. To get an actual weekly schedule, you have two main options:
+IMG_1_final.JPG  
+IMG_12_final.JPG  
+IMG_123_final.JPG  
 
-1) Use a backup tool like Duplicati with Google Drive as storage (flexible, free, automated schedule).
-2) Use a continuous sync (Google Drive for desktop) but pair it with a “snapshot” tool on your PC (a bit more complex).
+I want them to be renamed to exactly this pattern:
 
-The most straightforward for a true weekly backup is Duplicati, so I’ll outline that.
+photo-0001-final.jpg  
+photo-0012-final.jpg  
+photo-0123-final.jpg  
 
-**Step 1: Install Duplicati**
-1. Go to https://www.duplicati.com/download.
-2. Download the Windows installer and run it.
-3. After installation, Duplicati usually opens in your browser at `http://localhost:8200`.
+So:  
+- prefix: `photo-`  
+- a 4-digit number with leading zeros  
+- suffix: `-final`  
+- extension: `.jpg` (lowercase)
 
-**Step 2: Create a new backup job**
-1. In Duplicati, click “Add backup”.
-2. Choose “Configure a new backup” and click Next.
-3. Give it a name like “Weekly Docs & Photos to Google Drive”.
-4. Set an encryption password if you want your backups encrypted (recommended) and keep that password safe.
+### Assistant: Thanks, that’s clear. You can do this in PowerShell.
 
-**Step 3: Select Google Drive as the destination**
-1. In “Destination”, choose:
-   - Storage Type: “Google Drive”.
-2. Click “AuthID” or “Authorize” (wording may vary).
-3. A browser window will open asking you to sign into Google and grant Duplicati access.
-4. After authorizing, you’ll see a long AuthID code filled in.
-5. Choose / create a folder name in Google Drive to store backups (e.g., `Backups/Win11-Home`).
+1. Open **PowerShell** in the folder with the images:
+   - In File Explorer, go to the folder.
+   - Click in the address bar, type `powershell`, press Enter.
 
-**Step 4: Choose source folders**
-1. On the “Source Data” screen, select:
-   - `C:\Users\<YourUserName>\Documents`
-   - `C:\Users\<YourUserName>\Pictures` (or wherever your photos are).
-2. Add any other important folders if needed.
+2. Run this script:
 
-**Step 5: Set the weekly schedule**
-1. On the “Schedule” screen:
-   - Enable the schedule.
-   - Choose “Weekly”.
-   - Pick the day and time (e.g., Sunday at 2:00 AM).
-2. Click Next.
+```powershell
+$files = Get-ChildItem -File -Filter "IMG_*_final.JPG"
 
-**Step 6: Set backup options (optional)**
-1. On “Options”, you can usually leave defaults.
-2. You might set:
-   - “Keep backups” to something like “3 months” or “12 versions”.
+foreach ($file in $files) {
+    # Extract the number between "IMG_" and "_final"
+    if ($file.BaseName -match '^IMG_(\d+)_final$') {
+        $num = [int]$Matches[1]
+        $newNum = "{0:0000}" -f $num  # 4 digits with leading zeros
 
-Click “Save”. Duplicati will then run automatically every week at the time you chose.
+        $newName = "photo-$newNum-final.jpg"
+        Rename-Item -LiteralPath $file.FullName -NewName $newName
+    }
+}
+```
 
-Do you want me to walk you through any of those steps in more detail, or do you prefer a different tool (like OneDrive) that’s more integrated with Windows?
+This will:
 
-### Human: I installed Google Drive for desktop before. Can I just use that on a weekly schedule somehow instead of another program?
-### Assistant: You can, but with a caveat: Google Drive for desktop is built for continuous sync, not scheduled backups. It keeps selected folders mirrored to the cloud in near real time.
+- Match only names like `IMG_<number>_final.JPG`
+- Convert `<number>` to 4 digits with leading zeros
+- Rename to `photo-####-final.jpg` with `.jpg` in lowercase.
 
-If you’re okay with your Documents and Photos being continuously backed up (which is actually safer), then Google Drive for desktop alone is enough.
+Try it on a copy of the folder first if you want to be extra safe.
 
-If you really want “only once a week,” you can approximate that with one of these approaches:
+### Human: I tried running that, but I get an error:  
 
-**Approach A: Continuous backup (simplest, recommended)**
-1. Open Google Drive for desktop.
-2. Go to Settings → “My Computer”.
-3. Click “Add folder” and choose:
-   - `Documents`
-   - `Pictures` (or wherever your photos are).
-4. Choose “Back up to Google Drive”.
-From then on, those folders are always backed up. You don’t have to worry about schedules.
+`Get-ChildItem : The term 'Get-ChildItem' is not recognized as the name of a cmdlet...`
 
-**Approach B: Use Google Drive for desktop + Windows Task Scheduler (more manual)**
-You’d:
-1. Turn off continuous backup in Google Drive for desktop for those folders.
-2. Create a weekly Task Scheduler job that:
-   - Copies your Documents and Photos into a special “WeeklyBackup” folder.
-   - That “WeeklyBackup” folder is continuously synced to Google Drive.
+I just pasted it into a black window that says `C:\Windows\System32\cmd.exe` in the title.
 
-That’s more fiddly, because you have to create a batch script and a scheduled task.
+### Assistant: That error means you’re in **Command Prompt (cmd.exe)**, not **PowerShell**.
 
-Before we go down the more complex route, are you okay with continuous backup instead of strictly weekly? If you must have weekly-only, I can outline the Task Scheduler/batch script method.
+Here’s how to make sure you’re in PowerShell:
 
-### Human: I'd really prefer an actual weekly backup, not constant syncing. Let's stick with Duplicati like you said. I tried authorizing it with Google Drive, but I get an error saying "Error: failed to connect: invalid credentials or access denied".
-### Assistant: Understood—let’s focus on Duplicati then. That error usually means something went wrong during the Google authorization step. Let’s check a few things:
+1. Open File Explorer and go to the folder with the images.
+2. Click the white area of the address bar at the top so it highlights the path.
+3. Type `powershell` and press Enter.
+4. The window title should say something like `Windows PowerShell`, not `cmd.exe`.
+5. Paste the script there and press Enter.
 
-1. **Which browser opened for the Google sign-in?**  
-   - Was it your usual browser where you’re logged into the right Google account, or a different one?
-2. **Did you complete the full permission flow?**  
-   - After logging in, you should get a screen asking to allow Duplicati access. You must click “Allow” until you’re returned to a page that shows a long AuthID/token.
-3. **Back in Duplicati, did the AuthID field get filled automatically, or did you paste it manually?**
+If you prefer, you can also press **Win+X → Windows PowerShell** (or “Windows PowerShell (Admin)”) and then use:
 
-Can you tell me:
-- Which step exactly gave you the error (right after clicking “Test connection”, or earlier)?
-- Whether you see any more detailed error text in the Duplicati window besides “invalid credentials or access denied”?
+```powershell
+cd "C:\path\to\your\folder"
+```
 
-### Human: It opens in Chrome, I'm logged into the right Google account. I click Allow and it goes back to a page that says something like "You can close this window now." Then in Duplicati, the AuthID field is filled, but when I hit "Test connection" I get: "Failed to connect: Google Drive: Invalid credentials (Google Drive API error 401)".
-### Assistant: Thanks, that detail helps. A 401 from Google Drive means “unauthorized”, so Duplicati’s token isn’t being accepted. A few targeted checks:
+before running the script.
 
-1. **Multiple Google accounts in Chrome**
-   - In Chrome, do you have multiple Google accounts signed in (top-right profile menu)?
-   - Sometimes the browser uses a different default account than expected.
-   - Try:
-     1. Open an incognito window.
-     2. Go to Duplicati → Destination → Google Drive → click “AuthID” again.
-     3. In the incognito window, log in only with the account you want to use for backups.
-     4. Approve access and let the flow complete.
-     5. Back in Duplicati, try “Test connection” again.
+Can you confirm the window title now shows “Windows PowerShell” and then try the script again?
 
-2. **Check if any security alert popped up in your Google account**
-   - Go to https://myaccount.google.com/notifications or Security → “Recent security events”.
-   - See if Google blocked the new app access and, if so, allow it.
+### Human: Ok, I’m in PowerShell now and ran it. It worked in the sense that it renamed the files, but the numbers are wrong. For example:
 
-3. **Check if you have any organization / Workspace**  
-   If this is a work/school Google account, admins sometimes block third‑party app access.
+`IMG_1_final.JPG` became `photo-0000-final.jpg`  
+`IMG_12_final.JPG` became `photo-0000-final.jpg`  
 
-Could you try the incognito-authorization method and then tell me if the 401 error persists?
+They all became `photo-0000-final.jpg`.
 
-### Human: I tried using incognito like you said, only logged into the one account. Same thing: AuthID fills in, but Test connection still says 401 invalid credentials. This is a personal Gmail, not work.
-### Assistant: Thanks for testing that; that rules out one common cause. Let’s try a couple more practical checks before we consider a different approach.
+### Assistant: That suggests the regex didn’t match as expected, so `$Matches[1]` is empty and casting to `[int]` gives 0.
 
-1. **Confirm Duplicati’s Google Drive backend type**
-   - On the “Destination” page, what exactly is selected for “Storage Type”?  
-     It should be:
-     - “Google Drive” (not WebDAV, not OneDrive, etc).
-   - The “Server and port” or “Path” fields should usually be:
-     - Server: leave default or blank
-     - Folder path: a simple folder name like `DuplicatiBackups` (no special characters).
+Let’s first confirm what `BaseName` looks like for your files. In PowerShell, run:
 
-2. **Try a simpler folder path**
-   - If you currently have something like `Backups/Win11/Home`, change it temporarily to just `DuplicatiTest`.
-   - Click “Test connection” again.
+```powershell
+Get-ChildItem -File -Filter "IMG_*_final.JPG" | Select-Object Name, BaseName
+```
 
-3. **Update or reinstall Duplicati (possible old build)**
-   - Check the version in the bottom-left of the Duplicati web interface.
-   - If it’s not a recent stable build, download the latest from https://www.duplicati.com/download and install over the top (settings and jobs will be kept).
-   - After updating, try authorizing again and testing the connection.
+What are a couple of lines of the output?
 
-Let me know:
-- Your current storage type and folder path,
-- Whether trying a simple folder name and/or updating Duplicati changes the error.
+In the meantime, here’s a slightly more defensive script that logs what it’s doing:
 
-If it still fails after these, we might be running into a Duplicati–Google API quirk that’s hard to fix quickly via chat, and I’ll suggest an alternate method.
+```powershell
+$files = Get-ChildItem -File -Filter "IMG_*_final.JPG"
 
-### Human: Storage type is set to Google Drive, folder was Backups/Win11 like you guessed. I changed it to just DuplicatiTest, same 401. Version shows 2.0.5.1. I installed from their site today, so I think it's current.
-### Assistant: Got it. 2.0.5.1 is somewhat old; the current recommended build is usually a 2.0.6.x or later “canary/beta” (they move slowly on “stable” labels). But before we go down that rabbit hole, given the repeated 401s even after a clean auth and simple folder name, we’re likely hitting one of those finicky Duplicati–Google token issues that can take a lot of back-and-forth to untangle.
+foreach ($file in $files) {
+    Write-Host "Processing:" $file.Name
 
-We can try one more quick option with similar functionality but often fewer Google auth problems: **Duplicati with OneDrive**, or alternatively a different backup tool like **EaseUS Todo Backup Free** using Google Drive folder sync.
+    $base = $file.BaseName
+    if ($base -match '^IMG_(\d+)_final$') {
+        $num = [int]$Matches[1]
+        $newNum = "{0:0000}" -f $num
 
-Let me propose two paths and you can pick which sounds better:
+        $newName = "photo-$newNum-final.jpg"
+        Write-Host "  -> Renaming to:" $newName
+        Rename-Item -LiteralPath $file.FullName -NewName $newName
+    } else {
+        Write-Host "  !! Skipped (pattern didn't match):" $base
+    }
+}
+```
 
-**Path A: Use OneDrive (built into Windows) with weekly “versioning”**
-- If you’re okay using OneDrive instead of Google Drive:
-  1. Sign into OneDrive on Windows 11.
-  2. Move or add your Documents and Photos folders into OneDrive.
-  3. Use OneDrive’s built-in version history and, if needed, pair it with Windows File History for weekly snapshots.
-- This is very straightforward and very reliable, but it changes the cloud provider.
+Run this version and tell me what it prints for one or two files.
 
-**Path B: Use a simple backup program that writes to a local folder, synced by Google Drive desktop**
-This gets you weekly backups and still uses Google Drive, but avoids Google API quirks inside the backup app:
-1. **Set up Google Drive for desktop**
-   - Pick a folder on your PC, e.g., `C:\CloudBackups\GoogleDrive`.
-   - Make sure that folder is synced to your Google Drive.
+### Human: The `Select-Object` output looks like this:
 
-2. **Use a backup tool that backs up to that local folder on a schedule**
-   - For example, Macrium Reflect Free or EaseUS Todo Backup Free can:
-     - Take a backup of selected folders.
-     - Save the backup file(s) into `C:\CloudBackups\GoogleDrive`.
-     - Run on a weekly schedule (built-in scheduler).
-   - Google Drive desktop then uploads those backup files to the cloud in the background.
+Name                BaseName  
+----                --------  
+IMG_1_final.JPG     IMG_1_final  
+IMG_12_final.JPG    IMG_12_final  
 
-This way:
-- The *backup* part is local and scheduled weekly.
-- The *cloud* part is just normal Google Drive sync, which is pretty stable.
+Then I ran your logging script and it prints:
 
-Given the hassle we’re seeing with Duplicati + Google Drive auth, I’d lean toward Path B if you really want to stick with Google Drive.
+Processing: IMG_1_final.JPG  
+  !! Skipped (pattern didn't match): IMG_1_final  
 
-Which would you prefer: switching to OneDrive (Path A) or using a local-backup-then-sync approach with Google Drive (Path B)? I can walk you step by step through whichever you pick.
+Processing: IMG_12_final.JPG  
+  !! Skipped (pattern didn't match): IMG_12_final  
 
-### Human: Let's do Path B. I already have Google Drive for desktop installed. How do I set it up with EaseUS Todo Backup for weekly backups?
-### Assistant: Good choice; that tends to work well in practice.
+But weirdly, even though it says skipped, the files still got renamed to `photo-0000-final.jpg`.
 
-**Step 1: Create a dedicated backup folder that syncs to Google Drive**
-1. In File Explorer, create a folder, e.g.:  
-   `C:\CloudBackups\GoogleDrive`
-2. Open Google Drive for desktop settings:
-   - Click the Google Drive icon in the system tray.
-   - Click the gear → Preferences.
-3. Under “My Computer” or “Folders”, add that folder (`C:\CloudBackups\GoogleDrive`) to be synced to Google Drive.
-4. Confirm it’s syncing by dropping a small test file in there and checking it appears in Google Drive on the web.
+### Assistant: If it says “Skipped” but files still got renamed, you may have:
 
-**Step 2: Install EaseUS Todo Backup Free**
-1. Download from: https://www.easeus.com/backup-software/free.html
-2. Install and open the program.
+- An old version of the script still in the PowerShell history, or
+- Another script in the same folder.
 
-**Step 3: Create a weekly backup job**
-(The UI may change slightly by version, but roughly:)
+To avoid that, let’s run a **clean, minimal** script in the current session and first confirm that nothing gets renamed:
 
-1. Click “New Backup” or similar.
-2. Choose **File Backup**.
-3. In the source selection:
-   - Add `C:\Users\<YourUserName>\Documents`
-   - Add `C:\Users\<YourUserName>\Pictures` (or wherever your photos live).
+1. Close the current PowerShell window.
+2. Open a new PowerShell in the folder again.
+3. Paste and run **only this**:
 
-4. For the **destination**, browse to:
-   - `C:\CloudBackups\GoogleDrive`
-   - Optionally create a subfolder like `WeeklyDocsPhotos`.
+```powershell
+$files = Get-ChildItem -File -Filter "IMG_*_final.JPG"
 
-5. Click on **Schedule**:
-   - Enable scheduling.
-   - Set it to **Weekly**.
-   - Choose the day and time (e.g., Sunday at 3 AM).
-   - Confirm and save the schedule.
+foreach ($file in $files) {
+    Write-Host "Processing:" $file.Name
 
-6. Optionally set **backup scheme**:
-   - Many users pick incremental backups with a retention policy (e.g., keep last 4 backups).
+    $base = $file.BaseName
+    if ($base -match '^IMG_(\d+)_final$') {
+        Write-Host "  Matched number:" $Matches[1]
+    } else {
+        Write-Host "  No match"
+    }
+}
+```
 
-7. Save the job. Run it once manually to create the first backup and verify:
-   - Files appear in `C:\CloudBackups\GoogleDrive`.
-   - Then, after a bit, you see those backup files in Google Drive on the web.
+This script **does not rename anything**, it only prints messages.
 
-From then on, EaseUS will run weekly, write backup files to that folder, and Google Drive will sync them automatically.
+Please run it and paste exactly what it shows for `IMG_1_final.JPG` and `IMG_12_final.JPG`.
 
-Do you want more detailed, click-by-click steps on any particular part (like configuring the schedule or checking Google Drive sync), or is this level of detail enough to get you started?
+### Human: I did exactly that. Output:
 
-### Human: That seems clear. One last thing: if my weekly backup fails for some reason, will EaseUS tell me, or do I need to check manually?
-### Assistant: EaseUS can notify you, but it depends on how you configure it.
+Processing: IMG_1_final.JPG  
+  No match  
+Processing: IMG_12_final.JPG  
+  No match  
 
-Common options:
-1. **In-app logs and status**
-   - When you open EaseUS, each backup task shows the last run status (Success/Failed).
-   - You can also view logs for more detail.
+I just noticed something: some of my files are actually like `IMG_0001_final.JPG` and others like `IMG_1_final.JPG`. I mixed them earlier. I also have a few like `IMG_1_extra_final.JPG`.
 
-2. **Email notifications (if available in your version)**
-   - In many versions, under Settings → Email Notification (or similar), you can:
-     - Enter an email address and SMTP details.
-     - Choose to receive emails on success/failure.
-   - This takes a bit of setup (you need an SMTP server, e.g., a Gmail SMTP config).
+### Assistant: That explains the mismatch:
 
-3. **Practical compromise**
-   - If email setup is too much for now, a simple habit works:
-     - After the scheduled backup time (say every Monday sometime), open EaseUS quickly and confirm the last run shows Success and is recent.
+- Our pattern expects exactly `IMG_<digits>_final`.
+- Files like `IMG_0001_final.JPG` fit that.
+- Files like `IMG_1_extra_final.JPG` do **not**.
 
-Given your goal and to avoid overcomplicating things, I’d suggest:
-- For now: run the first backup manually, confirm it uploads to Google Drive.
-- Then, once a week for the next couple of weeks, briefly check the task status in EaseUS.
-- If it’s been stable and you want to go further, we can set up email alerts later.
+Let’s adjust the script to handle:
 
-If you’d like, I can outline the basic steps for configuring email notifications, but it does get a bit technical with SMTP settings.
+1. `IMG_1_final.JPG`, `IMG_0001_final.JPG`, etc. → use the digits between `IMG_` and `_final`.
+2. Skip anything with extra stuff in the middle (`IMG_1_extra_final.JPG`), or treat them differently.
+
+Here’s a script that:
+
+- Extracts the first run of digits after `IMG_`
+- Ignores extra stuff
+- Also prevents accidental renaming of already-correct `photo-xxxx-final.jpg` files.
+
+```powershell
+$files = Get-ChildItem -File | Where-Object {
+    $_.Name -match '^IMG_.*_final\.JPG$'
+}
+
+foreach ($file in $files) {
+    Write-Host "Processing:" $file.Name
+
+    $base = $file.BaseName
+
+    # Capture first sequence of digits after "IMG_"
+    if ($base -match '^IMG_(\d+).*_final$') {
+        $num = [int]$Matches[1]
+        $newNum = "{0:0000}" -f $num
+
+        $newName = "photo-$newNum-final.jpg"
+        Write-Host "  -> Renaming to:" $newName
+        Rename-Item -LiteralPath $file.FullName -NewName $newName
+    } else {
+        Write-Host "  !! Skipped (no usable number):" $base
+    }
+}
+```
+
+This will:
+
+- `IMG_1_final.JPG` → `photo-0001-final.jpg`
+- `IMG_0001_final.JPG` → `photo-0001-final.jpg`
+- `IMG_1_extra_final.JPG` → `photo-0001-final.jpg` (using the `1`)
+- Anything without digits after `IMG_` will be skipped.
+
+Try this and let me know if the renames now match what you want, especially for a few mixed examples.
+
+### Human: I tried that. Most files worked, but it crashed partway through with:
+
+`Rename-Item : Cannot create a file when that file already exists.`
+
+I think it hit cases where `IMG_1_final.JPG` and `IMG_0001_final.JPG` both exist and both want to become `photo-0001-final.jpg`.
+
+### Assistant: Right, if two original files map to the same final name, `Rename-Item` will fail on the second one.
+
+There are a couple of options:
+
+1. **Automatically add a suffix** when there’s a collision.
+2. **Skip duplicates** and handle them manually.
+
+Here’s a version that **skips** renaming when the target name already exists and logs it:
+
+```powershell
+$files = Get-ChildItem -File | Where-Object {
+    $_.Name -match '^IMG_.*_final\.JPG$'
+}
+
+foreach ($file in $files) {
+    Write-Host "Processing:" $file.Name
+
+    $base = $file.BaseName
+
+    if ($base -match '^IMG_(\d+).*_final$') {
+        $num = [int]$Matches[1]
+        $newNum = "{0:0000}" -f $num
+
+        $newName = "photo-$newNum-final.jpg"
+
+        if (Test-Path -LiteralPath $newName) {
+            Write-Host "  !! Skipped: target already exists:" $newName
+        } else {
+            Write-Host "  -> Renaming to:" $newName
+            Rename-Item -LiteralPath $file.FullName -NewName $newName
+        }
+    } else {
+        Write-Host "  !! Skipped (no usable number):" $base
+    }
+}
+```
+
+Run this, and afterward:
+
+- All non-conflicting files should be correctly renamed.
+- Any duplicates will show in the log as “target already exists”.
+
+You can then decide manually what to do with those duplicates (delete, move, or rename with an extra suffix).
+
+If you’d rather automatically add a suffix (like `photo-0001-final-2.jpg`), I can show that version too.
+
+### Human: I ran that. It worked better, but now I’ve got a big mix:
+
+- Many files are correct.
+- Some are skipped because `target already exists`.
+- I also realized I have subfolders with more of these files, and the script didn’t touch them.
+
+This is getting a bit messy. Is there a simpler way to handle all of this without more script debugging?
+
+### Assistant: Given the mix of naming styles, duplicates, and subfolders, continuing to tweak a single script from here will get increasingly fiddly, and we’ve already spent several iterations on this.
+
+A more practical approach at this point is to use a dedicated GUI renaming tool that lets you:
+
+- See a live preview of old → new names.
+- Apply numbering rules with leading zeros.
+- Handle subfolders.
+- Spot and resolve conflicts interactively.
+
+On Windows, two good options are:
+
+1. **Bulk Rename Utility** (free)
+   - Download and install from its official site.
+   - Key settings for your case:
+     - Check “Subfolders” if you want to include them.
+     - Use “Remove” to strip `IMG_` and `_final`.
+     - Use “Add” or “Append” to put `photo-` and `-final`.
+     - Use the “Numbering” section to create 4‑digit numbers with leading zeros.
+   - You’ll see the preview before committing changes, which helps avoid surprises.
+
+2. **Advanced Renamer** (also free)
+   - Create a batch method that:
+     - Uses a pattern like `photo_<Inc Nr:0000>-final.<Ext>`.
+     - Applies to all `.JPG` files, with an option to recurse into subfolders.
+   - Again, it shows a preview and highlights conflicts.
+
+If you’d like, you can tell me which of these you prefer and I can outline the exact clicks and fields to set for your pattern. Otherwise, since the scripted route is becoming time‑consuming with your real‑world variations, one of these tools will likely get you to the correct pattern faster and with fewer surprises.
+
+### Human: I’ll try Bulk Rename Utility instead. A short step-by-step for my pattern there would be helpful.
+
+### Assistant: In Bulk Rename Utility:
+
+1. **Open the folder** with your images in BRU.
+   - Check “Subfolders” in the top‑left if you want to include them.
+
+2. **Filter to JPG files**:
+   - At the bottom, in the “Filter” box, type: `*.JPG;*.jpg`
+
+3. **Set up the new name pattern**:
+   - Section **10. Add**:
+     - “Prefix”: `photo-`
+     - “Suffix”: `-final`
+   - Section **12. Numbering**:
+     - Check “Numbering”.
+     - “Mode”: Suffix (or Prefix, depending how you want to combine — try Suffix first).
+     - “Start”: `1`
+     - “Pad”: `4`
+     - “Inc”: `1`
+     - “Sep.”: leave blank or `-` depending on where you want the number; for `photo-0001-final`, set:
+       - Prefix in section 10: `photo-`
+       - Numbering separator: nothing
+       - Suffix in section 10: `-final`
+   - Ensure the extension is set to keep `.jpg`:
+     - Section **11. Extension**: choose “Lowercase”.
+
+4. **Preview**:
+   - Look at the “New Name” column to confirm you see `photo-0001-final.jpg` style names.
+   - Fix any conflicts highlighted in red before proceeding.
+
+5. **Rename**:
+   - Select all files you’re happy with.
+   - Click **Rename** (top right), confirm.
+
+This will give you the pattern you want with clear visual feedback. If something in the preview doesn’t match what you expect, describe what you see and I can help adjust the BRU settings.

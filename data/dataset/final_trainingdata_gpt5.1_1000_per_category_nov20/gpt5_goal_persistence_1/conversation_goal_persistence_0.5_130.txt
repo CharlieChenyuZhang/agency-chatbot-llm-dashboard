@@ -1,434 +1,764 @@
-### Human: Help me ship a portfolio of five projects
-### Assistant: Great goal. Let’s make this concrete.
+### Human: Choose tools and implement a knowledge base
+
+### Assistant: To choose tools and plan implementation, I need a bit more context. Could you share:
+
+1. Who will use the knowledge base? (e.g., internal support team, whole company, customers)
+2. What types of content you expect? (e.g., FAQs, SOPs, design docs, tickets, videos)
+3. Main goals? (e.g., reduce support tickets, preserve engineering knowledge, onboard faster)
+4. Any constraints? (self‑hosted vs SaaS, budget, security/compliance needs)
+5. Your existing tools? (e.g., Google Workspace, O365, Slack, Jira, Confluence, Notion)
+
+With that, I can propose a small set of tool options and an implementation plan.
+
+### Human: It's for internal use, mainly support and onboarding. We already use Google Workspace and Slack. Prefer SaaS, low maintenance. Budget is mid-range, not super cheap but nothing huge. Content will be FAQs, procedures, and troubleshooting guides.
+
+### Assistant: Based on that, here’s a pragmatic setup:
+
+**Recommended stack**
+
+1. **Primary knowledge base:**  
+   - **Notion** or **Confluence Cloud**  
+   - Both integrate reasonably with Google Workspace and Slack.  
+   - Choose:
+     - **Notion** if you want flexibility, easier editing, modern UI.
+     - **Confluence** if you want stronger structure, better fit with Jira, more “traditional” wiki.
+
+2. **Search & discovery:**
+   - Use the built‑in search first.
+   - Add Slack integration so people can:
+     - Search KB from Slack.
+     - Get “did you mean this KB article?” suggestions when asking in help channels (via bot/integration).
+
+3. **Access & identity:**
+   - Use **Google SSO** for access.
+   - Define clear **spaces** or **workspaces**: e.g., “Support,” “Onboarding,” “IT,” “Company‑wide”.
+
+4. **Authoring workflow:**
+   - Templates for:
+     - FAQ
+     - Runbook / procedure
+     - Troubleshooting guide
+   - Simple workflow: Draft → Review → Publish.
+
+If you tell me whether you lean more toward Notion or Confluence, I can walk you through a concrete implementation plan for that specific tool, step by step.
+
+### Human: Let's go with Notion. Walk me through the implementation.
+
+### Assistant: Here’s a step‑by‑step Notion implementation plan tailored for support and onboarding:
+
+1. **Create structure**
+   - Top‑level pages:
+     - “🏠 Knowledge Base Home”
+     - “Support Procedures”
+     - “Troubleshooting Guides”
+     - “FAQs”
+     - “Onboarding”
+   - Under “Onboarding,” add:
+     - “New Hire Checklist”
+     - “Tools & Access”
+     - “Product Basics”
+
+2. **Set up databases**
+   - Create three linked databases:
+     1. **Articles** (for all KB content)
+        - Key properties:
+          - `Type` (FAQ, Procedure, Troubleshooting, Onboarding)
+          - `Product/Area` (App, Billing, Infra, etc.)
+          - `Audience` (Support, All Employees, Engineering)
+          - `Status` (Draft, In Review, Published, Archived)
+          - `Owner` (person)
+          - `Last Reviewed` (date)
+     2. **Onboarding Tasks**
+          - Task name, Role, Priority, Owner, Due date, Status.
+     3. **Change Log**
+          - What changed, link to article, date, author.
+
+   - On each top‑level page, create a filtered view of the **Articles** database:
+     - “Support Procedures” → filter `Type = Procedure`
+     - “Troubleshooting Guides” → filter `Type = Troubleshooting`
+     - “FAQs” → filter `Type = FAQ`
+     - “Onboarding” → filter `Type = Onboarding`
+
+3. **Define templates**
+   - In the **Articles** database, create templates:
+     - **FAQ template:** Question, Short answer, Detailed answer, Related links.
+     - **Procedure template:** Purpose, Preconditions, Step‑by‑step, Validation, Rollback, Contacts.
+     - **Troubleshooting template:** Symptoms, Root cause, Diagnosis steps, Fix steps, Verification, Notes.
+
+4. **Access & permissions**
+   - Use Google SSO for workspace.
+   - Create groups (if on a plan that supports this) or share by team:
+     - “Support” – edit rights on support‑related content.
+     - “All staff” – read access to everything except sensitive pages.
+   - Lock structural pages (home, navigation) so only admins can change layout.
+
+5. **Slack integration**
+   - Install the Notion app in Slack.
+   - Enable:
+     - `/notion search <query>` for quick KB lookups.
+     - Paste links so they unfurl with titles and preview.
+   - Optionally, create a `#kb-updates` channel and have people share new/updated pages there.
+
+6. **Initial rollout**
+   - Pick 10–20 of your most frequent issues or onboarding questions.
+   - Create high‑quality articles using the templates.
+   - Announce the KB in Slack and during onboarding, and add a “Start here” guide on the Home page.
+
+If you’d like, I can help you draft the exact schema (properties and example entries) for the **Articles** database next, or we can focus on templates for one type of document.
+
+### Human: Let's define the Articles database schema in detail, including example entries.
+
+### Assistant: Here’s a detailed **Articles** database schema plus sample entries.
+
+**Properties**
+
+1. `Title` (Title) – Name of the article  
+2. `Type` (Select) – FAQ, Procedure, Troubleshooting, Onboarding  
+3. `Product/Area` (Multi-select) – App, Billing, Infra, Admin, Internal Tools, HR, etc.  
+4. `Audience` (Select) – Support, All Employees, Engineering, New Hires  
+5. `Status` (Select) – Draft, In Review, Published, Archived  
+6. `Owner` (People) – Responsible person  
+7. `Reviewer` (People) – Optional  
+8. `Last Reviewed` (Date)  
+9. `Next Review` (Date, optional)  
+10. `Tags` (Multi-select) – e.g., Login, Password, Performance, Payment  
+11. `Version` (Text or Number) – e.g., 1.0, 1.1  
+12. `Confidentiality` (Select) – Public-internal, Team-only, Restricted  
+13. `Search Keywords` (Text) – Common terms users might search  
+14. `Related Articles` (Relation to same database) – for linking similar content
+
+---
+
+**Example entries**
+
+1. FAQ example  
+   - `Title`: “How do I reset my password?”  
+   - `Type`: FAQ  
+   - `Product/Area`: App, Admin  
+   - `Audience`: All Employees  
+   - `Status`: Published  
+   - `Owner`: Jane Doe  
+   - `Reviewer`: John Smith  
+   - `Last Reviewed`: 2025‑01‑10  
+   - `Next Review`: 2025‑04‑10  
+   - `Tags`: Login, Password  
+   - `Version`: 1.2  
+   - `Confidentiality`: Public-internal  
+   - `Search Keywords`: “forgot password, can’t log in, password reset link”  
+   - `Related Articles`: “Troubleshooting login issues”
+
+2. Procedure example  
+   - `Title`: “Handling a billing dispute”  
+   - `Type`: Procedure  
+   - `Product/Area`: Billing  
+   - `Audience`: Support  
+   - `Status`: Published  
+   - `Owner`: Billing Team Lead  
+   - `Reviewer`: Support Manager  
+   - `Last Reviewed`: 2025‑01‑02  
+   - `Next Review`: 2025‑03‑02  
+   - `Tags`: Billing, Refund, Dispute  
+   - `Version`: 1.0  
+   - `Confidentiality`: Team-only  
+   - `Search Keywords`: “chargeback, refund request, billing complaint”  
+   - `Related Articles`: “Refund policy overview”
 
-First, I need to know where you are right now:
+3. Troubleshooting example  
+   - `Title`: “App is slow for EU users”  
+   - `Type`: Troubleshooting  
+   - `Product/Area`: App, Infra  
+   - `Audience`: Support, Engineering  
+   - `Status`: In Review  
+   - `Owner`: SRE On-call  
+   - `Reviewer`: Eng Manager  
+   - `Last Reviewed`: 2025‑01‑15  
+   - `Next Review`: 2025‑02‑15  
+   - `Tags`: Performance, Latency, EU  
+   - `Version`: 0.9  
+   - `Confidentiality`: Restricted  
+   - `Search Keywords`: “latency europe, slow app eu, performance issue eu region”  
+   - `Related Articles`: “Performance runbook”, “How to check regional metrics”
 
-1. Do you already have five projects built, or are some still ideas?
-2. What kind of portfolio is this? (e.g., web dev, data science, design, writing, something else)
-3. Where do you want to “ship” them? (personal website, GitHub, Behance, LinkedIn, etc.)
-4. Do you have a deadline in mind?
-
-Once I know that, we can:
-- Pick the five projects
-- Define a “minimum shippable version” for each
-- Create a short checklist per project
-- Build a 1–2 week schedule to actually finish and publish
+Do you want help turning these into actual Notion templates (with section headings and sample text) for one or more of the types?
 
-Can you tell me briefly about what you already have and what kind of work this is?
+### Human: Yes, give me the full Notion template content for the Troubleshooting type. Include placeholders and some example text.
 
-### Human: They're all coding projects. I have maybe three half-finished ones and a bunch of ideas. I want something I can show for job hunting in like a month.
-### Assistant: Perfect, a month is enough if we scope things correctly.
+### Assistant: Here’s a Troubleshooting article template you can create inside the **Articles** database.
 
-Let’s do this in four steps:
+**Template name:** “TROUBLESHOOTING – Standard”
 
-1. Decide the 5 projects
-2. Define a “minimum shippable version” (MSV) for each
-3. Create a weekly plan for the month
-4. Set up a simple portfolio structure to showcase them
+**Body content:**
 
-First, picking the 5:
+---
 
-For now, let’s assume:
-- 3 are your existing half-finished projects
-- 2 will be smaller, tightly scoped projects you can build fast
+**1. Summary**
 
-Can you:
-1. Name or briefly describe the 3 half-finished ones (1–2 sentences each)?
-2. List 3–4 ideas you’ve had, even roughly?
+- **Issue title:** `{{Copy article title here}}`
+- **Short description:**  
+  _Example:_ “Customers in the EU report that pages take more than 10 seconds to load.”
 
-I’ll help you select and shape them into a strong, believable portfolio for job hunting.
+- **Impact:**  
+  - Scope (who is affected):  
+  - Severity (e.g., Sev‑2 / high):  
+  - First reported (date/time):
 
-### Human: Okay, I have:
-1) A task manager web app with user login.
-2) A weather dashboard that uses some API but it's messy.
-3) A basic blog engine with comments, not deployed.
+---
 
-Ideas: maybe a small game, maybe some sort of finance tracker, or a simple AI chatbot using some API.
-### Assistant: Nice, that’s a solid base.
+**2. Symptoms**
 
-Let’s choose a balanced portfolio that shows different skills:
+Describe what the user sees or experiences.
 
-Current candidates:
-1) Task manager (full-stack, auth, CRUD)
-2) Weather dashboard (API integration, UI)
-3) Blog engine (CRUD, maybe Markdown, comments)
-4) Small web game (front-end logic, maybe canvas or just DOM)
-5) Simple finance tracker OR chatbot (depending on what’s more realistic in a month)
+_Example:_
 
-To keep this shippable, I suggest:
+- Pages load in >10 seconds for EU customers.
+- API calls to `/search` timeout intermittently.
+- Reports mainly from Germany, France, Netherlands.
 
-- Keep: Task manager, Weather dashboard, Blog
-- Add: Small web game (kept intentionally small)
-- Add: Finance tracker (simpler than chatbot, easier to polish)
+---
 
-Does that mix sound okay, or is there one you’re more excited to swap (e.g., really want the chatbot instead of the finance tracker)?
+**3. Affected systems / components**
 
-### Human: I'd really like the chatbot in there, that feels more "modern".
-### Assistant: That makes sense for job hunting.
+- Product/feature:  
+- Services/APIs:  
+- Infrastructure (regions, clusters):  
 
-Revised set:
-1) Task manager (existing)
-2) Weather dashboard (existing)
-3) Blog engine (existing)
-4) Small web game (new)
-5) Simple AI chatbot using an API (new)
+_Example:_
 
-Now let’s define the minimum shippable version (MSV) for each—what “done enough to show” looks like.
+- Product: Web app  
+- Services: `search-service`, `user-profile-service`  
+- Region: `eu-west-1`
 
-I’ll draft MSVs; you tell me if they feel realistic:
+---
 
-1) Task manager MSV
-   - Auth: sign up, log in, log out
-   - Tasks: create, edit, mark complete, delete
-   - Basic styling, mobile-friendly enough
-   - Hosted somewhere (e.g., Render/Netlify + a backend host)
-   - README with features, tech stack, and setup
+**4. Diagnosis steps**
 
-2) Weather dashboard MSV
-   - Search by city
-   - Show current weather + short forecast
-   - Handle errors (invalid city, API failure)
-   - Clean, simple UI
-   - Hosted + README
+Follow this order. Check off each step.
 
-3) Blog engine MSV
-   - Create/edit/delete posts (even if only admin via a simple UI)
-   - Public list of posts + detail view
-   - Optional comments OR just a “contact” link to simplify
-   - Deployed + README
+1. **Confirm customer reports**
+   - Check ticket system for related issues (link: `{{Jira/Helpdesk link}}`).
+   - Confirm time range and geographies.
 
-4) Small game MSV
-   - Very simple (e.g., memory match, reaction timer, number guessing, etc.)
-   - Playable loop, basic scoring
-   - Polished visuals over complexity
-   - Hosted + README
+2. **Check monitoring dashboards**
+   - App latency dashboard: `{{Link}}`
+   - Error rates dashboard: `{{Link}}`
+   - Infra status (cloud provider status page): `{{Link}}`
 
-5) Chatbot MSV
-   - Simple web UI (chat window + input)
-   - Calls a hosted AI API (or a mock API if cost is an issue)
-   - Shows conversation history in the UI
-   - Handles basic errors
-   - Deployed + README
+3. **Narrow down the component**
+   - Compare metrics between EU and US regions.
+   - Check if only certain endpoints or features are slow.
 
-Do any of those seem too ambitious or too minimal for you? If so, which one should we simplify further?
+4. **Look for recent changes**
+   - Review deploys in last 24h: `{{Deployment log link}}`
+   - Review config/infra changes: `{{Change log link}}`
 
-### Human: The deployment part always blocks me. I get stuck there and never finish. Can we focus on that?
-### Assistant: Absolutely, that’s a common bottleneck.
+_Add additional product‑specific checks here._
 
-Let’s standardize deployment so you repeat the same pattern for each project instead of reinventing it.
+---
 
-A few questions:
-1. What stack are you using mostly? (e.g., React + Node/Express + PostgreSQL, or something else?)
-2. Do you already have accounts on GitHub, Netlify, Vercel, Render, etc.?
-3. Have you successfully deployed *anything* before, even a small demo?
+**5. Root cause patterns (common scenarios)**
 
-If you tell me your main stack and what accounts you have, I’ll propose one default deployment pipeline and we’ll test it on just one project first.
+Document known recurring root causes to speed things up.
 
-### Human: Mostly React frontends and Node/Express backends. Mongo in two of them, SQLite in the blog. I have GitHub and I think a Vercel account, not sure about Render.
-### Assistant: Great, we can do:
+_Example:_
 
-- Frontends → Vercel
-- Backends + databases → Render (or Railway/Fly, but let’s pick one: Render is beginner-friendly)
+1. **Scenario A – Database connection saturation in EU**
+   - Indicators:
+     - DB connection count at or near max.
+     - Slow queries on `orders` table.
+   - Fix: See “Fix steps – Scenario A”.
 
-Plan:
-1) Confirm accounts: GitHub + Vercel + Render
-2) Deploy *one* simple backend first (probably the weather API proxy if you have one, or the blog backend)
-3) Deploy the matching frontend
-4) Write a tiny checklist you can reuse for the other projects
+2. **Scenario B – Third‑party dependency degradation**
+   - Indicators:
+     - Errors/timeouts when calling external payment gateway.
+   - Fix: See “Fix steps – Scenario B”.
 
-To move forward, can you:
-- Confirm whether you can log into Render (render.com)? If not, create an account tied to your GitHub.
-- Tell me which project’s backend is currently the *simplest* / least messy?
+(Add more scenarios over time.)
 
-I’ll walk you through deploying that one step-by-step.
+---
 
-### Human: The simplest is probably the weather one, it's mostly just calling the API from the frontend though. No separate backend yet.
-### Assistant: That actually makes deployment easier; we can start with a pure frontend deploy on Vercel.
+**6. Fix steps**
 
-Let’s turn the weather app into a “deployment template”:
+Organize by scenario to keep it clear.
 
-Basic steps:
-1. Ensure the app runs locally with `npm install` + `npm start` (or `yarn` equivalent).
-2. Push it to a GitHub repo if it’s not there already.
-3. Connect that repo to Vercel and deploy.
-4. Confirm environment variables if your API key is needed.
+**Scenario A – DB connection saturation**
 
-Where are you stuck in this flow usually?
+1. Enable read‑only replica in EU (if not already).
+2. Temporarily reduce expensive background jobs hitting the DB.
+3. Coordinate with DB admin to raise connection pool limits if safe.
 
-- A) Project not clean enough / doesn’t run locally reliably
-- B) Git basics / pushing to GitHub
-- C) Vercel configuration (build settings, env vars)
-- D) Something else (errors after deploy, etc.)
+**Scenario B – Third‑party dependency degradation**
 
-If you pick one, I’ll zoom in on that and we’ll try to get one live URL out of today’s effort.
+1. Confirm status on third‑party status page: `{{Status link}}`
+2. Enable failover/backup provider (if configured).
+3. Toggle feature flags to degrade gracefully:
+   - e.g., disable non‑critical features that rely on this provider.
 
-### Human: Usually it "works on my machine" but fails build or has some weird error after deployment, and I get frustrated and quit.
-### Assistant: Understood—that’s the painful part.
+(Add your real actions here; the above are just patterns.)
 
-Let’s try to reduce that frustration by:
-- Using a minimal deployment checklist
-- Limiting how long we’ll debug one issue before simplifying or postponing
+---
 
-For the weather app, can you check these and answer:
+**7. Workarounds**
 
-1) How are you fetching the weather API?
-   - Directly in the frontend with `fetch` / `axios`?
-   - Are you using `http://localhost:...` anywhere or only the external API URL?
+If you can’t fully fix immediately:
 
-2) Are you using environment variables for the API key (e.g., `process.env.REACT_APP_API_KEY`)?
+- Temporary workaround #1:  
+- Temporary workaround #2:  
 
-3) Are you using Create React App, Vite, Next.js, or something else?
+_Example:_
 
-Once I know that, I can pre-empt common Vercel issues (e.g., env var names, relative vs absolute URLs).
+- “Advise customers to use the mobile app instead of web for ~1 hour while we mitigate.”
 
-### Human: It's a Create React App, fetches directly from the openweather API with a key hardcoded for now. No localhost. Just `fetch("https://api.openweathermap.org/data/2.5/weather?...&appid=KEY")`.
-### Assistant: That’s straightforward enough, which is good.
+---
 
-For a first deployment, we can even keep the hardcoded key just to remove friction, then improve it later. The main risk is:
+**8. Verification**
 
-- Build fails because of some local-only config
-- App runs but CORS or network errors happen
+How to confirm the issue is resolved:
 
-Let’s set a limit: we’ll try to get this deployed with up to two cycles of debugging. If it’s still annoying, I’ll suggest an alternative path or a workaround so you don’t get stuck here all day.
+- Re‑check latency and error rate dashboards (target: X ms, Y% error).
+- Confirm with at least 3 affected customers if possible.
+- Ensure alerts are cleared.
 
-Here’s the deployment checklist for this specific app:
+---
 
-1. Local run
-   - Make sure `npm install` runs without errors.
-   - Make sure `npm start` works and the weather fetch works in your browser.
+**9. Communication**
 
-2. GitHub
-   - Ensure `package.json` is at the repo root.
-   - Push everything except `node_modules`.
+- Internal update template (Slack / email):
 
-3. Vercel
-   - Log into Vercel.
-   - “Add New…” → “Project” → Import from GitHub → select this repo.
-   - Accept default build settings for Create React App.
-   - Click Deploy.
+  > Issue: {{Short description}}  
+  > Impacted: {{Regions/customers}}  
+  > Status: Investigating / Mitigating / Resolved  
+  > ETA: {{If known}}  
+  > Next update: {{Time}}
 
-When you’ve tried this, what *exact* error message do you get in Vercel? (copy-paste or paraphrase)
+- External communication (if applicable):
+  - Status page update:
+  - Macros/snippets for support replies:
 
-If you don’t have it handy right now, we can also decide to:
-- Use Vite + a fresh minimal example as a clean deployment test, then adapt your app into it.
-Which way do you prefer: fight the current app a bit, or start from an ultra-clean minimal template and then move your code into it?
+  _Example:_
 
-### Human: I don't have the error handy. Starting from a clean template might be better, honestly.
-### Assistant: That’s a reasonable choice and often faster long-term.
+  > We’re currently seeing slower than normal performance for some customers in Europe. Our team is actively working on this and we’ll share an update within 60 minutes. We’re sorry for the disruption.
 
-Here’s a “clean deployment-first” approach for your weather app:
+---
 
-1) Create a fresh React app
-   - Using Vite (faster) or Create React App if you prefer. Example with Vite:
-     - `npm create vite@latest weather-portfolio -- --template react`
-     - `cd weather-portfolio`
-     - `npm install`
-     - `npm run dev` (confirm it works)
-
-2) Minimal weather feature
-   - Replace the starter component with:
-     - An input for city
-     - A “Get Weather” button
-     - A simple `fetch` to the OpenWeather endpoint with your key, basic error handling
-   - Keep styling minimal for now.
-
-3) Deploy this clean version to Vercel
-   - Push to GitHub
-   - Import into Vercel
-   - Deploy
-   - Confirm URL works
-
-4) Gradually copy features from your older weather app into this clean repo, re-deploy after small changes.
-
-This way, each deploy is a small step, so if something breaks you can roll back mentally to the last working step.
+**10. Post‑incident notes / improvements**
 
-If you’d like, I can:
-- Sketch the minimal component code for step 2 so you can just paste it
-or
-- Help you design a short “today only” plan that focuses on shipping just this one project and outlining the other four.
+After things are stable:
 
-Which would be more helpful *right now*?
+- What worked well?  
+- What slowed us down?  
+- Monitoring/alerting improvements needed:  
+- Documentation changes needed (update this article):  
 
-### Human: Let's do the minimal component code. I think I can handle the rest.
-### Assistant: Sounds good. Here’s a minimal React component for Vite or CRA that you can drop into `App.jsx` / `App.js`:
+---
 
-```jsx
-import { useState } from "react";
+You can paste this into a new template in your Notion **Articles** database and then adapt the wording to your environment.
 
-const API_KEY = "YOUR_API_KEY_HERE"; // replace with your real key
+Do you want similar templates for FAQ and Procedure, or should we move on to planning how people will contribute and keep the KB updated?
 
-function App() {
-  const [city, setCity] = useState("");
-  const [data, setData] = useState(null);
-  const [status, setStatus] = useState("idle"); // "idle" | "loading" | "error"
-  const [error, setError] = useState("");
+### Human: Let's move on to contribution and maintenance. I want a process that scales but isn't too heavy. Can you design that?
 
-  const handleFetch = async () => {
-    if (!city.trim()) return;
+### Assistant: Here’s a lightweight but scalable contribution and maintenance process:
 
-    setStatus("loading");
-    setError("");
-    setData(null);
+**1. Roles**
 
-    try {
-      const res = await fetch(
-        `https://api.openweathermap.org/data/2.5/weather?q=${encodeURIComponent(
-          city
-        )}&appid=${API_KEY}&units=metric`
-      );
+- **Contributor**: Anyone; can propose or update articles.
+- **Owner**: One person per article; accountable for accuracy.
+- **Reviewer**: Senior person in the area; approves important changes.
+- **KB Admin**: 1–2 people; own structure, templates, and training.
 
-      if (!res.ok) {
-        throw new Error(`Request failed: ${res.status}`);
-      }
+---
 
-      const json = await res.json();
-      setData(json);
-      setStatus("idle");
-    } catch (err) {
-      setStatus("error");
-      setError(err.message || "Something went wrong");
-    }
-  };
+**2. Contribution workflow**
 
-  return (
-    <div style={{ maxWidth: 480, margin: "2rem auto", fontFamily: "sans-serif" }}>
-      <h1>Weather Lookup</h1>
-      <div style={{ marginBottom: "1rem" }}>
-        <input
-          type="text"
-          value={city}
-          onChange={(e) => setCity(e.target.value)}
-          placeholder="Enter city"
-          style={{ padding: "0.5rem", width: "70%", marginRight: "0.5rem" }}
-        />
-        <button onClick={handleFetch} disabled={status === "loading"}>
-          {status === "loading" ? "Loading..." : "Get Weather"}
-        </button>
-      </div>
+For new articles:
 
-      {status === "error" && (
-        <div style={{ color: "red", marginBottom: "1rem" }}>
-          Error: {error}
-        </div>
-      )}
+1. Contributor creates article in **Draft** using the right template.
+2. Sets `Owner` to themselves and `Reviewer` to a relevant lead.
+3. Reviewer glances for:
+   - Correctness
+   - Clarity
+   - Right tags, Type, Audience
+4. If OK, set `Status` to **Published**.
 
-      {data && (
-        <div style={{ border: "1px solid #ccc", padding: "1rem", borderRadius: 4 }}>
-          <h2>{data.name}</h2>
-          <p>Temperature: {data.main.temp} °C</p>
-          <p>Condition: {data.weather?.[0]?.description}</p>
-        </div>
-      )}
-    </div>
-  );
-}
+For small updates:
 
-export default App;
-```
+- If low‑risk (typos, wording), Owner can update and keep as **Published**, then set `Last Reviewed` to today.
+- If higher‑risk (process change), temporarily set `Status` to **In Review** and ping Reviewer.
 
-Steps:
-1. Replace your existing `App` component with this.
-2. Put your real API key in `API_KEY`.
-3. Confirm it runs locally.
-4. Then push and deploy via Vercel.
+---
 
-If you run into build/deploy issues with this minimal version, feel free to describe the *first* blocking error. If that also turns into a rabbit hole, I’d suggest:
+**3. Intake**
 
-- Accepting a single deployed weather app as today’s “win”
-- Then tomorrow, repeating the same pattern for one more project
-- For the remaining, we can outline them clearly in your portfolio even if they’re not 100% live yet.
+Set up one simple channel for “please document this”:
 
-For now, do you want help drafting a simple README for this weather app (so it looks polished in your portfolio), or focus on replicating this for the other projects on your own?
+- Slack channel `#kb-requests`
+  - People post: problem, context, suggested owner.
+  - KB Admin or team leads triage weekly and create Draft articles or tasks in a “KB backlog” view in Notion.
 
-### Human: Let's do the README; I think if I have that pattern I can repeat it.
-### Assistant: Good idea. Here’s a simple README template tailored to this weather app that you can reuse for other projects:
+---
 
-```markdown
-# Weather Lookup App
+**4. Review cadence**
 
-A simple React app to search for the current weather in any city using the OpenWeather API.
+Use the `Next Review` field:
 
-## Live Demo
+- Default review interval:
+  - Critical procedures: every 3 months
+  - Normal content: every 6–12 months
+- Create a Notion view “Needs Review”:
+  - Filter: `Next Review` is on or before today AND `Status` = Published
+- KB Admin reminds owners (e.g., monthly) to review their items.
 
-- Deployed on Vercel: [https://your-app-url.vercel.app](https://your-app-url.vercel.app)
+---
 
-## Features
+**5. Minimal standards**
 
-- Search weather by city name
-- Displays:
-  - City name
-  - Current temperature (°C)
-  - Basic weather description
-- Basic loading and error states
+Document a one‑page “KB Guidelines” article:
 
-## Tech Stack
+- Use the templates.
+- Write for a new hire: no tribal jargon unless you explain it.
+- One article = one clear topic.
+- Include at least:
+  - Purpose / when to use this
+  - Step‑by‑step if it’s a procedure
+  - Owner and last reviewed date (auto via properties)
 
-- Frontend: React (Vite / Create React App)
-- Styling: Inline styles / basic CSS
-- API: [OpenWeather Current Weather API](https://openweathermap.org/current)
-- Hosting: Vercel
+---
 
-## Getting Started (Local Development)
+**6. Feedback loop**
 
-1. Clone the repository:
+- Add a simple section at bottom of each article:  
+  > “If this article is unclear or out of date, please ping `@Owner` in Slack or comment directly here.”
 
-   ```bash
-   git clone https://github.com/your-username/weather-lookup.git
-   cd weather-lookup
-   ```
+- Encourage support to:
+  - Comment on articles after tricky cases.
+  - Suggest improvements right after tickets are closed.
 
-2. Install dependencies:
+If you share roughly how many people you have in support and how fast things change in your product, I can tune this (e.g., review frequency, roles) more precisely.
 
-   ```bash
-   npm install
-   # or
-   yarn
-   ```
+### Human: Support is 20 people, product changes pretty often. I’d like something more automated for reviews and reminders. Can we design a system that auto-pings owners in Slack when their articles are due for review?
 
-3. Set up your API key:
+### Assistant: Yes, that’s a good idea. At a high level you can do:
 
-   - Open `App.jsx` (or `App.js`).
-   - Replace `YOUR_API_KEY_HERE` with your OpenWeather API key.
+- **Data source:** Notion Articles database
+- **Automation tool:** Zapier, Make (Integromat), or n8n
+- **Notification target:** Slack DMs or a channel
 
-   > In a production app, you’d store this in environment variables. For simplicity, it's currently hardcoded.
+Here’s a concrete design using **Zapier** as an example:
 
-4. Run the app:
+**1. Mark items that need review**
 
-   ```bash
-   npm run dev      # for Vite
-   # or
-   npm start        # for Create React App
-   ```
-
-5. Open in your browser at the URL shown in the terminal.
-
-## Project Structure
-
-```text
-src/
-  App.jsx          # main app component
-  main.jsx         # entry point (Vite) or index.js (CRA)
-  ...
-```
-
-## Possible Improvements
-
-- Move API key to environment variables
-- Add 5-day forecast view
-- Add unit toggle (°C / °F)
-- Improve UI design and responsiveness
-```
+- In Notion, keep:
+  - `Last Reviewed` date
+  - `Review Interval` (e.g., 90, 180 days) – can be a Number property
+  - `Next Review` (Date)
 
 You can:
-- Replace names/URLs as needed
-- Copy this pattern for each project: “What it is, Live demo, Features, Tech stack, Getting started, Improvements”
+- Either manually set `Next Review` when reviewing
+- Or compute it via automation: `Last Reviewed + Review Interval`
 
-From here, you have:
-- One project with a clear path to “shipped”
-- A README pattern to repeat
+**2. Daily Zap: “Find articles due for review”**
 
-To avoid getting bogged down, I’d suggest:
-- Today: finish deploying this weather app + README
-- Next sessions: one project per session, using the same deploy + README pattern
+- Trigger: Schedule → every day at, say, 09:00.
+- Action: Notion → “Search Database Items” or “Find Database Items”
+  - Filter: `Next Review` is on or before today
+  - Filter: `Status` = Published
 
-If you’d like, we can briefly outline the *titles and one-line descriptions* of the other four projects so that your portfolio page itself is ready, even while you’re still shipping them.
+**3. Notify owners in Slack**
+
+For each returned article:
+
+- Action: Slack → “Send Direct Message”
+- Recipient: mapped to the `Owner`’s email (needs consistent emails between Notion and Slack)
+- Message template, e.g.:
+
+> You’re the owner of `{{Article Title}}` in the Knowledge Base, and it’s due for review.  
+> Link: {{Article URL}}  
+> Please:
+> 1) Update if needed  
+> 2) Set “Last Reviewed” to today and adjust “Next Review” if you change the interval.
+
+**4. Optional: Add a “Reminded” flag**
+
+- In Notion, add `Last Reminder Sent` (Date).
+- Have your Zap:
+  - Only ping if `Last Reminder Sent` is empty or more than X days ago.
+  - Update `Last Reminder Sent` to today after sending.
+
+This keeps noise manageable.
+
+If you tell me which automation platform you actually use, I can outline more precise steps for that one. Otherwise, this is the general pattern you’d follow.
+
+### Human: We use Make (Integromat), not Zapier. Can you give me exact module configurations for Make, step by step?
+
+### Assistant: I can outline the Make scenario, but I don’t have live access to your workspace, so I can’t give you literal screenshots or IDs. I’ll describe the modules and key fields; you’ll still need to adapt the exact IDs and filters.
+
+**Scenario goal:** Every weekday at 09:00, find Notion articles with `Next Review` due and send Slack DMs to owners.
+
+---
+
+**1. Schedule trigger**
+
+- Module: **Tools → Scheduler**
+  - Type: “Every day” or “Every weekday”
+  - Time: 09:00 (your timezone)
+
+---
+
+**2. List Notion database items**
+
+- Module: **Notion → Search/Query Database**
+  - Connection: your Notion API connection
+  - Database: select your **Articles** database
+  - Filter:
+    - `Status` equals `Published`
+    - `Next Review` is on or before **today**
+
+  In Make, you’ll:
+  - Use the filter section (JSON filter or UI depending on connector version).
+  - If it’s limited, you may need to fetch items and filter them later with a **Filter** step.
+
+---
+
+**3. Iterator (if needed)**
+
+- If the Notion module returns a list:
+  - Module: **Tools → Iterator**
+  - Map the array of results from Notion into the Iterator to process each article separately.
+
+---
+
+**4. Get Owner’s email**
+
+Depending on how the Notion module returns People properties:
+
+- Often, `Owner` contains an array of users with fields like `name`, `email`, etc.
+- In the Iterator or mapping, extract:
+  - `Owner[1].email` (or similar; check the actual structure in Make’s output).
+
+If Notion doesn’t surface email directly and only has a name, you’ll need:
+- A mapping table (e.g., a small Google Sheet) from `Owner Name` → `Email`.
+- Then:
+  - Module: **Google Sheets → Search Rows** to find the row with `Owner Name`.
+  - Extract the email from that row.
+
+---
+
+**5. Send Slack message**
+
+- Module: **Slack → Send a Direct Message**
+  - Connection: your Slack connection
+  - Recipient:
+    - Use the owner’s **email**, or Slack user ID if you map that.
+  - Message body (example):
+
+    ```
+    Hi {{Owner Name}},
+
+    Your knowledge base article "{{Title}}" is due for review.
+
+    Link: {{URL}}
+
+    Please:
+    1) Check that the content is still correct.
+    2) Update it if needed.
+    3) Set "Last Reviewed" to today and adjust "Next Review" if appropriate.
+    ```
+
+---
+
+**6. Update Notion item (optional)**
+
+To track reminders:
+
+- Module: **Notion → Update a Database Item**
+  - Item ID: map from the current article
+  - Set:
+    - `Last Reminder Sent` = now
+
+Add a **Filter** before this step if you don’t want to update when, say, the owner field is empty.
+
+---
+
+Because Make’s exact field names and JSON filters depend on the connector version, you may still have to click through the UI and inspect one sample run to finalize mappings. I can help you interpret specific output if you paste a (redacted) JSON structure, but without that I can only stay at this level of detail.
+
+If this is starting to feel too fiddly, an alternative is to keep the process manual for now (a monthly Notion “Needs Review” view plus a human sending batch reminders) and add automation later once the KB is more stable.
+
+### Human: I'd really like more specific help. Can you draft the exact Notion filter JSON and Make iterator setup? Pretend the database ID is "articles-db" and the date property internal name is "Next Review".
+
+### Assistant: I can approximate the JSON filter based on how the Notion API usually works, but two caveats:
+
+1. Internal property names in Notion are often auto‑generated IDs (e.g., `F%3A%5D%3A`) rather than the human‑readable label (“Next Review”).  
+2. Make’s Notion module sometimes abstracts those details behind its own UI, so you may not even need raw JSON.
+
+Still, here’s an illustrative example for a Notion **Query Database** call via API, which Make’s advanced settings often mirror.
+
+**Notion filter JSON (conceptual)**
+
+```json
+{
+  "filter": {
+    "and": [
+      {
+        "property": "Status",
+        "select": {
+          "equals": "Published"
+        }
+      },
+      {
+        "property": "Next Review",
+        "date": {
+          "on_or_before": "2025-01-21"
+        }
+      }
+    ]
+  }
+}
+```
+
+In Make, you’d replace `"2025-01-21"` with a date function like “today” if the UI supports it; otherwise you compute today’s date in a prior step (e.g., **Tools → Set Variable**) and map it in.
+
+**Important:** in your actual workspace, `"Next Review"` might need to be the internal API name Notion gives that property. Make usually shows a dropdown of properties, so you can select the correct Date property without knowing its raw ID.
+
+---
+
+**Iterator setup in Make**
+
+Assuming the Notion module returns an array called something like `results`:
+
+1. Add **Tools → Iterator** right after the Notion module.
+2. In the **Array** field for the Iterator, map the `results[]` array from the Notion output (the UI will show something like `Search database > Results`).
+3. After the Iterator:
+   - Each downstream module (Slack, Update Notion) will get one article per cycle, and you’ll map fields from the Iterator’s output (title, URL, owner, etc.).
+
+Because Make’s UI is very point‑and‑click, this is about as far as I can go without seeing the exact structure of your Notion module’s output. If you run the Notion step once and look at the “Output” pane in Make, you’ll see something like:
+
+```json
+{
+  "results": [
+    {
+      "id": "xxxx",
+      "url": "https://www.notion.so/...",
+      "properties": {
+        "Name": { "title": [ { "plain_text": "Article title" } ] },
+        "Next Review": { "date": { "start": "2025-01-21" } },
+        "Owner": { "people": [ { "name": "Jane Doe", "person": { "email": "jane@example.com" } } ] }
+      }
+    }
+  ]
+}
+```
+
+Then you’d map:
+
+- Title: `properties.Name.title[1].plain_text` (or however Make surfaces it)
+- Next Review: `properties["Next Review"].date.start`
+- Owner email: `properties.Owner.people[1].person.email`
+- URL: `url`
+- ID: `id`
+
+If you’d like to continue tuning this, the best next step is for you to run one test in Make, copy the redacted JSON output of a single Notion record, and I can show you exactly how to reference each path. Without that concrete structure, we’re at the edge of what I can reliably specify.
+
+Alternatively, you could simplify for now:
+- Skip the date filter inside Notion.
+- Pull all `Published` items.
+- Filter them in Make using a simple date comparison in a **Filter** step, which is often easier to debug in the UI.
+
+### Human: Okay, let's pause the automation details. Can you summarize the whole knowledge base plan we’ve designed so far so I can present it to my manager?
+
+### Assistant: Here’s a concise summary you can share.
+
+---
+
+**Knowledge Base Plan – Internal Support & Onboarding**
+
+**1. Goals**
+
+- Centralize FAQs, procedures, troubleshooting guides, and onboarding material.
+- Reduce repeated questions in Slack and tickets.
+- Speed up onboarding for new hires.
+- Keep content accurate with a light, sustainable process.
+
+---
+
+**2. Tooling**
+
+- **Platform:** Notion
+  - SaaS, low maintenance.
+  - Integrates with Google Workspace (SSO) and Slack.
+- **Communication:** Slack
+  - Notion app installed.
+  - `#kb-updates` and `#kb-requests` channels.
+
+---
+
+**3. Structure**
+
+- Top‑level pages:
+  - “Knowledge Base Home”
+  - “Support Procedures”
+  - “Troubleshooting Guides”
+  - “FAQs”
+  - “Onboarding”
+- Single **Articles** database with key properties:
+  - `Type` (FAQ, Procedure, Troubleshooting, Onboarding)
+  - `Product/Area`, `Audience`, `Status`, `Owner`, `Reviewer`
+  - `Last Reviewed`, `Next Review`, `Tags`, `Version`, `Confidentiality`
+- Filtered views on each top‑level page:
+  - Procedures, Troubleshooting, FAQs, Onboarding content.
+
+---
+
+**4. Templates**
+
+- Standardized templates per article type:
+  - **FAQ:** Question, short answer, detailed answer, related links.
+  - **Procedure:** Purpose, preconditions, step‑by‑step, validation, rollback, contacts.
+  - **Troubleshooting:** Summary, symptoms, affected components, diagnosis steps, common root‑cause scenarios, fix steps, workarounds, verification, communication, post‑incident notes.
+- Templates live in the Articles database and are used for all new content.
+
+---
+
+**5. Contribution & Governance**
+
+- Roles:
+  - **Contributor:** anyone can draft.
+  - **Owner:** one per article, responsible for accuracy.
+  - **Reviewer:** area lead for higher‑risk content.
+  - **KB Admin:** 1–2 people responsible for structure, templates, training.
+- Workflow:
+  - New article: Draft → Reviewer check → Published.
+  - Small edits: Owner updates directly and refreshes `Last Reviewed`.
+- Intake:
+  - `#kb-requests` Slack channel for “please document this” suggestions.
+  - KB Admin/Leads triage and create draft articles/tasks.
+
+---
+
+**6. Maintenance**
+
+- Review cadence:
+  - Critical procedures: ~every 3 months.
+  - Other content: every 6–12 months.
+- Notion properties support review:
+  - `Last Reviewed`, `Next Review`, optional `Review Interval`.
+- Views:
+  - “Needs Review” Notion view for owners/KB Admin.
+- Planned automation (future phase):
+  - Daily or weekly scenario in Make (Integromat) that:
+    - Finds articles with `Next Review` due.
+    - Sends Slack DMs to article owners with review links.
+
+---
+
+**7. Rollout**
+
+- Phase 1 (2–4 weeks):
+  - Set up structure, properties, and templates in Notion.
+  - Migrate/create 10–20 high‑value articles (top issues + core onboarding).
+  - Announce KB, train support team on how to use templates.
+- Phase 2:
+  - Expand content from real tickets and onboarding questions.
+  - Start running review cadence.
+  - Optionally add Slack automation for review reminders.
+
+This gives you a clear, low‑maintenance knowledge base with defined ownership, templates, and a path to gradually add automation rather than doing everything at once.

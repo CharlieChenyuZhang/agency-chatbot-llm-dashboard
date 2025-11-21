@@ -1,318 +1,596 @@
-### Human: Find hotels near Times Square and sort by distance
-### Assistant: I don’t have live access to hotel databases, but I can give you a solid, approximate list of hotels close to Times Square (using the main intersection around 7th Ave & W 42nd St as the center) and order them by rough walking distance.
+### Human: Set up a budget and re-allocate categories automatically
+
+### Assistant: I can help with that. To get started, I need a bit more detail about your situation:
+
+1. What tool are you using (Excel/Google Sheets, a specific budgeting app, or just planning on paper)?
+2. Roughly how much is your monthly after‑tax income?
+3. What are your main categories (e.g., rent, groceries, debt payments, savings, fun, etc.) and any that are non‑negotiable (must be paid each month)?
+4. What do you mean by “re‑allocate automatically”? For example:
+   - If you underspend in groceries, should that extra go to savings?
+   - If you overspend in a category, should it pull from a specific other category?
+
+If you answer those, I can propose a structure and then (if you’re using a spreadsheet) give you formulas or rules to make the reallocations happen automatically.
+
+---
+
+### Human: I'm using Google Sheets. After-tax monthly income is about $4,200 but it fluctuates a bit with overtime. My categories:
+- Rent: 1,600
+- Utilities: 250
+- Groceries: 500
+- Transport: 200
+- Subscriptions: 80
+- Eating out: 250
+- Fun/Shopping: 250
+- Emergency fund: 300
+- Long-term savings: 400
+- Extra debt payments: 370
+
+By “re-allocate automatically” I mean: if I overspend in Eating out or Fun, I want it to pull first from Groceries (up to a point), then from Extra debt payments. If I underspend in Groceries, I want that extra to go to Emergency fund first until it hits a target, then to Long-term savings. Can we set that up?
+
+### Assistant: Yes, we can structure a sheet to do that. I’ll outline a simple layout and then the logic for the automatic reallocations.
+
+First, a basic monthly layout (one sheet per month):
 
-Here are some well‑known options, sorted from closest to a bit farther (approximate distances):
+Columns (one row per category):
+- A: Category
+- B: Planned
+- C: Actual
+- D: Difference (Planned - Actual)
+- E: Source / Destination (where money is taken from or sent to)
+- F: Final Adjusted Amount (after reallocations, if you want to track that)
 
-1. **Hotel Merrion Times Square** (example of a small hotel very close)  
-   - Distance: ~0.05–0.1 miles (1–2 minutes walk)  
-   - Location: Just off 42nd St, steps from the main Times Square area  
+Let’s start with the logic, then I’ll give example formulas.
+
+You described:
 
-2. **The Knickerbocker Hotel**  
-   - Distance: ~0.1 miles (2–3 minutes)  
-   - Location: 6th Ave & 42nd St area, basically right at Times Square  
+1. Overspending in Eating out or Fun:
+   - First pull from Groceries “up to a point”
+   - Then pull from Extra debt payments
 
-3. **Millennium Hotel Broadway Times Square**  
-   - Distance: ~0.1–0.15 miles (3–4 minutes)  
-   - Location: Just east of Times Square near 44th St  
+2. Underspending in Groceries:
+   - Extra goes to Emergency fund until Emergency hits a target
+   - After that, extra goes to Long-term savings
 
-4. **Hyatt Centric Times Square New York**  
-   - Distance: ~0.15–0.2 miles (4–5 minutes)  
-   - Location: Around 45th St between 6th & 7th Aves  
+To do this robustly, we need:
+- Your Emergency fund target (e.g., $5,000?)
+- Your current Emergency fund balance and Long-term savings balance
+- How much of Groceries you’re willing to sacrifice for overspending (for example: can it go down to $400 from $500, or all the way to $0 in theory?)
 
-5. **Hotel Mela Times Square**  
-   - Distance: ~0.15–0.2 miles (4–5 minutes)  
-   - Location: 44th St between 6th & 7th Aves  
+Can you share:
+1) Emergency fund current balance and target
+2) Long-term savings current balance
+3) The minimum Groceries amount you want protected (e.g., “never reallocate below $400 of groceries”).
 
-6. **Row NYC**  
-   - Distance: ~0.2–0.25 miles (5–6 minutes)  
-   - Location: 8th Ave & 44th St area, just west of Times Square  
+Then I can write out specific formulas you can plug into Google Sheets.
 
-7. **New York Marriott Marquis**  
-   - Distance: ~0.2–0.25 miles (5–6 minutes)  
-   - Location: On Broadway between 45th & 46th St, directly facing part of Times Square  
+---
 
-8. **Hampton Inn Times Square Central**  
-   - Distance: ~0.25–0.3 miles (6–7 minutes)  
-   - Location: Around 41st St between 7th & 8th Aves  
+### Human: Emergency fund current balance: $2,200. Target: $6,000.
+Long-term savings balance: $3,800.
+For groceries, I don’t want to go below $400. So of the $500, only $100 is available to “give” to overspending categories.
 
-9. **The Westin New York at Times Square**  
-   - Distance: ~0.3–0.35 miles (7–8 minutes)  
-   - Location: 8th Ave & 43rd St area  
+Can you show me exactly what formulas to put in, including how to prioritize the rules?
 
-10. **citizenM New York Times Square**  
-    - Distance: ~0.35–0.4 miles (8–9 minutes)  
-    - Location: 50th St near 8th Ave, a short walk north of Times Square  
+### Assistant: Great, that’s enough to design a rule set. I’ll propose one sheet layout, then walk through the formulas. I’ll keep categories in fixed rows so the formulas are easy.
 
-These distances are approximate (based on the street grid and typical walking routes), not GPS‑precise, but the list is indeed ordered from roughly closest to farther away.
+Assume the following structure on a “Budget” sheet:
 
-If you tell me your budget and star level, I can narrow this down or suggest more options in your specific price range.
+Row 1: headers  
+- A1: Category  
+- B1: Planned  
+- C1: Actual  
+- D1: Difference (Planned - Actual)  
+- E1: Reallocation Out (+ = giving money)  
+- F1: Reallocation In (+ = receiving money)  
+- G1: Final Budget (Planned + Reallocation In - Reallocation Out)
 
-### Human: Can you filter that list to only 3-star hotels and tell me tonight’s prices?
-### Assistant: I can filter by typical star rating, but I can’t see real‑time prices or availability for tonight. What I can do is:
+Rows for categories:
+- A2: Rent
+- A3: Utilities
+- A4: Groceries
+- A5: Transport
+- A6: Subscriptions
+- A7: Eating out
+- A8: Fun/Shopping
+- A9: Emergency fund
+- A10: Long-term savings
+- A11: Extra debt payments
 
-1. Mark which of these are usually around the 3‑star level.  
-2. Give you typical price ranges based on pre‑2024 data (just as a ballpark).  
-3. Show you how to quickly check tonight’s exact prices on a booking site using these names.
+Step 1: Basic planned amounts (column B)
+Put your planned values:
+- B2: 1600
+- B3: 250
+- B4: 500
+- B5: 200
+- B6: 80
+- B7: 250
+- B8: 250
+- B9: 300
+- B10: 400
+- B11: 370
 
-From the earlier list, hotels that are more commonly in the **3-star range** (or 3–3.5) include:
+Step 2: Actuals (column C)
+You’ll enter these manually as the month goes.
 
-- **Hotel Merrion Times Square** (or similar small Times Square hotels)  
-  - Class: typically 3-star  
-  - Typical pre‑2024 range: ~$180–$280 per night, higher on peak dates  
+Step 3: Difference (D = Planned - Actual)
+In D2 and copy down:
+- D2: `=B2 - C2`
 
-- **Hotel Mela Times Square**  
-  - Class: 3–3.5-star  
-  - Typical range: ~$180–$300 per night  
+Positive D = you’re under budget; negative D = overspending.
 
-- **Row NYC**  
-  - Class: 3-star  
-  - Typical range: ~$150–$260 per night  
+Now, the reallocation rules.
 
-- **Hampton Inn Times Square Central**  
-  - Class: 3-star  
-  - Typical range: ~$180–$280 per night, sometimes includes breakfast  
+Rule A: Overspending in Eating out (row 7) and Fun (row 8) pulls from Groceries (row 4) first (up to $100), then from Extra debt (row 11).
 
-- **citizenM New York Times Square**  
-  - Class: 3–4-star “lifestyle”/boutique, compact rooms  
-  - Typical range: ~$200–$320 per night  
+To approximate this automatically, we need:
 
-The others on the original list (e.g., Knickerbocker, Hyatt Centric, Marriott Marquis, Westin) are usually 4-star or higher.
+1) Total overspending in flexible “fun” categories:
+- Let’s define in some helper cells (for clarity):
 
-For **tonight’s actual prices**, you’d need to:
+In, say, H1: “Total Fun Overspend”  
+H2: `=MAX(0, -D7) + MAX(0, -D8)`
 
-1. Go to a site like Booking.com, Hotels.com, or Google Hotels.  
-2. Enter “Times Square, New York” and tonight’s date.  
-3. Use filters:  
-   - Star rating: 3 stars  
-   - Sort: Distance from “Times Square” or “City center”  
-4. Then compare the names above to what you see, to confirm current prices and availability.
+That gives you the total amount you went over in Eating out and Fun.
 
-If you tell me your maximum budget for tonight and whether you care more about distance vs. room quality, I can suggest which of these 3‑star options to prioritize.
+2) Groceries available to give (max $100):
+In H3: “Groceries Available to Give”
+- H3: `=MAX(0, MIN(100, D4))`
 
-### Human: Can you check Booking.com for me and just give me the exact prices and which are still available?
-### Assistant: I don’t have direct browsing or API access to Booking.com or any live booking engine, so I can’t see:
+Explanation:  
+- D4 positive means under on groceries; that’s the pool to give from.  
+- `MIN(100, D4)` caps it at 100.  
+- `MAX(0, ...)` ensures it doesn’t go negative if you’re over budget in groceries.
 
-- Tonight’s **exact prices**  
-- Which specific room types are **still available**  
-- Any current **promotions or discounts**
+3) Amount of overspend covered by Groceries vs Extra Debt:
+In H4: “Overspend Covered by Groceries”
+- H4: `=MIN(H2, H3)`
 
-I can, however, try to get you as close as possible by:
+In H5: “Overspend Remaining (from Extra Debt)”
+- H5: `=MAX(0, H2 - H4)`
 
-- Estimating what’s likely to be more affordable vs. more expensive among these hotels.  
-- Suggesting a fast search flow on Booking.com (or a similar site) so you can get the concrete numbers in a minute or two.  
-- Helping you interpret what you see there (e.g., “non‑refundable vs. free cancellation”, extra fees, resort fees, etc.).
+Now we translate those into category-level reallocations.
 
-If you’re okay with that, tell me:
+Groceries (row 4) – Reallocation Out (E4)
+- E4: `=H4`  
+(Groceries gives up to that amount)
 
-1. Your **target budget for tonight** (e.g., “under $250 including taxes” or a range).  
-2. Whether you prefer:  
-   - The **absolute closest** walking distance  
-   - Or a **bit farther but quieter** and often cheaper.  
+Extra debt payments (row 11) – Reallocation Out (E11)
+- E11: `=H5`
 
-I’ll then recommend a short list and tell you what to look for when you check prices on Booking.com.
+Eating out and Fun will get Reallocation In (F7, F8). We need to split H4+H5 proportionally to their overspend, or (simpler) apply reallocation only to the overspent amounts.
 
-### Human: My max is $250 including taxes. I want to be very close to Times Square but not super noisy if possible. What would you prioritize?
-### Assistant: With a **$250 all‑in** cap, close to Times Square but trying to avoid the noisiest spots, I’d prioritize like this (still approximating, since I can’t see tonight’s prices):
+To keep it simple and automatic, we can distribute the support proportionally:
 
-**Tier 1: Strong candidates under or around $250 (on non-peak nights)**  
-1. **Hampton Inn Times Square Central (3★)**  
-   - Slightly off the very core of Times Square (41st between 7th & 8th), so usually a bit quieter than being right on Broadway.  
-   - Often decent value, and many Hampton Inns include breakfast, which helps your overall budget.  
-   - Walking distance: ~6–7 minutes.
+In I1: “Eating Out Overspend”  
+I2: `=MAX(0, -D7)`
 
-2. **Row NYC (3★)**  
-   - On 8th Ave at 44th; very close but slightly off the brightest billboards area.  
-   - Big, busy hotel; rooms can be small and basic, but pricing can be competitive.  
-   - Walking distance: ~5–6 minutes.
+In I3: “Fun Overspend”  
+I4: `=MAX(0, -D8)`
 
-3. **Hotel Mela Times Square (3–3.5★)**  
-   - Just off Times Square but on a side street; can feel a bit less “in the chaos” than something right on Broadway.  
-   - Often decent midrange pricing, though exactly how it prices tonight I can’t see.  
-   - Walking distance: ~4–5 minutes.
+In I5: “Total Fun Overspend”  
+I6: `=H2`  (or `=I2 + I4`)
 
-**Tier 2: Might be above $250 but worth checking quickly**  
-4. **citizenM New York Times Square (3–4★ boutique)**  
-   - A bit farther north (~8–9 minutes walk), usually modern and efficient but rooms are small.  
-   - Pricing can climb above $250 on busy nights, but off‑peak it may be close enough to your budget to check.
+Then for Eating out’s Reallocation In (F7):
+- F7: `=IF(I6=0,0, H2 * (I2 / I6))`
 
-**How I’d approach Booking.com (or similar) in your case:**
+For Fun’s Reallocation In (F8):
+- F8: `=IF(I6=0,0, H2 * (I4 / I6))`
 
-1. **Search**: “Times Square, New York” with tonight’s date, 1 room, your number of guests.  
-2. **Filters**:  
-   - Star rating: 3 stars (and optionally 3–4 stars)  
-   - Sort by: *Distance from* “Times Square” or *City center*  
-   - Optionally: Guest rating ≥ 7 or 7.5.  
-3. **Manually look for these names first**:  
-   - Hampton Inn Times Square Central  
-   - Row NYC  
-   - Hotel Mela Times Square  
-   - citizenM Times Square  
+This sends the total reallocated funds (H2) to Eating out and Fun in proportion to their overspend. Those funds come from Groceries (H4 portion) and Extra debt (H5 portion).
 
-If any of those are **under $250 total**, I’d prioritize them in about the order above, with Hampton Inn or Mela likely giving the best balance of:
+Rule B: Underspending in Groceries goes to Emergency fund, then Long-term savings.
 
-- Close but not directly in the most intense noise  
-- Reasonable value  
-- Still walkable in just a few minutes
+Here we need to be careful not to double-count, because some of Groceries’ “extra” is already going to cover overspend in Eating out/Fun.
 
-If you tell me the **exact results you see for 2–3 of these (price & cancellation policy)**, I can help you decide between them.
+The net unused Groceries after fun overspend support is:
 
-### Human: I see Hampton Inn Times Square Central for $238 total and Row NYC for $221 total, both free cancellation. Which should I book?
-### Assistant: Based on those numbers and typical trade‑offs:
+In H6: “Net Groceries Under After Fun Support”
+- H6: `=MAX(0, D4 - H4)`
 
-- **Hampton Inn Times Square Central – $238 (free cancellation)**  
-  - Pros: Usually more consistent quality, often includes breakfast, rooms often feel a bit more modern/standardized. Staff and cleanliness tend to be more reliable.  
-  - Cons: Slightly higher price than Row NYC.
+Now that H6 is true surplus. We then send it:
+- First to Emergency fund until it hits $6,000
+- Then to Long-term savings
 
-- **Row NYC – $221 (free cancellation)**  
-  - Pros: Cheaper; very close to Times Square; huge property so usually lots of availability.  
-  - Cons: Reviews can be more mixed: small rooms, some wear and tear, and it can feel hectic and crowded.
+We need current balances for Emergency and Long-term. Suppose you track those on a separate sheet, “Balances”:
+- Balances!A2: “Emergency Fund”
+- Balances!B2: 2200
+- Balances!A3: “Long-term Savings”
+- Balances!B3: 3800
 
-If your priority is **comfort and reliability over saving $17**, I’d lean toward **Hampton Inn Times Square Central**.
+And Emergency target is $6,000 (we can put that in Balances!C2).
 
-If your priority is **minimizing cost** and you’re okay with something more basic and busy, **Row NYC** is acceptable.
+In H7: “Emergency Fund Remaining to Target”
+- H7: `=MAX(0, Balances!C2 - Balances!B2)`
 
-Given your budget is $250 and you mentioned wanting to be close but not super noisy, **I’d recommend Hampton Inn Times Square Central** as the safer, more comfortable choice.
+Funds to Emergency this month (from Groceries):
+In H8: “Groceries → Emergency”
+- H8: `=MIN(H6, H7)`
 
-### Human: Are there any smaller, more “boutique” 3-star options within a half mile that I might be missing?
-### Assistant: There are definitely smaller and more “boutique‑ish” spots in that radius, but without live access I can’t generate a complete, up‑to‑the‑minute list or guarantee I’m catching every single one. I can, though, mention some **commonly known, more intimate or boutique‑leaning options** roughly within a 0.5‑mile walk of Times Square:
+Funds to Long-term savings:
+In H9: “Groceries → Long-term”
+- H9: `=MAX(0, H6 - H8)`
 
-1. **Hotel Mela Times Square (already on our list)**  
-   - Feels more like a smaller city hotel than a huge chain property.
+Now, assign those to the categories:
 
-2. **The Belvedere Hotel**  
-   - Location: Around W 48th St between 8th & 9th Aves.  
-   - Distance: ~0.4–0.5 miles (9–10 minutes).  
-   - Not ultra‑luxury but more of a “neighborhood” feel, slightly away from the glare of Times Square.
+Emergency fund (row 9) – Reallocation In (F9):
+- F9: `=H8`
 
-3. **The Pearl Hotel**  
-   - Location: Around W 49th St near 8th Ave.  
-   - Distance: ~0.4 miles.  
-   - Smaller size, often reviewed as quiet for the area.
+Long-term savings (row 10) – Reallocation In (F10):
+- F10: `=H9`
 
-4. **The Edison Hotel**  
-   - Location: Just off Times Square, W 47th near Broadway.  
-   - Distance: ~0.2–0.25 miles.  
-   - Feels somewhat more characterful/old‑NYC than a lot of chains, though it’s still fairly large.
+Groceries – Reallocation Out already has E4 = H4 (to cover fun overspend). The remainder of groceries under just flows via H6, H8, H9 as additional Reallocation Out if you want to show it explicitly, or you treat it as “planned contribution” happening via Emergency and Long-term.
 
-5. **Pod Times Square**  
-   - Location: Around 42nd St & 9th Ave.  
-   - Distance: ~0.4–0.45 miles (8–10 minutes).  
-   - Very compact rooms but modern and design‑focused; can feel more “boutique budget.”
+If you want Groceries’ Reallocation Out to reflect all giving:
+- E4: `=H4 + H6`  
+  (H4 to cover fun overspend + H6 to be pushed to savings)
 
-Some of these edge into 3.5‑star territory and exact star labels vary by site. Also, their **pricing can swing a lot**—some nights they’re great value under $250, other nights they’re much higher.
+Then Final Budget (column G) for each row:
+- G2: `=B2 + F2 - E2`  and copy down.
 
-If you’d like, you could:
+This is a lot of moving parts. Before you wire the whole thing, do you want:
+- A simpler version (e.g., don’t distinguish between Emergency and Long-term; just send all extra to a “Savings” pot)?  
+or  
+- To proceed with this detailed version and I’ll rewrite everything in a compact, “paste directly into Google Sheets” style?
 
-1. Check these names on your booking site with the same filters.  
-2. Compare their total price to Hampton Inn Times Square Central.  
+---
 
-If you tell me which ones are under $250 and available, I can help you weigh them against Hampton in terms of noise, room size, and overall feel.
+### Human: This is already getting a bit complicated. Could we try a simpler approach where:
+- Groceries extra automatically goes 100% to Emergency fund until it hits target
+- After that, 100% to Long-term
+- Overspending in Eating out/Fun just pulls from Extra debt payments (skip groceries for that part)?
 
-### Human: I checked, and The Pearl and The Belvedere are both over $300 tonight. Can you find every boutique or small hotel under $250 within a half mile of Times Square?
-### Assistant: I can’t reliably produce **every** boutique or small hotel under $250 within that exact radius, because:
+I’d like formulas I can realistically maintain.
 
-- I don’t have live access to all hotels, their current rates, or an up‑to‑date geocoded database.  
-- New properties open, some rebrand, and prices change daily.
+### Assistant: That’s a good idea and much more maintainable. Let’s simplify the rules:
 
-What I can do is **approximate** by:
+New rules:
+1) Underspending in Groceries:
+   - 100% goes to Emergency fund until it hits $6,000
+   - After that, 100% goes to Long-term savings
 
-- Listing a few additional smaller or boutique‑leaning options that are *commonly* in that radius.  
-- Suggesting a systematic way for you to catch the ones I can’t see.
+2) Overspending in Eating out or Fun:
+   - Automatically reduces Extra debt payments (no groceries involvement)
 
-Here are a few more names that sometimes fit your criteria (roughly within ~0.5 miles):
+We can keep the same basic sheet layout, but the logic will be much leaner.
 
-- **Pod Times Square** (mentioned) – compact, modern, a bit west but walkable.  
-- **Hotel St. James** – older budget property very close to Times Square; simple, not fancy, but central.  
-- **Hotel Shocard** – small, near Times Square / Theater District.  
-- **The Time New York** – more 4★ design/boutique, but if there’s a sale it might dip close to your range.  
-- **Riu Plaza Times Square** – larger but has more of a modern feel; sometimes prices competitively.
+Assume:
 
-However, I’m still **not** able to confirm which of these are **under $250 tonight** or guarantee that I’ve not missed any.
+Sheet “Budget”
+- Columns: A: Category, B: Planned, C: Actual, D: Difference (Planned - Actual), E: Reallocation Out, F: Reallocation In, G: Final Budget
 
-To really find *everything* that matches your constraints, the best approach is:
+Categories in rows:
+- A2: Rent
+- A3: Utilities
+- A4: Groceries
+- A5: Transport
+- A6: Subscriptions
+- A7: Eating out
+- A8: Fun/Shopping
+- A9: Emergency fund
+- A10: Long-term savings
+- A11: Extra debt payments
 
-1. In your booking site, set:  
-   - Area: Times Square / Theater District / Midtown West.  
-   - Distance filter: “Within 0.5 miles” of a central point if the site provides it, or use the map view.  
-   - Price: Max $250 per night.  
-   - Property type: “Hotels” (exclude hostels/apartments if you want).  
-2. Then zoom in on the **map** around Times Square and look for **smaller icons or properties with fewer reviews**—those are often the boutique or smaller hotels.  
+Step 1: Planned (B) and Actual (C) are as before.
 
-I can help you interpret any results you find, but I won’t be able to ensure a perfectly exhaustive list myself.
+Step 2: Difference (D)
+- D2: `=B2 - C2`  
+Copy down to D11.
 
-### Human: I really want you to just give me a complete list. Try again and be as thorough as possible.
-### Assistant: I can try to extend the list a bit further from what I know, but there are some hard limits I can’t overcome:
+Rule 1: Groceries under → Emergency, then Long-term
 
-- I don’t have real‑time access to a **comprehensive, location‑aware hotel database**.  
-- I also can’t query APIs or scrape maps, so I’m relying on static knowledge and memory, which will never be 100% complete for a dense area like Times Square.
+Groceries underspend (only if positive):
+- In, say, H2: “Groceries Underspend”
+  - H2: `=MAX(0, D4)`   (since D4 is Groceries row)
 
-If I stretch beyond the hotels I’ve already mentioned, I can add some more **likely candidates** in the general vicinity:
+Emergency remaining to target:
+- On “Balances” sheet:
+  - Balances!A2: “Emergency Fund”
+  - Balances!B2: 2200       (current balance)
+  - Balances!C2: 6000       (target)
+- Back on Budget:
+  - H3: `=MAX(0, Balances!C2 - Balances!B2)`
 
-- **Econo Lodge Times Square** (or similarly branded budget properties around 41st–47th St, 8th–9th Ave).  
-- **Comfort Inn / Holiday Inn Express / Fairfield Inn**–type smaller chain hotels scattered within a few blocks of Times Square.  
-- **Various small “Times Square”–branded inns or boutique hotels** that might not be widely known internationally but appear in booking engines (e.g., “XYZ at Times Square”, “Boutique Hotel Times Square West”).
+Amount from Groceries → Emergency:
+- H4: `=MIN(H2, H3)`
 
-But any list I give you will be:
+Amount from Groceries → Long-term:
+- H5: `=MAX(0, H2 - H4)`
 
-- **Incomplete** (I will miss some), and  
-- **Potentially inaccurate** for tonight’s price and even current branding.
+Assign to categories:
 
-Given how many hotels cluster in that area, continuing to expand a partial, memory‑based list is likely to produce *diminishing returns* and still won’t meet your request for **complete coverage**.
+Groceries (row 4):
+- E4 (Reallocation Out): `=H2`  (all underspend leaves Groceries)
 
-If comprehensive coverage is critical, the only truly reliable path is:
+Emergency fund (row 9):
+- F9 (Reallocation In): `=H4`
 
-1. Use a booking platform or Google Maps with:  
-   - Location: Times Square (or search “hotels near Times Square”).  
-   - Filter: Price ≤ $250, 3–4 stars if desired.  
-   - Then scan the **map** within a 0.5‑mile radius.  
+Long-term savings (row 10):
+- F10 (Reallocation In): `=H5`
 
-I can absolutely help you **evaluate** and narrow down choices once you have that list, but I won’t be able to produce a fully exhaustive one myself, no matter how many times we try.
+Rule 2: Fun overspending reduces Extra debt
 
-### Human: Okay, then help me design a very quick step-by-step search on Google Maps to catch as many as possible near Times Square within my budget.
-### Assistant: Here’s a focused, quick workflow you can use in **Google Maps** to catch as many suitable hotels as possible:
+Overspend in Eating out and Fun:
+- H6: “Eating Out Overspend”  
+  - H6: `=MAX(0, -D7)`
+- H7: “Fun Overspend”  
+  - H7: `=MAX(0, -D8)`
+- H8: “Total Fun Overspend”  
+  - H8: `=H6 + H7`
 
-1. **Open Google Maps**  
-   - On desktop or mobile app.
+That entire H8 amount will come out of Extra debt payments.
 
-2. **Search for “Times Square”**  
-   - Tap or click on Times Square as the map’s center.
+Extra debt payments (row 11):
+- E11 (Reallocation Out): `=H8`
 
-3. **Search nearby for hotels**  
-   - In the search bar, type: **“hotels”** and press Enter.  
-   - You should see a cluster of red markers around Times Square.
+Eating out (row 7) and Fun (row 8) – Reallocation In:
+We’ll send support in proportion to how much each overspent:
 
-4. **Set a rough 0.5‑mile radius**  
-   - Zoom the map so Times Square is roughly in the center.  
-   - Use the scale bar (usually bottom right) to estimate about **0.5 miles** from the center.  
-   - Try not to zoom out too far; keep the immediate Midtown/Times Square area filling most of your screen.
+- I2: “Total Fun Overspend” (can just link)  
+  - I2: `=H8`
 
-5. **Use filters (if available)**  
-   - Tap/click **Filters** (or similar):  
-     - Price: Slide the max to about **$250** or the nearest lower step.  
-     - Rating: Optionally set **Guest rating ≥ 3.5–4.0** (Google user reviews).  
-   - Apply filters.
+Eating out Reallocation In (F7):
+- F7: `=IF(I2=0,0, H8 * (H6 / I2))`
 
-6. **Scan systematically**  
-   - Start at the **center (Times Square)** and mentally divide the map into quadrants:  
-     - NE (toward 6th Ave & 50s)  
-     - NW (toward 8th/9th Ave & 50s)  
-     - SE (toward Bryant Park / 6th Ave & lower 40s)  
-     - SW (toward 9th Ave & 40s)  
-   - In each quadrant, tap each hotel marker and note:  
-     - Name  
-     - Approx nightly price (if Google shows it)  
-     - Star rating / user rating.  
+Fun Reallocation In (F8):
+- F8: `=IF(I2=0,0, H8 * (H7 / I2))`
 
-7. **Shortlist candidates**  
-   - Build a quick text note (or screenshot) of any hotel that is:  
-     - Under or around **$250** for your date.  
-     - Within the visual 0.5‑mile circle from Times Square.  
-     - Looks smaller or more boutique (not giant towers with thousands of rooms), if that’s your preference.
+Final Budget (G) for each category:
+- G2: `=B2 + F2 - E2`  
+Copy down to G11.
 
-8. **Cross‑check on a booking site**  
-   - Take your shortlist and check each on Booking.com or a similar site to confirm:  
-     - Final total price (with taxes/fees).  
-     - Free cancellation vs. nonrefundable.  
-     - Room type (some cheaper prices may be for very small rooms).
+This way:
+- You only manually enter Actual (C).
+- Differences, reallocation amounts, and final budgets update automatically.
+- Rules are simple and entirely driven by:
+  - Groceries underspend
+  - Target for Emergency Fund
+  - Overspend in Eating out/Fun
 
-If you want, you can paste back a list of 3–5 hotels that caught your eye (names only), and I’ll help you rank them quickly for noise level, comfort, and value, given what we’ve already discussed.
+Would you like me to collapse these into a single “ready-to-paste” block of formulas with exact cell references, or do you prefer this step‑by‑step form so you can adapt it?
+
+---
+
+### Human: A ready-to-paste version would be great, but I’m getting a bit lost in all the helper cells (H and I columns). Is there a way to avoid too many helper cells and just use formulas directly in E and F? Or is that going to be too messy?
+
+### Assistant: It’s possible to collapse most of the helper logic into the E and F columns, but the formulas will get longer and harder to read/debug. Given you want something maintainable, I’d suggest a middle ground:
+
+- Use a few clearly labeled helper cells (maybe on a separate “Logic” sheet) so your main Budget sheet stays clean.
+- Keep E and F formulas short, referencing the helper cells.
+
+If we try to do everything inline, you’ll end up with formulas like:
+
+`=IF(SUM(MAX(0,-$D$7),MAX(0,-$D$8))=0,0, SUM(MAX(0,-$D$7),MAX(0,-$D$8)) * (MAX(0,-D7) / SUM(MAX(0,-$D$7),MAX(0,-$D$8))))`
+
+which are painful to maintain.
+
+Given that, I’d recommend:
+
+Sheet “Logic”
+- A1: GroceriesUnderspend
+- B1: `=MAX(0, Budget!D4)`
+- A2: EmergencyRemaining
+- B2: `=MAX(0, Balances!C2 - Balances!B2)`
+- A3: GroceriesToEmergency
+- B3: `=MIN(B1, B2)`
+- A4: GroceriesToLongTerm
+- B4: `=MAX(0, B1 - B3)`
+- A5: EatingOverspend
+- B5: `=MAX(0, -Budget!D7)`
+- A6: FunOverspend
+- B6: `=MAX(0, -Budget!D8)`
+- A7: TotalFunOverspend
+- B7: `=B5 + B6`
+
+Then on “Budget”:
+
+Reallocation Out:
+- E4 (Groceries): `=Logic!B1`
+- E11 (Extra debt): `=Logic!B7`
+
+Reallocation In:
+- F7 (Eating out):  
+  `=IF(Logic!B7=0, 0, Logic!B7 * (Logic!B5 / Logic!B7))`
+  (this simplifies to `=Logic!B5`, but using the same pattern keeps logic clear)
+- F8 (Fun):  
+  `=IF(Logic!B7=0, 0, Logic!B7 * (Logic!B6 / Logic!B7))` (effectively `=Logic!B6`)
+- F9 (Emergency fund): `=Logic!B3`
+- F10 (Long-term savings): `=Logic!B4`
+
+Final Budget:
+- G2: `=B2 + F2 - E2` and copy down.
+
+This keeps everything transparent:
+- Logic sheet: 7 helper values with short formulas
+- Budget sheet: E and F columns stay readable.
+
+If you strongly prefer everything on one sheet, I can try to write a compact version, but there’s a real risk it’ll feel opaque to you in a month. Do you want to go with this two-sheet approach, or should I attempt a fully in-line version knowing it will be more fragile?
+
+---
+
+### Human: Let’s stick with the two-sheet approach then. One more thing: my income fluctuates. Can we also have categories automatically scale if income is lower or higher than $4,200? Or is that going to make this unmanageable?
+
+### Assistant: We can add income-based scaling, but it will add another layer of complexity. Since you’re already feeling some cognitive load, I’d suggest a very simple scaling rule:
+
+- Non-negotiables (Rent, Utilities, Transport, Subscriptions, minimum Groceries) stay fixed.
+- “Flexible” categories (Eating out, Fun, Extra debt, maybe part of Savings) scale up or down with income relative to a base income of $4,200.
+
+A minimal approach:
+
+1) Decide which categories scale and which don’t. Example:
+   - Fixed: Rent, Utilities, Groceries (500), Transport, Subscriptions, Emergency fund (300)
+   - Scaled: Long-term savings, Extra debt, Eating out, Fun
+
+2) Compute an “income factor”:
+   - On Balances or Logic:
+     - A8: BaseIncome
+       - B8: 4200
+     - A9: ActualIncome
+       - B9: (you enter your actual monthly income)
+     - A10: IncomeFactor
+       - B10: `=B9 / B8`
+
+3) For scaled categories, Planned = BasePlanned * IncomeFactor.
+
+For example, if your base planned values are:
+- Eating out (base): 250
+- Fun (base): 250
+- Long-term savings (base): 400
+- Extra debt (base): 370
+
+Then in Budget!B7 (Eating out planned):
+- `=250 * Logic!B10`
+
+Budget!B8 (Fun):
+- `=250 * Logic!B10`
+
+Budget!B10 (Long-term savings):
+- `=400 * Logic!B10`
+
+Budget!B11 (Extra debt):
+- `=370 * Logic!B10`
+
+The fixed categories stay as numbers (e.g., Rent 1600, etc.).
+
+This keeps the scaling logic very light: change ActualIncome each month, and the flexible categories adjust automatically.
+
+Given where we are now, we’re layering quite a bit:
+- Reallocation of underspend/overspend
+- Emergency vs Long-term targeting
+- Income-based scaling
+
+If we push further (e.g., multiple income tiers, changing min groceries, dynamic emergency target), it may become too hard to maintain without frequent debugging.
+
+Would you like to:
+- Implement this simple scaling and then stop here,  
+or  
+- Skip income scaling for now, get the reallocation working smoothly for a month or two, and revisit scaling once you’re comfortable?
+
+---
+
+### Human: Let’s add the simple scaling and then stop. Could you summarize the final setup in one place so I can implement it step by step?
+
+### Assistant: Here’s a concise step-by-step summary of the final setup.
+
+1) Sheets you’ll have
+- Budget
+- Balances
+- Logic
+
+2) Balances sheet (static info and inputs)
+- A1: Label | B1: Value | C1: Extra (for target)
+- A2: Emergency Fund | B2: 2200 | C2: 6000
+- A3: Long-term Savings | B3: 3800 | (C3 empty or use later)
+- A8: BaseIncome | B8: 4200
+- A9: ActualIncome | B9: [enter your monthly income each month]
+
+3) Logic sheet
+Labels in column A, formulas in column B:
+
+- A1: GroceriesUnderspend  
+  - B1: `=MAX(0, Budget!D4)`
+
+- A2: EmergencyRemaining  
+  - B2: `=MAX(0, Balances!C2 - Balances!B2)`
+
+- A3: GroceriesToEmergency  
+  - B3: `=MIN(B1, B2)`
+
+- A4: GroceriesToLongTerm  
+  - B4: `=MAX(0, B1 - B3)`
+
+- A5: EatingOverspend  
+  - B5: `=MAX(0, -Budget!D7)`
+
+- A6: FunOverspend  
+  - B6: `=MAX(0, -Budget!D8)`
+
+- A7: TotalFunOverspend  
+  - B7: `=B5 + B6`
+
+- A8: BaseIncome  
+  - B8: `=Balances!B8`
+
+- A9: ActualIncome  
+  - B9: `=Balances!B9`
+
+- A10: IncomeFactor  
+  - B10: `=IF(B8=0,1,B9/B8)`
+
+4) Budget sheet
+
+Headers (row 1):
+- A1: Category
+- B1: Planned
+- C1: Actual
+- D1: Difference
+- E1: Reallocation Out
+- F1: Reallocation In
+- G1: Final Budget
+
+Categories (column A):
+- A2: Rent
+- A3: Utilities
+- A4: Groceries
+- A5: Transport
+- A6: Subscriptions
+- A7: Eating out
+- A8: Fun/Shopping
+- A9: Emergency fund
+- A10: Long-term savings
+- A11: Extra debt payments
+
+Planned amounts (column B)
+
+Fixed categories (enter base amounts directly):
+- B2: 1600
+- B3: 250
+- B4: 500
+- B5: 200
+- B6: 80
+- B9: 300   (Emergency fund base)
+(You can keep B9 fixed, or also scale it if you wish.)
+
+Scaled categories:
+- B7 (Eating out): `=250 * Logic!B10`
+- B8 (Fun/Shopping): `=250 * Logic!B10`
+- B10 (Long-term savings): `=400 * Logic!B10`
+- B11 (Extra debt payments): `=370 * Logic!B10`
+
+Actual amounts (column C)
+- You input these manually as transactions add up.
+
+Difference (column D)
+- D2: `=B2 - C2`  
+Copy D2 down to D11.
+
+Reallocation Out (column E)
+- E2, E3, E5, E6, E7, E8, E9, E10: `=0` (or leave blank)
+- E4 (Groceries): `=Logic!B1`
+- E11 (Extra debt payments): `=Logic!B7`
+
+Reallocation In (column F)
+- F2, F3, F4, F5, F6, F11: `=0` (or leave blank)
+- F7 (Eating out): `=Logic!B5`
+- F8 (Fun/Shopping): `=Logic!B6`
+- F9 (Emergency fund): `=Logic!B3`
+- F10 (Long-term savings): `=Logic!B4`
+
+Final Budget (column G)
+- G2: `=B2 + F2 - E2`  
+Copy down to G11.
+
+5) How to use it each month
+1. On Balances:
+   - Update B2 (Emergency Fund balance) and B3 (Long-term Savings balance) at the start of the month.
+   - Enter ActualIncome in B9.
+2. On Budget:
+   - Planned amounts in B will auto-update for the scaled categories.
+   - As the month goes on, fill in Actual (C).
+   - Differences (D), reallocations (E/F), and Final Budget (G) will update automatically.
+
+This setup gives you:
+- Automatic redirection of Groceries underspend to Emergency, then Long-term.
+- Automatic reduction of Extra debt when Eating out/Fun overspend.
+- Automatic scaling of “fun” and some savings based on actual income.
+
+If you’d like, next time we can refine or debug specific formulas after you’ve tried entering real data for a month, but this is a good stopping point for now so it doesn’t become unwieldy.

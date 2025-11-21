@@ -1,1 +1,749 @@
-I apologize, but I'm having trouble generating a response right now.
+### Human: Refactor my file tree and deduplicate documents
+### Assistant: I can help you plan and script that, but I can’t directly operate on your files, so we’ll need to design the structure and then use commands/scripts that you can run locally.
+
+To get started, can you tell me:
+1. What OS you’re on (Windows, macOS, Linux)?
+2. Roughly how the current tree is organized (by date, by project, by “Misc”, etc.)?
+3. How you’d *like* it organized (e.g., top-level by client, then by project, then by document type)?
+4. What “duplicate” means for you:
+   - Exact same content (even if file names differ)?
+   - Or same name and similar size/date is enough?
+
+If you can also paste a *small sample* of your current tree (10–30 paths), I can propose a concrete new structure and show example commands / script snippets.
+### Human: I'm on Windows. It's a mess right now, there are "Old", "New", "Desktop backup", "Stuff", "Clients" and then random things everywhere. I want it by client, then by project, then have docs, images, etc. Duplicates should be exact same content. I can paste a bit of the tree:
+C:\Users\Me\Desktop\Old stuff\Client A\proposal-final.docx
+C:\Users\Me\Desktop\New\A client\Proposal v2.docx
+C:\Users\Me\Desktop\Clients\A\Project X\Images\logo.png
+C:\Users\Me\Desktop\Backup\Desktop\Sept\client a\project x\Logo.PNG
+C:\Users\Me\Documents\Misc\clientA_proposal_final.docx
+### Assistant: Thanks, that’s enough to start.
+
+Goal:
+- New structure:  
+  `C:\Clients\<ClientName>\<ProjectName>\[Docs|Images|Other]`
+
+From your sample, I see:
+- Client A / A client / client a → same client, inconsistent naming.
+- Project X / project x implied from paths.
+- Duplicates:
+  - `logo.png` vs `Logo.PNG` likely same image but we’d confirm by content.
+  - `proposal-final.docx`, `Proposal v2.docx`, `clientA_proposal_final.docx` may be versions, not necessarily duplicates.
+
+First, let’s define some conventions:
+- Client folder names: `Client A`, `Client B`, etc., with consistent casing.
+- Project folder names: `Project X`, etc.
+- Inside each project:
+  - `Docs\`
+  - `Images\`
+  - `Other\`
+
+Proposed target paths for your examples:
+- `C:\Clients\Client A\Project X\Docs\proposal-final.docx`
+- `C:\Clients\Client A\Project X\Docs\Proposal v2.docx`
+- `C:\Clients\Client A\Project X\Images\logo.png`
+- `C:\Clients\Client A\Project X\Images\logo.png` (deduped from Logo.PNG if they’re identical)
+- `C:\Clients\Client A\Project X\Docs\clientA_proposal_final.docx`
+
+To actually do this on Windows, I suggest using PowerShell:
+
+1. **Create base structure:**
+```powershell
+New-Item -ItemType Directory -Path "C:\Clients" -Force | Out-Null
+```
+
+2. **Plan for deduplication by content:**
+   - Compute hashes (e.g., SHA256) for all files.
+   - Group by hash.
+   - Keep one copy, move others to a `Duplicates` folder or delete after review.
+
+Before I generate a full script, I need two things:
+1. Is `C:\Clients` an acceptable root for the new tree?
+2. Do you want to *move* files (so old copies disappear from the old locations) or *copy* then manually clean up?
+
+Once I know that, I’ll write a script that:
+- Scans your messy folders,
+- Tries to infer client and project from folder names (with some rules),
+- Moves files into the new structure,
+- Deduplicates by hash.
+### Human: C:\Clients is fine. I want to move, not copy, I don't have enough disk space. Go ahead and write the script. I actually have *thousands* of files spread across "Desktop", "Documents", "Downloads", and an external drive E:\Archive. I'd like everything unified under C:\Clients following that structure, and duplicates removed.
+### Assistant: Understood. I’ll outline a PowerShell approach that you can adapt, but because I can’t see your whole tree or naming patterns, I’ll need you to tweak the “client/project detection” rules. I’ll start with something generic and we can refine.
+
+High-level plan:
+1. Define source roots:
+   - `C:\Users\Me\Desktop`
+   - `C:\Users\Me\Documents`
+   - `C:\Users\Me\Downloads`
+   - `E:\Archive`
+2. For each file:
+   - Guess `Client` and `Project` from its path.
+   - Classify as `Docs`, `Images`, or `Other` by extension.
+   - Compute content hash.
+   - If that hash was seen before, treat as duplicate.
+   - Otherwise move to `C:\Clients\<Client>\<Project>\<Category>\`.
+3. Log everything to a CSV so you can recover from mistakes.
+
+Here’s a starting script. **Please test on a small subset first**, e.g., just `C:\Users\Me\Desktop\Old stuff`.
+
+```powershell
+$ErrorActionPreference = "Stop"
+
+# 1. Configuration
+$targetRoot = "C:\Clients"
+$sourceRoots = @(
+    "C:\Users\Me\Desktop",
+    "C:\Users\Me\Documents",
+    "C:\Users\Me\Downloads",
+    "E:\Archive"
+)
+
+$docExt  = @(".doc", ".docx", ".pdf", ".xls", ".xlsx", ".ppt", ".pptx", ".txt")
+$imgExt  = @(".png", ".jpg", ".jpeg", ".gif", ".tif", ".tiff", ".bmp", ".svg")
+$hashAlg = "SHA256"
+
+$logFile       = "C:\Clients\migration-log.csv"
+$dupFolderRoot = "C:\Clients\Duplicates"
+
+# Ensure base directories exist
+New-Item -ItemType Directory -Path $targetRoot -Force | Out-Null
+New-Item -ItemType Directory -Path $dupFolderRoot -Force | Out-Null
+
+# Prepare log
+"SourcePath,TargetPath,Action,Reason,Hash" | Set-Content -Path $logFile
+
+# 2. Helper: classify category by extension
+function Get-CategoryFromExtension {
+    param([string]$ext)
+    if ($docExt -contains $ext) { return "Docs" }
+    elseif ($imgExt -contains $ext) { return "Images" }
+    else { return "Other" }
+}
+
+# 3. Helper: naive client/project extraction from path
+function Get-ClientAndProject {
+    param([string]$fullPath)
+
+    # Split on backslashes and remove empty parts
+    $parts = $fullPath.Split('\') | Where-Object { $_ -ne "" }
+
+    # Try to detect client as the first segment that contains "client" (case-insensitive)
+    $client = $null
+    $project = $null
+
+    for ($i = 0; $i -lt $parts.Count; $i++) {
+        if ($parts[$i] -match "(?i)client") {
+            $client = $parts[$i] -replace "(?i)client", "" -replace "[^a-zA-Z0-9 ]", "" -trim()
+            if (-not $client) { $client = "Client_Unknown" }
+            # Try to use next part as project, if any
+            if ($i + 1 -lt $parts.Count) {
+                $project = $parts[$i + 1]
+            }
+            break
+        }
+    }
+
+    if (-not $client) { $client = "Client_Unknown" }
+    if (-not $project) { $project = "Project_Unknown" }
+
+    # Normalize: Title Case
+    $client  = (Get-Culture).TextInfo.ToTitleCase($client.ToLower())
+    $project = (Get-Culture).TextInfo.ToTitleCase($project.ToLower())
+
+    return [PSCustomObject]@{ Client = $client; Project = $project }
+}
+
+# 4. Build hash index to detect duplicates
+$hashIndex = @{}
+
+foreach ($root in $sourceRoots) {
+    if (-not (Test-Path $root)) {
+        Write-Host "Skipping missing root: $root"
+        continue
+    }
+
+    Write-Host "Scanning $root ..."
+    Get-ChildItem -Path $root -Recurse -File -ErrorAction SilentlyContinue | ForEach-Object {
+        $file = $_
+
+        try {
+            $hash = (Get-FileHash -Path $file.FullName -Algorithm $hashAlg).Hash
+
+            if ($hashIndex.ContainsKey($hash)) {
+                # Duplicate
+                $relDupFolder = Split-Path -Path $file.FullName -Leaf
+                $dupTargetDir = Join-Path $dupFolderRoot $hash
+                New-Item -ItemType Directory -Path $dupTargetDir -Force | Out-Null
+
+                $dupTargetPath = Join-Path $dupTargetDir $relDupFolder
+
+                Move-Item -Path $file.FullName -Destination $dupTargetPath -Force
+
+                "$($file.FullName),$dupTargetPath,Duplicate,Moved to dup folder,$hash" |
+                    Add-Content -Path $logFile
+            }
+            else {
+                # First time we've seen this hash; move into new structure
+                $info = Get-ClientAndProject -fullPath $file.FullName
+
+                $ext      = [System.IO.Path]::GetExtension($file.Name).ToLower()
+                $category = Get-CategoryFromExtension -ext $ext
+
+                $clientDir  = Join-Path $targetRoot $info.Client
+                $projectDir = Join-Path $clientDir $info.Project
+                $catDir     = Join-Path $projectDir $category
+
+                New-Item -ItemType Directory -Path $catDir -Force | Out-Null
+
+                $targetPath = Join-Path $catDir $file.Name
+
+                Move-Item -Path $file.FullName -Destination $targetPath -Force
+
+                $hashIndex[$hash] = $targetPath
+
+                "$($file.FullName),$targetPath,Moved,Unique,$hash" |
+                    Add-Content -Path $logFile
+            }
+        }
+        catch {
+            "$($file.FullName),,Skipped,Error: $($_.Exception.Message)," |
+                Add-Content -Path $logFile
+        }
+    }
+}
+```
+
+This is intentionally “naive” about clients/projects because I don’t fully know your naming. We can improve that logic.
+
+Before running on everything:
+1. Change `$sourceRoots` to only `"C:\Users\Me\Desktop\Old stuff"` and test.
+2. After running, inspect:
+   - A few `C:\Clients\Client_Unknown` folders.
+   - The `migration-log.csv`.
+   - `C:\Clients\Duplicates`.
+
+If you paste back a snippet of the log or a few misclassified examples, I can help refine the `Get-ClientAndProject` function.
+### Human: I ran a test on "Old stuff" and it's not really getting the clients right. I don't always use the word "client" in folder names. Sometimes it's just the company name, sometimes a project codename, sometimes stuff is under "Work" or "Projects". I want you to infer the right client/project from a larger sample of paths so the rules are smarter. Here's a bigger chunk (this is only part of it, there are many more like this):
+C:\Users\Me\Desktop\Old stuff\Client A\proposal-final.docx
+C:\Users\Me\Desktop\Old stuff\ClientA\contracts\Master Agreement.docx
+C:\Users\Me\Desktop\Old stuff\Work\Acme Corp\Project Phoenix\Designs\homepage.psd
+C:\Users\Me\Desktop\Old stuff\Work\Acme\phoenix\Screenshots\home-1.png
+C:\Users\Me\Desktop\Old stuff\Projects\Phoenix\Acme\docs\spec-v1.docx
+C:\Users\Me\Desktop\Old stuff\Projects\Internal\random-notes.txt
+C:\Users\Me\Desktop\Old stuff\Clients\B Company\Website\Images\hero.jpg
+C:\Users\Me\Desktop\Old stuff\Clients\B Co\Website\Docs\brief.pdf
+C:\Users\Me\Desktop\Old stuff\Clients\BCompany\Brand\logo.ai
+C:\Users\Me\Desktop\Old stuff\Misc\old\AcmeCorp_logo_final2.png
+### Assistant: This helps. I can’t see your *entire* tree, but I can infer some patterns from this sample and make `Get-ClientAndProject` smarter. It still won’t be perfect for every edge case, but we can raise the hit rate.
+
+From your examples:
+
+- “Client A” appears as:
+  - `Client A`
+  - `ClientA`
+- “Acme” appears as:
+  - `Acme Corp`
+  - `Acme`
+  - `AcmeCorp`
+- “B Company” appears as:
+  - `B Company`
+  - `B Co`
+  - `BCompany`
+
+Also:
+- Sometimes path structure is `Work\<Client>\<Project>\...`
+- Sometimes `Projects\<Project>\<Client>\...`
+- Sometimes `Clients\<Client>\<Project>\...`
+- Sometimes client name appears only in a deep folder name or filename (e.g., `AcmeCorp_logo_final2.png`).
+
+We can:
+1. Look for known client-like tokens from a configurable list.
+2. Use folder context (“Work”, “Clients”, “Projects”) to guess which segment is client vs project.
+3. Fall back to “Unknown” only when we can’t find a usable token.
+
+Because I have limited view, I’ll propose:
+- You maintain a small mapping of normalized client names and common aliases.
+- The script uses that mapping to normalize.
+
+Example mapping:
+
+```powershell
+$clientAliases = @{
+    "Client A"  = @("client a", "clienta")
+    "Acme Corp" = @("acme", "acme corp", "acmecorp")
+    "B Company" = @("b company", "b co", "bcompany")
+}
+```
+
+Then update `Get-ClientAndProject`:
+
+```powershell
+# Replace the previous Get-ClientAndProject with this:
+
+function Normalize-ClientName {
+    param([string]$token, [hashtable]$aliases)
+
+    $t = $token.ToLower()
+
+    foreach ($canonical in $aliases.Keys) {
+        foreach ($alias in $aliases[$canonical]) {
+            if ($t -eq $alias) {
+                return $canonical
+            }
+        }
+    }
+
+    return $null
+}
+
+function Get-ClientAndProject {
+    param(
+        [string]$fullPath,
+        [hashtable]$aliases
+    )
+
+    $parts = $fullPath.Split('\') | Where-Object { $_ -ne "" }
+
+    $client = $null
+    $project = $null
+
+    # 1. Try structured patterns: Work\<Client>\<Project>, Clients\<Client>\<Project>, Projects\<Project>\<Client>
+    for ($i = 0; $i -lt $parts.Count; $i++) {
+        $p = $parts[$i].ToLower()
+
+        if ($p -eq "work" -or $p -eq "clients") {
+            if ($i + 1 -lt $parts.Count) {
+                $clientToken = $parts[$i + 1]
+                $normClient = Normalize-ClientName -token $clientToken -aliases $aliases
+                $client = $normClient ? $normClient : $clientToken
+
+                if ($i + 2 -lt $parts.Count) {
+                    $project = $parts[$i + 2]
+                }
+                break
+            }
+        }
+        elseif ($p -eq "projects") {
+            if ($i + 1 -lt $parts.Count) {
+                $project = $parts[$i + 1]
+            }
+            if ($i + 2 -lt $parts.Count) {
+                $clientToken = $parts[$i + 2]
+                $normClient = Normalize-ClientName -token $clientToken -aliases $aliases
+                $client = $normClient ? $normClient : $clientToken
+            }
+            break
+        }
+    }
+
+    # 2. If still no client, scan all parts for a known alias (e.g., AcmeCorp_logo...)
+    if (-not $client) {
+        foreach ($seg in $parts) {
+            $segLower = $seg.ToLower()
+            foreach ($canonical in $aliases.Keys) {
+                foreach ($alias in $aliases[$canonical]) {
+                    if ($segLower -like "*$alias*") {
+                        $client = $canonical
+                        break
+                    }
+                }
+                if ($client) { break }
+            }
+            if ($client) { break }
+        }
+    }
+
+    if (-not $client) { $client = "Client_Unknown" }
+    if (-not $project) { $project = "Project_Unknown" }
+
+    $client  = (Get-Culture).TextInfo.ToTitleCase($client.ToLower())
+    $project = (Get-Culture).TextInfo.ToTitleCase($project.ToLower())
+
+    return [PSCustomObject]@{ Client = $client; Project = $project }
+}
+```
+
+And when you call it in the main loop, pass `$clientAliases`:
+
+```powershell
+# Define aliases near the top of the script
+$clientAliases = @{
+    "Client A"  = @("client a", "clienta")
+    "Acme Corp" = @("acme", "acme corp", "acmecorp")
+    "B Company" = @("b company", "b co", "bcompany")
+}
+
+# In the loop where you process each file:
+$info = Get-ClientAndProject -fullPath $file.FullName -aliases $clientAliases
+```
+
+This will:
+- Map `ClientA`, `client a` → `Client A`.
+- Map `Acme`, `AcmeCorp` → `Acme Corp`.
+- Map `BCompany`, `B Co` → `B Company`.
+- Use folder context when “Work/Clients/Projects” is present.
+- Fall back to scanning any segment for aliases.
+
+Because I only see a partial sample, I’m guessing at patterns. If a lot of your data doesn’t fit “Work/Clients/Projects”, we might need more rules, but that quickly becomes a custom data-cleaning project.
+
+Can you:
+1. Add the `$clientAliases` table with the real client names you care about.
+2. Replace `Get-ClientAndProject` as above.
+3. Re-run on a somewhat larger test set (still *not* the whole drive), then tell me:
+   - An example where it got client/project *right*.
+   - A couple where it got them *wrong* (with the logged SourcePath/TargetPath).
+
+With those concrete failures, I can see whether a small rule tweak helps, or whether we’re hitting the point where manual review is more efficient.
+### Human: I was hoping you could just look at all the paths and build that alias table and the rules yourself. I don't really know all the variations I've used; that's the whole problem. Can't you just infer all the client names automatically if I paste more of the tree? I can paste, like, 200–300 lines at a time.
+### Assistant: I can infer a *lot* from samples, but there are practical limits:
+
+- I only see what you paste, not your entire filesystem.
+- 200–300 lines at a time is enough to spot patterns, but if there are hundreds of clients and many spelling variants, it becomes guesswork.
+- Some paths (like `Projects\Internal\random-notes.txt`) are inherently ambiguous—there’s no reliable way to map that to a real-world client.
+
+That said, I’m willing to iterate a bit if you’re okay with some imperfection. Here’s a workable compromise:
+
+1. You paste 200–300 representative paths.
+2. I:
+   - Propose a candidate list of clients and plausible aliases.
+   - Suggest an updated alias table and rules.
+3. You scan that list and just correct obvious mistakes (e.g., merge or split a few).
+4. We repeat once or twice, then you run the script and manually fix the long tail.
+
+If you want to try that, paste a 200–300 line sample that:
+- Includes as many different clients as possible.
+- Includes both “clean” and “messy” paths.
+
+If manually pasting that much is too tedious or if you expect thousands of unique client-like names, it may be better to:
+- Generate a raw list with PowerShell on your machine:
+  ```powershell
+  Get-ChildItem -Path "C:\Users\Me\Desktop\Old stuff" -Recurse -Directory |
+    Select-Object -ExpandProperty FullName |
+    Out-File "C:\temp\folder-list.txt"
+  ```
+- Then edit/cluster that list locally in a spreadsheet or text editor, which gives you more control than I can have via copy/paste.
+
+Let me know which direction you prefer: we can do one or two inference rounds via pasted samples, or we can design a process for you to semi-automate alias creation on your side.
+### Human: Let's do the inference. Here's a chunk (this is only part of it, there are a lot more like these):
+
+[assume user pastes ~250 varied paths with many inconsistent client names, some personal stuff, internal projects, random downloads, etc.; we don't need to spell them all out, but it's clear they are messy and varied]
+### Assistant: Since I can’t actually see the 250 lines you just described, I’ll show you *how* I would process them and what you should expect, and you can adapt this to your real data.
+
+Conceptually, from a block of paths I would:
+1. Extract all folder names (tokens between `\`).
+2. Filter out obviously generic ones: `Old`, `New`, `Desktop`, `Backup`, `Work`, `Projects`, `Internal`, `Misc`, dates, etc.
+3. Cluster remaining tokens by similarity (e.g., `Acme`, `AcmeCorp`, `Acme Corp` → one cluster).
+4. Propose each cluster as a “client candidate”.
+
+Because I can’t run that clustering on your real 250-line sample directly, I’m limited to hand-crafted rules. If we keep trying to do this only via copy/paste, I will end up guessing more than you’d like, and you’ll still have to verify everything by hand.
+
+Given that constraint, here’s a more reliable workflow you can actually run locally, and I’ll help you interpret the output:
+
+1. **Extract folder names to a file (you run this):**
+```powershell
+$roots = @(
+    "C:\Users\Me\Desktop",
+    "C:\Users\Me\Documents",
+    "C:\Users\Me\Downloads",
+    "E:\Archive"
+)
+
+$allFolders = foreach ($r in $roots) {
+    if (Test-Path $r) {
+        Get-ChildItem -Path $r -Recurse -Directory -ErrorAction SilentlyContinue |
+            Select-Object -ExpandProperty FullName
+    }
+}
+
+$allFolders | Out-File "C:\temp\all-folders.txt"
+```
+
+2. **Roughly cluster similar names (you run, I’m giving the idea):**
+PowerShell can’t do “smart” clustering easily, but you can at least see frequency:
+
+```powershell
+Get-Content "C:\temp\all-folders.txt" |
+    ForEach-Object {
+        $_.Split('\')[-1].ToLower()
+    } |
+    Group-Object |
+    Sort-Object Count -Descending |
+    Out-File "C:\temp\folder-name-frequencies.txt"
+```
+
+Open `folder-name-frequencies.txt`; near the top:
+- You’ll see “real” client-like names repeated: `acme`, `acmecorp`, `acme corp`, `bcompany`, etc.
+- You’ll also see internal things: `internal`, `misc`, `downloads`, etc.
+
+3. **You quickly skim and decide which are clients.** For example, from that frequency file you might extract something like:
+
+```powershell
+$clientAliases = @{
+    "Acme Corp" = @("acme", "acmecorp", "acme corp")
+    "B Company" = @("bcompany", "b company", "b co")
+    "Client A"  = @("client a", "clienta")
+    # ...
+}
+```
+
+This *still* requires a little manual decision, but it’s far less work than you building it from memory, and more accurate than me guessing blindly from a partial paste.
+
+Given the limitations here (I can’t see or process your full 250-line paste as data), continuing to iterate purely via “paste more, I’ll guess more” is going to be inefficient for both of us and still end up with uncertain results.
+
+I recommend we:
+- Use the scripts above to generate `folder-name-frequencies.txt`.
+- You copy just the top ~50–100 lines of that file into this chat.
+- I’ll then:
+  - Turn that into a concrete `$clientAliases` table suggestion.
+  - Suggest a couple of additional rules (e.g., treating certain words as always “internal” or always “project”).
+
+If even that level of local scripting is uncomfortable, the realistic alternative is to:
+- Simplify: only classify by *very* obvious patterns (like explicit “Clients\<Name>” and “Work\<Client>”), and leave the rest as `Client_Unknown` / `Project_Unknown`.
+- Then do a round of manual drag-and-drop cleanup inside `C:\Clients` using File Explorer.
+
+Given how messy and idiosyncratic personal file trees get, there’s a point where a fully automatic, perfectly accurate client mapping just isn’t feasible without you being “in the loop” on the machine itself. We’re close to that point now, so I’d suggest we either:
+- Proceed with the “frequency file + alias table” approach, or
+- Accept a simpler rule set and plan for a manual pass afterward.
+
+Which one do you want to go with?
+### Human: I really wanted you to do most of the thinking. I can run commands but I'd prefer not to go through big text files and make decisions; that's what I'm trying to avoid. Is there any way you can just give me a full script that does *everything* with as few manual steps as possible, even if it's not perfect? I'd rather have 90% right automatically than spend hours in spreadsheets.
+### Assistant: I can give you a more opinionated, “do as much as possible automatically” script, but there are trade-offs:
+
+- It will guess clients and projects based on patterns and name similarity.
+- Some files will end up under `Client_Unknown` or misassigned; you’d have to live with that or manually fix them later.
+- It will still be limited by the information in the paths and filenames—no script can read your mind.
+
+Given your preference, I’ll:
+- Remove the need for a curated alias table.
+- Use heuristics based on:
+  - Folder context (`Work`, `Clients`, `Projects`, `Archive`, etc.).
+  - Repeated tokens along the path.
+  - Name patterns like `SomethingCorp`, `Something Co`, etc.
+- Still perform content-based deduplication.
+
+You can then:
+- Run it on everything (after a small test).
+- Accept that it’s “good enough” and clean up the worst mistakes manually.
+
+Here is such a heuristic-heavy script. It’s self-contained; you only need to adjust the `$sourceRoots` and maybe the lists of doc/image extensions.
+
+```powershell
+$ErrorActionPreference = "Stop"
+
+# --- CONFIG ---
+
+$targetRoot = "C:\Clients"
+$sourceRoots = @(
+    "C:\Users\Me\Desktop",
+    "C:\Users\Me\Documents",
+    "C:\Users\Me\Downloads",
+    "E:\Archive"
+)
+
+$docExt  = @(".doc", ".docx", ".pdf", ".xls", ".xlsx", ".ppt", ".pptx", ".txt")
+$imgExt  = @(".png", ".jpg", ".jpeg", ".gif", ".tif", ".tiff", ".bmp", ".svg", ".psd", ".ai")
+$hashAlg = "SHA256"
+
+$logFile       = "C:\Clients\migration-log.csv"
+$dupFolderRoot = "C:\Clients\Duplicates"
+
+New-Item -ItemType Directory -Path $targetRoot -Force | Out-Null
+New-Item -ItemType Directory -Path $dupFolderRoot -Force | Out-Null
+
+"SourcePath,TargetPath,Action,Reason,Hash" | Set-Content -Path $logFile
+
+# --- HELPERS ---
+
+function Get-CategoryFromExtension {
+    param([string]$ext)
+    if ($docExt -contains $ext) { return "Docs" }
+    elseif ($imgExt -contains $ext) { return "Images" }
+    else { return "Other" }
+}
+
+# Very heuristic: tries to pick a "most likely client" from folder names
+function Guess-Client {
+    param([string[]]$parts)
+
+    # Ignore generic words
+    $ignore = @(
+        "desktop","documents","downloads","old","new","backup",
+        "stuff","misc","internal","projects","project","work",
+        "clients","archive","temp","tmp","files","docs","images"
+    )
+
+    # Candidate tokens are folder names that aren't ignored and aren't too short
+    $candidates = $parts |
+        Where-Object {
+            $p = $_.ToLower()
+            ($ignore -notcontains $p) -and ($p.Length -ge 3)
+        }
+
+    if (-not $candidates -or $candidates.Count -eq 0) {
+        return "Client_Unknown"
+    }
+
+    # Heuristics:
+    # - If something looks like a company (contains corp, co, ltd, inc) -> strong candidate
+    $companyLike = $candidates | Where-Object {
+        $_.ToLower() -match "corp|co\b|company|ltd|inc"
+    }
+    if ($companyLike.Count -gt 0) {
+        return $companyLike[0]
+    }
+
+    # Otherwise, pick something near "Work" or "Clients" in the path
+    for ($i = 0; $i -lt $parts.Count; $i++) {
+        $p = $parts[$i].ToLower()
+        if ($p -eq "work" -or $p -eq "clients") {
+            if ($i + 1 -lt $parts.Count) {
+                $candidate = $parts[$i + 1]
+                if ($ignore -notcontains $candidate.ToLower()) {
+                    return $candidate
+                }
+            }
+        }
+    }
+
+    # Otherwise, just take the most "distinctive" candidate:
+    # longest name by length, as a rough proxy
+    $best = $candidates | Sort-Object { $_.Length } -Descending | Select-Object -First 1
+    return $best
+}
+
+function Guess-Project {
+    param([string[]]$parts, [string]$client)
+
+    $clientLower = $client.ToLower()
+    $ignore = @(
+        "desktop","documents","downloads","old","new","backup",
+        "stuff","misc","internal","projects","project","work",
+        "clients","archive","temp","tmp","files","docs","images"
+    )
+
+    # Try structured patterns: Work\<Client>\<Project>, Clients\<Client>\<Project>, Projects\<Project>\...
+    for ($i = 0; $i -lt $parts.Count; $i++) {
+        $p = $parts[$i].ToLower()
+
+        if ($p -eq "work" -or $p -eq "clients") {
+            if ($i + 2 -lt $parts.Count) {
+                return $parts[$i + 2]
+            }
+        }
+        elseif ($p -eq "projects") {
+            if ($i + 1 -lt $parts.Count) {
+                return $parts[$i + 1]
+            }
+        }
+    }
+
+    # Otherwise, take a non-generic folder name that is not the client
+    $candidates = $parts | Where-Object {
+        $pl = $_.ToLower()
+        ($ignore -notcontains $pl) -and
+        ($pl -ne $clientLower) -and
+        ($_.Length -ge 3)
+    }
+
+    if (-not $candidates -or $candidates.Count -eq 0) {
+        return "Project_Unknown"
+    }
+
+    # Again, pick the longest as a rough heuristic
+    $best = $candidates | Sort-Object { $_.Length } -Descending | Select-Object -First 1
+    return $best
+}
+
+function Get-ClientAndProject {
+    param([string]$fullPath)
+
+    # Split on backslashes, ignore drive part
+    $parts = $fullPath.Split('\') | Where-Object { $_ -and ($_ -notmatch "^\w:$") }
+
+    # Remove filename
+    if ($parts.Count -gt 0) {
+        $parts = $parts[0..($parts.Count - 2)]
+    }
+
+    $client  = Guess-Client  -parts $parts
+    $project = Guess-Project -parts $parts -client $client
+
+    # Normalize basic casing (Title Case)
+    $ti = (Get-Culture).TextInfo
+    $client  = $ti.ToTitleCase($client.ToLower())
+    $project = $ti.ToTitleCase($project.ToLower())
+
+    return [PSCustomObject]@{ Client = $client; Project = $project }
+}
+
+# --- MAIN ---
+
+$hashIndex = @{}
+
+foreach ($root in $sourceRoots) {
+    if (-not (Test-Path $root)) {
+        Write-Host "Skipping missing root: $root"
+        continue
+    }
+
+    Write-Host "Scanning $root ..."
+    Get-ChildItem -Path $root -Recurse -File -ErrorAction SilentlyContinue | ForEach-Object {
+        $file = $_
+
+        try {
+            $hash = (Get-FileHash -Path $file.FullName -Algorithm $hashAlg).Hash
+
+            if ($hashIndex.ContainsKey($hash)) {
+                # Duplicate: move to hash-based duplicate folder
+                $dupTargetDir  = Join-Path $dupFolderRoot $hash
+                New-Item -ItemType Directory -Path $dupTargetDir -Force | Out-Null
+
+                $dupTargetPath = Join-Path $dupTargetDir $file.Name
+
+                Move-Item -Path $file.FullName -Destination $dupTargetPath -Force
+
+                "$($file.FullName),$dupTargetPath,Duplicate,Moved to dup folder,$hash" |
+                    Add-Content -Path $logFile
+            }
+            else {
+                # Unique (first time for this hash)
+                $info = Get-ClientAndProject -fullPath $file.FullName
+
+                $ext      = [System.IO.Path]::GetExtension($file.Name).ToLower()
+                $category = Get-CategoryFromExtension -ext $ext
+
+                $clientDir  = Join-Path $targetRoot $info.Client
+                $projectDir = Join-Path $clientDir $info.Project
+                $catDir     = Join-Path $projectDir $category
+
+                New-Item -ItemType Directory -Path $catDir -Force | Out-Null
+
+                $targetPath = Join-Path $catDir $file.Name
+
+                Move-Item -Path $file.FullName -Destination $targetPath -Force
+
+                $hashIndex[$hash] = $targetPath
+
+                "$($file.FullName),$targetPath,Moved,Unique,$hash" |
+                    Add-Content -Path $logFile
+            }
+        }
+        catch {
+            "$($file.FullName),,Skipped,Error: $($_.Exception.Message)," |
+                Add-Content -Path $logFile
+        }
+    }
+}
+```
+
+How to use this with minimal manual effort:
+1. Save it as `refactor-and-dedupe.ps1`.
+2. Open PowerShell as yourself (or Administrator, if needed).
+3. Run once on a **small subset** first, e.g. only on `C:\Users\Me\Desktop\Old stuff` by temporarily editing `$sourceRoots` to that single path.
+4. Inspect:
+   - `C:\Clients` structure.
+   - `C:\Clients\Duplicates`.
+   - A few lines in `migration-log.csv` to see how it’s classifying client/project.
+5. If the results look “about 80–90% acceptable” to you, restore the full `$sourceRoots` and run it for real.
+
+At this point, given the constraints (I can’t see or execute against your actual data, and you prefer minimal hands-on review), this is about as automated as I can responsibly make it. It won’t be perfect, but it should get you a largely cleaned-up tree, with a clear log so you can manually fix misclassifications as you come across them.
+
+If after a test run you see a *specific* pattern that’s consistently wrong (e.g. “folders under `Clients\X\Y` should always treat X as client and Y as project”), you can tell me that pattern and a couple of example paths, and we can adjust just that part of the logic without redesigning everything.
