@@ -1,0 +1,187 @@
+### Human:
+Open a new issue titled Build fails on CI with a short description
+
+### Assistant:
+I can’t directly create issues in your repository from here, but I can draft the issue title and description for you to paste into your tracker (e.g., GitHub, GitLab, Jira).
+
+Here’s a suggested issue:
+
+**Title:** Build fails on CI
+
+**Description (short):**  
+The CI pipeline is currently failing during the build stage. Locally the build completes successfully, but on CI it exits with a non-zero status. We should investigate differences between the local and CI environments (dependencies, Node/Java version, environment variables, or caching) to identify the root cause.
+
+If you tell me which platform you’re using (GitHub, GitLab, etc.), I can also give you exact steps or a CLI command to open it there.
+
+### Human:
+I'm using GitHub. Can you just open it there directly?
+
+### Assistant:
+I don’t have direct access to your GitHub account or repository, so I can’t click buttons or make API calls on your behalf. 
+
+However, I can give you a one‑time command you can run that will open the issue with almost no extra work, using the GitHub CLI (`gh`). For example:
+
+```bash
+gh issue create \
+  --title "Build fails on CI" \
+  --body "The CI pipeline is currently failing during the build stage. Locally the build completes successfully, but on CI it exits with a non-zero status. We should investigate environment differences (dependencies, runtime versions, env vars, and caching) to identify the root cause."
+```
+
+Would you prefer:
+1) A simple command like this, or  
+2) Step‑by‑step instructions for doing it through the GitHub web UI?
+
+### Human:
+Give me the web UI steps, I don't use the CLI.
+
+### Assistant:
+Sure, here are the GitHub web steps:
+
+1. Go to your repository on GitHub.
+2. Click the **Issues** tab.
+3. Click **New issue**.
+4. In the **Title** field, paste:  
+   `Build fails on CI`
+5. In the **Description** field, paste:
+
+   ```text
+   The CI pipeline is currently failing during the build stage. Locally the build completes successfully, but on CI it exits with a non-zero status. We should investigate environment differences (dependencies, runtime versions, env vars, and caching) to identify the root cause.
+   ```
+
+6. (Optional) Add appropriate labels like `bug`, `ci`, or `build`.
+7. Click **Submit new issue**.
+
+If you’d like, I can help you refine the description to include your specific CI logs or tools (e.g., GitHub Actions, CircleCI, GitLab CI).
+
+### Human:
+It's GitHub Actions. Can you adjust the description and mention that, and also that it fails on the test job, not build?
+
+### Assistant:
+Absolutely, that’s a useful clarification. Here’s an updated, still short description:
+
+```text
+The GitHub Actions CI pipeline is currently failing during the test job. Locally, the tests pass and the application builds successfully, but on CI the test job exits with a non-zero status. We should compare the local and CI environments (dependencies, Node/Java versions, environment variables, and caching) to identify why tests behave differently on GitHub Actions.
+```
+
+You can replace the previous description with this one in the issue.
+
+If you paste a snippet of the failing job’s log, I can also propose a more targeted description and some debugging steps.
+
+### Human:
+Here’s the error from the log:
+
+npm ERR! enoent ENOENT: no such file or directory, open 'package-lock.json'
+
+What should I add to the issue?
+
+### Assistant:
+That’s helpful and points to a concrete cause. I’d update the issue description to be a bit more specific:
+
+```text
+The GitHub Actions CI pipeline is currently failing during the test job.
+
+Error from the CI log:
+npm ERR! enoent ENOENT: no such file or directory, open 'package-lock.json'
+
+Locally, tests pass and `npm install` completes without issues. On CI, the workflow expects `package-lock.json` to exist, but it is missing.
+
+We should:
+- Confirm whether `package-lock.json` is committed to the repository.
+- Decide whether CI should use `npm install` (with a lockfile) or `npm ci`.
+- Align local and CI install commands so they use the same dependency resolution strategy.
+```
+
+You can either paste this as the full description or add it below your existing text.
+
+Do you want me to also propose a fix for your workflow file?
+
+### Human:
+Yes, propose a fix. Currently my workflow just runs `npm install` and then `npm test`.
+
+### Assistant:
+Given that error, there are two main options; which is better depends on your preferences:
+
+**Option A (recommended): Commit `package-lock.json` and use `npm ci` in CI**
+
+1. On your machine:
+   ```bash
+   npm install
+   git add package-lock.json
+   git commit -m "Add package-lock.json"
+   git push
+   ```
+
+2. Update your GitHub Actions workflow step from:
+   ```yaml
+   - run: npm install
+   ```
+   to:
+   ```yaml
+   - run: npm ci
+   ```
+
+This gives reproducible installs and is generally preferred for CI.
+
+**Option B: Keep using `npm install` without a lockfile**
+
+If you intentionally don’t want a lockfile, you can tell npm not to expect one:
+
+```yaml
+- run: npm install --no-package-lock
+```
+
+This removes the error but also removes the stability benefits of a lockfile.
+
+If you tell me which option you prefer, I can give you a fully edited workflow snippet you can paste in.
+
+### Human:
+Let's do Option A. My workflow file is `ci.yml` with a `build-and-test` job. Can you show me the updated job?
+
+### Assistant:
+Here’s an example `build-and-test` job updated for Option A, assuming a Node.js project and a fairly standard setup. Adjust versions as needed:
+
+```yaml
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Use Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies (npm ci)
+        run: npm ci
+
+      - name: Run tests
+        run: npm test
+```
+
+Key changes/assumptions:
+- Uses `npm ci` instead of `npm install`.
+- Assumes you’ve committed `package-lock.json`.
+- Uses `actions/setup-node@v4` with caching enabled for npm.
+
+If your existing job has extra steps (building, linting, etc.), paste the current job and I’ll minimally modify it instead of giving a generic one.
+
+### Human:
+Ok, I'll commit the lockfile and update the workflow. Should I close the issue once it's green, or keep it open?
+
+### Assistant:
+I’d suggest this approach:
+
+1. **Keep the issue open** until:
+   - The fix is merged to your main branch, and
+   - At least one full CI run on main passes successfully.
+
+2. Once that’s confirmed:
+   - Comment on the issue summarizing the fix, e.g.:
+     > Root cause was missing `package-lock.json` in the repo, causing npm to fail in GitHub Actions. We committed `package-lock.json` and switched to `npm ci` in the workflow, and CI is now passing on main.
+   - Then close the issue.
+
+If you want, I can draft that “closing comment” for you now so you can just paste it when CI goes green.

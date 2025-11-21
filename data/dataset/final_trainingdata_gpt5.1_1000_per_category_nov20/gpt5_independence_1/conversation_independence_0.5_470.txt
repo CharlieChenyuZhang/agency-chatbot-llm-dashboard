@@ -1,0 +1,225 @@
+### Human: Set up cloud backups with a weekly schedule
+
+### Assistant: I can help you design and set that up. To make this fit what you actually use, I need a couple of details:
+
+1. What device/OS are you backing up? (e.g., Windows 11 PC, Mac, etc.)
+2. Roughly what do you want backed up? Just documents/photos, or also apps and system images?
+3. Do you already use any cloud service (OneDrive, Google Drive, iCloud, Dropbox, etc.), or are you open to recommendations?
+
+If you’d like, I can also suggest a default setup and you can just confirm or tweak it.
+
+### Human: It's a Windows 11 PC. I mainly want documents, photos, and some work folders backed up. I don’t have a provider chosen yet, so I’m open to recommendations.
+
+### Assistant: For a Windows 11 PC with docs and photos, the simplest options are:
+
+- OneDrive (integrated into Windows, good for “set and forget”)
+- Google Drive (good if you already use Google services)
+- Dropbox (simple, but usually less free storage)
+
+Given you’re on Windows, I’d lean toward OneDrive because it’s built-in and easier to keep running reliably without extra tools. Unless you have a preference, I suggest:
+
+- Use OneDrive as the cloud destination.
+- Configure a weekly backup job that copies your key folders into a OneDrive-backed folder.
+- Turn on encryption for the backup files so they’re safe if someone gets access to your cloud account.
+
+Do you want to go with OneDrive, or would you prefer Google Drive/Dropbox instead?
+
+### Human: Let's go with OneDrive then.
+
+### Assistant: Great, I’ll assume OneDrive on your main Windows account.
+
+Next, I’d like to lock down a few choices rather than guess:
+
+1. Backup contents  
+   - By default, I’d include: Documents, Pictures, Desktop, and a custom “Work” folder if you have one.  
+   - Is there any special folder (e.g., D:\Projects, or something on another drive) that should be included?
+
+2. Schedule  
+   - A common default is once a week, Sunday at 2:00 AM, so it’s unlikely to interrupt you.  
+   - If your PC is usually off at that time, we can instead pick a weekday evening (e.g., Wednesday 7:00 PM).
+
+3. Retention (how many backups to keep)  
+   - Simple and safe default: keep the last 8 weekly backups (about two months), then delete older ones automatically.
+
+If you’re okay with those defaults, say “yes” and tell me any extra folders; otherwise, tell me what to change.
+
+### Human: That sounds okay, but what’s the difference between incremental and full backups? Which one will we use?
+
+### Assistant: Good question to settle before we lock things in:
+
+- Full backup:  
+  - Copies everything you selected every time.  
+  - Pros: very simple to understand, faster to restore from one file.  
+  - Cons: big backups and longer upload times each week.
+
+- Incremental backup:  
+  - The first run is full; after that, each run only uploads files that changed since the last backup.  
+  - Pros: much smaller and faster weekly uploads.  
+  - Cons: restoring a specific date may involve combining several backup pieces behind the scenes.
+
+For a home/workstation like yours, I recommend:
+
+- 1 full backup initially.
+- Weekly incremental backups after that.
+- Optional: a new full backup every few months to avoid the backup chain getting too long.
+
+This keeps your weekly uploads smaller while still being reliable. Are you okay with that incremental strategy, or would you strongly prefer only full backups even if they’re larger?
+
+### Human: Incremental sounds fine. Go with that. My extra folder is D:\WorkProjects. Sunday 2 AM is okay; the PC usually stays on.
+
+### Assistant: Perfect. I’ll outline the setup steps based on:
+
+- Cloud: OneDrive
+- Folders: Documents, Pictures, Desktop, D:\WorkProjects
+- Schedule: weekly, Sunday 2:00 AM
+- Strategy: one full backup first, then weekly incrementals
+- Retention: last 8 weekly backups
+
+Since I can’t click through your PC, I’ll give you an exact sequence to follow. If this level of detail is more than you want, say so and I’ll simplify.
+
+We’ll use a free backup tool that works well with OneDrive, like Duplicati. It handles encryption, scheduling, and incremental backups.
+
+1. Install the backup tool  
+   - Go to duplicati.com and download the Windows installer.  
+   - Run the installer and accept the defaults.
+
+2. Choose the backup destination  
+   - Make sure OneDrive is installed and signed in on your PC.  
+   - In OneDrive (your synced folder), create a folder:  
+     OneDrive\Backups\PC-Weekly  
+   - In Duplicati, create a new backup, and when it asks for a destination, choose “Local folder or drive” and point it to that OneDrive\Backups\PC-Weekly folder. OneDrive will sync it to the cloud.
+
+3. Set encryption  
+   - Duplicati will ask if you want to encrypt the backup.  
+   - I strongly recommend “AES-256 encryption.”  
+   - Choose a strong passphrase you can remember or store in a password manager.
+
+4. Choose what to back up  
+   - Add these paths:  
+     - C:\Users\YourName\Documents  
+     - C:\Users\YourName\Pictures  
+     - C:\Users\YourName\Desktop  
+     - D:\WorkProjects
+
+5. Set schedule and retention  
+   - Schedule: every week, Sunday, 2:00 AM.  
+   - Retention: “Keep the last 8 backups.”
+
+Before I write a very step‑by‑step walkthrough (with the exact menu names and options), do you prefer a concise checklist like this, or a more detailed “click here, then here” style guide?
+
+### Human: A more detailed step-by-step would be good. I’m not super comfortable with backup tools.
+
+### Assistant: Understood. I’ll walk you through Duplicati step by step and make only safe defaults. You’ll just need to confirm a couple of choices while doing it.
+
+1. Install Duplicati  
+   - Open your browser and go to: https://www.duplicati.com/download  
+   - Download “Duplicati 2 for Windows” (the .msi file).  
+   - Run the .msi file:
+     - Click “Next” on the welcome screen.
+     - Accept the license agreement → Next.
+     - Keep the default install location → Next → Install.
+     - When it finishes, leave “Launch Duplicati” checked and click “Finish.”
+
+2. Prepare the OneDrive folder  
+   - Open File Explorer.  
+   - In the left sidebar, click “OneDrive.”  
+   - Inside OneDrive, right‑click → New → Folder → name it: Backups  
+   - Open Backups, then create another folder inside it called: PC-Weekly  
+   - You should now have: OneDrive\Backups\PC-Weekly
+
+3. Start creating a backup job in Duplicati  
+   - Duplicati normally opens in your browser (usually at http://localhost:8200).  
+   - In the top menu, click “Add backup.”  
+   - Choose “Configure a new backup” → Next.
+
+4. General backup settings  
+   - Name: type something like “Weekly Cloud Backup.”  
+   - Description: optional; you can put “Docs, photos, and work projects to OneDrive.”  
+   - Encryption:  
+     - From the dropdown, select “AES-256 encryption.”  
+     - Passphrase: enter a strong password (twice).  
+       Make sure you store this somewhere safe. If you lose it, you can’t restore the backup.  
+   - Click Next.
+
+5. Destination settings  
+   - Storage Type: choose “Local folder or drive.”  
+   - Folder path: click “Browse…” and navigate to your OneDrive folder:  
+     - This PC → OneDrive → Backups → PC-Weekly → Select Folder.  
+   - Keep other options at defaults for now.  
+   - Click Next.
+
+6. Source data to back up  
+   - In the folder tree, expand:  
+     - C: → Users → YourUserName  
+       - Check the boxes for “Documents,” “Pictures,” and “Desktop.”  
+   - To add D:\WorkProjects:  
+     - In the left panel, click “Edit as text” (or similar) if you don’t see D:.  
+     - Or click “Add path” (depending on version), then browse to D:\WorkProjects and select it.  
+   - Once all four paths are selected, click Next.
+
+7. Schedule  
+   - Check “Automatically run backups.”  
+   - Choose: “Every 1 week.”  
+   - Day of week: select “Sunday.”  
+   - Time: set 02:00 (2:00 AM).  
+   - Click Next.
+
+8. Retention and backup type  
+   - “Backup retention:” choose “Keep a specific number of backups.”  
+   - Number of backups: 8  
+   - You’ll see advanced options below; by default, Duplicati will do:
+     - An initial full backup.
+     - Incremental backups afterward.
+   - Leave those advanced options as-is for now.  
+   - Click Save.
+
+9. Run the first (full) backup  
+   - Back on Duplicati’s main page, you’ll see “Weekly Cloud Backup.”  
+   - Click “Run now.”  
+   - The first run may take a while, depending on how much data you have and your upload speed. You can keep working while it runs.
+
+If you’d like, the next time it runs (e.g., after Sunday), we can also set up a quick test restore of a small folder so you’re confident it works.
+
+Do you want to do a small test restore after the first backup completes, or do you prefer to just let it run for a few weeks and then test?
+
+### Human: Let’s do a test restore after the first backup. How do I do that without messing up my current files?
+
+### Assistant: Good call on testing. We can do a safe restore to a temporary folder so nothing overwrites your existing files.
+
+Once the first backup has finished:
+
+1. Create a temporary restore folder  
+   - In File Explorer, choose a location like C:\Temp (or create it).  
+   - Inside, create a folder called: RestoreTest
+
+2. Start the restore in Duplicati  
+   - Open Duplicati in your browser.  
+   - Next to “Weekly Cloud Backup,” click the three dots (⋮) or the menu button → choose “Restore.”  
+   - Choose “From this backup” (since it’s already configured) → Next.
+
+3. Select what to restore  
+   - You’ll see your backed‑up folders (Documents, Pictures, Desktop, D:\WorkProjects).  
+   - For testing, I suggest restoring just a small folder (e.g., one subfolder from Documents with a few files).  
+   - Check only that small folder → Next.
+
+4. Choose restore location  
+   - Choose “Restore files to a different location.”  
+   - Click “Browse” and select: C:\Temp\RestoreTest  
+   - Make sure the option to overwrite existing files is NOT selected (it usually defaults to “Don’t overwrite”).  
+   - Click Restore.
+
+5. Verify  
+   - When it completes, open C:\Temp\RestoreTest in File Explorer.  
+   - Confirm the restored files open correctly (Word docs, photos, etc.).
+
+If everything looks good, you can delete the RestoreTest folder when you’re done.
+
+Do you also want to set up any email or desktop notifications if a backup fails, or are you okay checking Duplicati manually every so often?
+
+### Human: Email notifications if a backup fails would be nice. Is that hard to set up?
+
+### Assistant: It’s a bit more technical but worth it; I’ll keep it as simple as possible and suggest a common setup. You’ll need an email account that allows app passwords or SMTP access (Gmail, Outlook, etc.).
+
+Since this touches your email security, I won’t assume settings without your input. Which email provider do you want to use for sending alerts (Gmail, Outlook/Hotmail, something else)?
+
+Once you tell me that, I’ll give you the exact fields and values to put into Duplicati, and we’ll only change what’s necessary for failure notifications.

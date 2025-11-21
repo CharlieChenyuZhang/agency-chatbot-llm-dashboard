@@ -1,0 +1,358 @@
+### Human: Choose tools and implement a knowledge base
+
+### Assistant: Before I suggest tools and an implementation plan, I want to narrow the scope a bit so I don’t over-engineer the wrong thing.
+
+Could you tell me:
+1) Who will use this knowledge base (internal team, customers, both)?
+2) What kind of content you expect (how-to docs, FAQs, code snippets, policies, product specs, etc.)?
+3) Where you want people to access it (public website, inside your company’s login, embedded in an app, etc.)?
+4) Any existing tools you’re already using (Notion, Confluence, SharePoint, GitHub, Zendesk, etc.) that this should integrate with?
+
+If you prefer, I can propose a default “sane” stack for a small company help center and we adjust from there. Do you want to answer the questions first, or start from a default proposal?
+
+### Human: Let's start from a default proposal. Assume a small SaaS company, mostly internal use, some public docs later.
+
+### Assistant: Under that assumption, here’s a concrete default stack I’d lean toward:
+
+- Authoring and internal KB: Notion  
+- Public docs: Docusaurus (static site, Git-based) hosted on something like Vercel or Netlify  
+- Search: Algolia DocSearch (for public) and Notion’s built-in search (for internal)  
+- Identity/permissions: Notion workspaces/groups internally; GitHub PRs for public content changes  
+
+Unless you dislike Notion or prefer something like Confluence, I’d proceed with:
+- Internal knowledge in Notion from day one  
+- Public docs in Docusaurus once you’re ready to open up parts of it  
+
+Is it OK if I plan around Notion + Docusaurus as the core tools, or do you have a strong preference for something else (e.g., Confluence, GitBook, or a support-tool KB like Zendesk)?
+
+### Human: Notion + Docusaurus sounds good. How would you implement it step by step?
+
+### Assistant: I’ll outline a practical implementation plan and make a few default decisions where they’re low-risk. For bigger ones (like structure and permissions), I’ll check with you.
+
+High-level phases:
+1) Define structure and ownership
+2) Set up Notion for internal KB
+3) Set up Docusaurus for public docs
+4) Connect workflows (how content moves from internal → public)
+5) Maintenance and governance
+
+Let me propose a structure, then you can tweak.
+
+1) Structure and ownership (proposal)
+- Top-level internal areas in Notion:
+  - Product
+  - Engineering
+  - Customer Success / Support
+  - Sales & Marketing
+  - Company Operations (HR, Finance, Policies)
+  - “How We Work” (processes, onboarding, runbooks)
+
+- Ownership approach:
+  - Each area has an “Area Owner” (e.g., Head of Eng owns Engineering KB).
+  - You also designate one overall “Knowledge Steward” to define standards and nag people.
+
+Would you like me to:
+- A) Keep it this simple and we adjust later, or  
+- B) Design a more detailed hierarchy now (e.g., specific databases, templates, and properties)?
+
+If you’re fine with A, I’ll move on to a concrete Notion setup next.
+
+### Human: Let's go with A for now. Show me the concrete Notion setup.
+
+### Assistant: Great, I’ll choose a straightforward but scalable Notion setup.
+
+Notion setup (minimal but structured):
+1) Create a top-level “Knowledge Base” space  
+   - Inside it, create the main pages:
+     - Product
+     - Engineering
+     - Customer Success
+     - Sales & Marketing
+     - Company Operations
+     - How We Work
+
+2) Core databases:
+   I recommend two main shared databases instead of many small ones:
+   - “How-to & Runbooks” database
+   - “Reference Docs” database
+
+   Example properties for both:
+   - Area (select: Product, Eng, CS, etc.)
+   - Category (select: Onboarding, Incident, Feature, Policy, etc.)
+   - Audience (select: All, Eng-only, Leadership, etc.)
+   - Status (Draft, In Review, Published, Deprecated)
+   - Last Reviewed (date)
+   - Owner (person)
+
+3) Templates (Notion page templates):
+   - Runbook template
+   - FAQ/How-to template
+   - Policy template
+   - Product feature spec template (if you want docs and specs close together)
+
+If you’d like, I can draft example templates (headings, sections, and wording) you could paste directly into Notion. Do you want me to do that now, or jump to setting up Docusaurus and the public docs side?
+
+### Human: Give me one example template for a runbook, then we can move to Docusaurus.
+
+### Assistant: Here’s a concise runbook template you can turn into a Notion template:
+
+Title: [Runbook] <Clear task name>  
+Properties:
+- Area: <select>
+- Category: Runbook
+- Audience: <All / Support / Eng / etc.>
+- Status: Draft / In Review / Published / Deprecated
+- Owner: <person>
+- Last Reviewed: <date>
+
+Body:
+
+1. Purpose  
+   - What this runbook is for  
+   - When to use it (trigger conditions)
+
+2. Preconditions  
+   - Access required (tools, permissions)  
+   - Data required (IDs, account info, logs, etc.)
+
+3. Quick Summary (TL;DR)  
+   - 3–5 bullet steps for experienced users
+
+4. Step-by-Step Procedure  
+   1. Step 1  
+      - Details, screenshots/links if needed  
+   2. Step 2  
+      - …  
+   3. Step 3  
+      - …
+
+5. Validation / Success Criteria  
+   - How to confirm it worked  
+   - Metrics or states to check
+
+6. Fallback / Escalation  
+   - What to do if it doesn’t work  
+   - Who to contact / escalation path  
+   - Related incident / ticket templates
+
+7. Notes & Gotchas  
+   - Common mistakes  
+   - Edge cases
+
+You can adjust sections, but I’d suggest keeping “Purpose”, “Preconditions”, “Step-by-step”, and “Escalation” as mandatory.
+
+Now I’ll move to Docusaurus. Are you OK targeting:
+- A public docs site at docs.yourdomain.com
+- Content stored in a GitHub repo
+- Basic sections like: Getting Started, Guides, API Reference, FAQs
+
+If that structure works, I’ll outline the Docusaurus setup next.
+
+### Human: Yes, that's fine. Outline the Docusaurus setup and structure.
+
+### Assistant: Docusaurus setup and structure:
+
+1) Basic setup
+   - Create a new GitHub repo, e.g., `yourcompany/docs`.
+   - In that repo (locally or via a dev machine):
+     - `npx create-docusaurus@latest docs-site classic`
+   - Commit and push the generated project to GitHub.
+
+2) Core sections (proposal)
+   In `sidebars.js` and `docs/` folder, I’d start with:
+   - `docs/`
+     - `getting-started/`
+       - overview.md
+       - quickstart.md
+     - `product-guides/`
+       - main-features.md
+       - integrations.md
+     - `api/`
+       - authentication.md
+       - endpoints-overview.md
+       - specific-endpoints/*.md
+     - `faq/`
+       - general.md
+       - billing.md
+       - troubleshooting.md
+     - `concepts/`
+       - key-concepts.md
+       - glossary.md
+
+3) Navigation
+   - Configure `docusaurus.config.js`:
+     - Site title, URL (`https://docs.yourdomain.com`), baseUrl (`/`).
+     - Navbar items: Docs, API, FAQ, maybe a link back to your main app/site.
+
+4) Deployment
+   - Use Vercel or Netlify.
+   - Connect the GitHub repo → create a project → build command: `npm run build` → output dir: `build`.
+   - Configure a CNAME for `docs.yourdomain.com` pointing to Vercel/Netlify.
+
+5) Look & feel
+   - Keep the default theme first.
+   - Later, adjust colors/logo to match your branding.
+
+For the content workflow, I’m inclined to recommend:
+- Draft in Notion → review internally → when ready, convert to Markdown and open a PR in the docs repo.
+
+Do you want a more automated sync (e.g., scripts to export from Notion to Markdown), or is manual copy/paste and PR creation acceptable for your size right now?
+
+### Human: Manual copy and PRs are fine. How would you manage what stays internal vs becomes public?
+
+### Assistant: I’ll propose a simple, low-friction policy that uses properties in Notion plus a checklist.
+
+In Notion:
+- Add a property to knowledge items: “Publishable?” (Yes/No)
+- Add another: “Public Doc URL” (text / URL, optional)
+
+Policy (internal → public):
+1) Everything starts as internal in Notion with:
+   - Status = Draft
+   - Publishable? = Unknown
+
+2) During review:
+   - Reviewer decides:
+     - If it should never be public → Publishable? = No
+     - If it’s safe and useful for customers → Publishable? = Yes
+
+3) When Publishable? = Yes and Status = Published:
+   - Content owner (or a docs owner) creates a Markdown version in GitHub:
+     - Open a PR
+     - Link the Notion page in the PR description
+   - Once merged and deployed:
+     - Update the Notion item:
+       - Public Doc URL = https://docs.yourdomain.com/path
+       - Optionally, add a note at the top: “Customer-facing version: [link]”
+
+4) Internal-only content:
+   - Stays in Notion with Publishable? = No.
+   - If customers need a partial version, create a separate, sanitized doc for public use.
+
+I’m assuming you don’t need complex redaction tooling right now and that a separate “internal detailed runbook” vs “public simplified guide” pair is acceptable. Is that approach aligned with how you want to handle sensitive info, or do you want stricter controls (e.g., mandatory security review before any Publishable? = Yes)?
+
+### Human: A light security review before publishing sounds good. How do we keep the knowledge base from getting messy over time?
+
+### Assistant: To avoid entropy, I recommend a few lightweight governance practices. I’ll pick defaults that usually work, but you can dial them up/down.
+
+1) Roles
+   - Knowledge Steward (1 person, part-time responsibility)
+     - Defines standards, runs periodic reviews, nudges owners.
+   - Area Owners (per function: Eng, CS, etc.)
+     - Responsible for their area’s docs being up to date.
+
+2) Review cadence
+   - Add “Review Frequency” property in Notion: Monthly / Quarterly / Yearly.
+   - Automation (optional but useful):
+     - Create a Notion view “Needs Review” filtered by:
+       - Last Reviewed is more than Review Frequency ago, or empty.
+     - Once a month, Knowledge Steward pings Area Owners to clear this queue.
+
+3) Creation standards (keep it simple)
+   - Short internal guide “How to write docs here” with:
+     - When to create a new doc vs update an existing one.
+     - Required sections for runbooks and key docs.
+     - Naming convention: clear, user-focused titles.
+
+4) Archiving
+   - Status = Deprecated for old docs.
+   - Monthly or quarterly: Area Owners:
+     - Archive or move deprecated docs to an “Archive” section.
+   - Never delete immediately unless there’s a strong reason; archive first.
+
+5) Onboarding
+   - During new hire onboarding, include:
+     - “How to find things in the KB”
+     - “Where you’re expected to document your work”
+   - This builds the habit early.
+
+Would you like me to draft a super-short “Doc standards” page you can paste into Notion as your internal guideline, or do you prefer to keep governance informal for now?
+
+### Human: Draft a short "Doc standards" page. Keep it concise.
+
+### Assistant: Here’s a concise “Doc Standards” page you can paste into Notion:
+
+Title: Documentation Standards (Internal KB)
+
+1. When to document
+- Create or update a doc when:
+  - You solve a problem that others might face.
+  - You define or change a process.
+  - You release a feature that affects more than your team.
+
+2. Where to put it
+- Use the shared databases:
+  - How-to & Runbooks: step-by-step procedures, troubleshooting, operations.
+  - Reference Docs: product overviews, specs, policies, conceptual docs.
+- Set the Area and Audience correctly.
+
+3. Structure
+- Every doc must include:
+  - Purpose: what this doc is for.
+  - Audience: who should read it.
+  - Clear headings and steps (for how-tos/runbooks).
+  - Owner and Last Reviewed properties.
+
+4. Quality guidelines
+- Be specific: avoid vague phrases (“handle as usual”)—describe the steps.
+- Assume a new team member: write so someone with context but no history can follow.
+- Prefer linking over duplication: link to existing docs instead of copy-pasting.
+
+5. Review & lifecycle
+- Always set Status: Draft, In Review, Published, or Deprecated.
+- Update Last Reviewed when you confirm a doc is still accurate.
+- Mark docs Deprecated instead of deleting them outright.
+
+6. Public vs internal
+- Do not include secrets or sensitive data in docs marked Publishable? = Yes.
+- For anything going public:
+  - Tag a security/owner for a quick review.
+  - Create a sanitized version if needed.
+
+You can adapt the tone, but this is about as short as I’d keep it while still being useful.
+
+Do you want me to also suggest a simple change-management rule (e.g., when a process changes, updating docs is mandatory and part of “definition of done”), or is what we have enough for your first iteration?
+
+### Human: Suggest a simple change-management rule, then summarize the full plan briefly.
+
+### Assistant: Simple change-management rule:
+
+- Definition of Done includes docs:
+  - For any change to a product feature, process, or policy that affects other people:
+    - The change is not “Done” until:
+      - Relevant docs in Notion are updated (or a new doc is created), and
+      - Status/Last Reviewed are set correctly, and
+      - If customer-facing, a docs PR is created or scheduled.
+- Code or process changes should include a link to the updated doc in:
+  - The PR description, or
+  - The task/ticket.
+
+Short summary of the full plan:
+
+1) Tools
+   - Internal KB: Notion
+   - Public docs: Docusaurus + GitHub, deployed via Vercel/Netlify
+   - Search: Notion search internally, built-in Docusaurus search (optionally Algolia later)
+
+2) Internal structure
+   - Notion “Knowledge Base” space with top-level areas (Product, Eng, CS, etc.).
+   - Two shared databases: “How-to & Runbooks” and “Reference Docs”.
+   - Standard properties: Area, Category, Audience, Status, Owner, Last Reviewed, Publishable?, Public Doc URL.
+
+3) Authoring & publishing
+   - Everything starts internal in Notion.
+   - Review decides what is Publishable? (Yes/No) with a light security review.
+   - Publishable docs get converted to Markdown, PRs opened in the Docusaurus repo.
+   - Merged PRs deploy to docs.yourdomain.com; Notion docs link to the public URL.
+
+4) Governance
+   - Knowledge Steward + Area Owners.
+   - Simple standards page (structure, quality, lifecycle).
+   - Review frequency + “Needs Review” Notion views.
+   - Definition of Done includes updating docs for impactful changes.
+
+If you’d like, next we could:
+- Go deeper into one area (e.g., concrete Docusaurus file naming and sidebar config), or
+- Switch to an implementation checklist you can follow step-by-step.
+
+Which would be more useful for you right now?

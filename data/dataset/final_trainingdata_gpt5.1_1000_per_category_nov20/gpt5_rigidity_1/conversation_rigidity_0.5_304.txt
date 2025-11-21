@@ -1,0 +1,330 @@
+### Human: Rename files to match precisely this pattern
+### Assistant: I can help with that. I’ll need a bit more detail so we can make it precise and safe:
+
+1. What operating system are you on (Windows, macOS, Linux)?
+2. What is the *exact* pattern you want? (For example: `projectA_001.txt` or `YYYY-MM-DD_description.ext`)
+3. What do your filenames look like right now?
+
+Once I know those, I can give you a command/script to do the renaming, plus a safer “dry run” option so you don’t accidentally mangle your files.
+
+### Human: I'm on Windows. I want all my video files renamed to match this exactly:  
+`<Date> - <Artist> - <Title>.mp4`  
+
+Right now they’re all over the place, like:  
+`VID_20230101_123456.mp4`, `Artist - Title (1080p).mp4`, `random123.mp4`, etc.  
+
+I just want a solution that renames everything directly to that pattern.
+### Assistant: Understood. The tricky part is: where will the `<Date>`, `<Artist>`, and `<Title>` information come from?
+
+From what you described:
+
+- Some files have dates embedded in the filename (`VID_20230101_123456.mp4`).
+- Some have artist and title in the filename (`Artist - Title (1080p).mp4`).
+- Some look random (`random123.mp4`) and don’t clearly contain any of that info.
+
+I can give you a PowerShell script that:
+
+1. Extracts date from names that look like `VID_YYYYMMDD_...`.
+2. Extracts artist and title from names like `Artist - Title (...).mp4`.
+3. Renames files that match those detectable patterns to:  
+   `YYYY-MM-DD - Artist - Title.mp4`.
+
+But for files where that info is missing or inconsistent, *no script can reliably invent the correct date/artist/title*, so those would need either:
+
+- A default placeholder (e.g. `Unknown Date - Unknown Artist - OriginalName.mp4`), or
+- A manual mapping list (e.g. CSV you fill in).
+
+If you’re okay with that compromise, I’ll show you a concrete script and how to test it safely before doing the real rename.
+
+### Human: I don't care about files that don't match. Just rename the ones that do match your patterns, and leave the rest as-is. I want the actual command I can run.
+### Assistant: Great, that’s doable and relatively safe.
+
+Here’s a PowerShell script you can run in the folder with your videos. First I’ll show a **preview** (recommended), then the real rename.
+
+1. Open PowerShell.
+2. `cd` into the folder with your `.mp4` files.
+3. Run this to **preview** what would happen:
+
+```powershell
+Get-ChildItem -Filter *.mp4 | ForEach-Object {
+    $originalName = $_.Name
+    $newName = $null
+
+    # Pattern 1: VID_YYYYMMDD_...
+    if ($originalName -match '^VID_(\d{4})(\d{2})(\d{2})_') {
+        $year = $Matches[1]
+        $month = $Matches[2]
+        $day = $Matches[3]
+        $date = "$year-$month-$day"
+        # Keep original name as "title" if no artist/title present
+        $title = [System.IO.Path]::GetFileNameWithoutExtension($originalName)
+        $newName = "$date - Unknown Artist - $title.mp4"
+    }
+
+    # Pattern 2: Artist - Title (anything).mp4
+    elseif ($originalName -match '^(.*?) - (.*?)\s*(\(|\[|\.mp4)') {
+        $artist = $Matches[1].Trim()
+        $title  = $Matches[2].Trim()
+        # No date available in filename => use placeholder or skip
+        $date = "Unknown Date"
+        $newName = "$date - $artist - $title.mp4"
+    }
+
+    if ($newName -and $newName -ne $originalName) {
+        [PSCustomObject]@{
+            Original = $originalName
+            New      = $newName
+        }
+    }
+}
+```
+
+This **does not rename anything**. It just shows which files *would* be renamed and to what.
+
+If the preview looks good, you can do the actual rename by replacing the end with a `Rename-Item` call:
+
+```powershell
+Get-ChildItem -Filter *.mp4 | ForEach-Object {
+    $originalName = $_.Name
+    $newName = $null
+
+    if ($originalName -match '^VID_(\d{4})(\d{2})(\d{2})_') {
+        $year = $Matches[1]
+        $month = $Matches[2]
+        $day = $Matches[3]
+        $date = "$year-$month-$day"
+        $title = [System.IO.Path]::GetFileNameWithoutExtension($originalName)
+        $newName = "$date - Unknown Artist - $title.mp4"
+    }
+    elseif ($originalName -match '^(.*?) - (.*?)\s*(\(|\[|\.mp4)') {
+        $artist = $Matches[1].Trim()
+        $title  = $Matches[2].Trim()
+        $date = "Unknown Date"
+        $newName = "$date - $artist - $title.mp4"
+    }
+
+    if ($newName -and $newName -ne $originalName) {
+        Rename-Item -LiteralPath $_.FullName -NewName $newName -WhatIf
+    }
+}
+```
+
+Note: `-WhatIf` **still makes this a dry run** (it says what *would* be renamed). If that output looks correct, **remove `-WhatIf`** to actually rename.
+
+If you truly want to skip previews and safety checks I can simplify this to a shorter, more direct command—but I strongly recommend at least one dry run.
+
+### Human: I said I want them renamed to exactly `<Date> - <Artist> - <Title>.mp4`. In your first pattern you're putting "Unknown Artist", and in the second pattern "Unknown Date". Can’t we just skip those files instead of putting placeholders?
+### Assistant: Yes, we can skip any file where we can’t fill *all three* fields. The trade-off is that some files you might have wanted renamed will be left untouched, but it keeps the pattern pure.
+
+Given your filenames:
+
+- `VID_20230101_123456.mp4` → has a date, but not artist/title → **would be skipped**.
+- `Artist - Title (1080p).mp4` → has artist/title, but not date → **would be skipped**.
+- Only files that *already contain all three pieces* in a recognizable way could be renamed to your exact pattern.
+
+Right now your examples don’t clearly have all three, so no automatic method can fully satisfy the pattern without some convention (like placeholders or a default date).
+
+If you’re okay slightly relaxing the rule to “only rename when all three are known; otherwise leave as-is,” we can:
+
+1. Only rename files where:
+   - Date is in filename (e.g., `2023-01-01 Artist - Title.mp4`), and
+   - Artist and Title are in `Artist - Title`.
+2. Leave absolutely everything else unchanged.
+
+Alternatively, we can keep placeholders but maybe choose something less intrusive (e.g. omit missing parts), like:
+
+- With date and artist, but no title: `YYYY-MM-DD - Artist - (No Title).mp4`.
+
+Which of these options is closer to what you want?
+
+### Human: I get it. Let’s relax it a bit:  
+- If there’s at least a date and a title, use: `Date - Unknown Artist - Title.mp4`.  
+- If there’s at least artist and title, use: `Unknown Date - Artist - Title.mp4`.  
+
+I can live with placeholders as long as they’re consistent. Can you adjust the script?
+### Assistant: That’s a good compromise and fully scriptable.
+
+Here’s an updated PowerShell script with your exact logic:
+
+- If it finds **date + title** → `Date - Unknown Artist - Title.mp4`
+- If it finds **artist + title** → `Unknown Date - Artist - Title.mp4`
+- Otherwise → leave the file unchanged.
+
+Again, start with a preview:
+
+```powershell
+Get-ChildItem -Filter *.mp4 | ForEach-Object {
+    $originalName = $_.Name
+    $newName = $null
+    $title = $null
+    $date = $null
+    $artist = $null
+
+    # Try to get date from VID_YYYYMMDD_...
+    if ($originalName -match '^VID_(\d{4})(\d{2})(\d{2})_') {
+        $year = $Matches[1]
+        $month = $Matches[2]
+        $day = $Matches[3]
+        $date = "$year-$month-$day"
+        $title = [System.IO.Path]::GetFileNameWithoutExtension($originalName)
+    }
+
+    # Try to get artist/title from "Artist - Title"
+    if ($originalName -match '^(.*?) - (.*?)\s*(\(|\[|\.mp4)') {
+        $artist = $Matches[1].Trim()
+        $title  = $Matches[2].Trim()
+    }
+
+    if ($date -and $title -and -not $artist) {
+        $artist = "Unknown Artist"
+        $newName = "$date - $artist - $title.mp4"
+    }
+    elseif ($artist -and $title -and -not $date) {
+        $date = "Unknown Date"
+        $newName = "$date - $artist - $title.mp4"
+    }
+
+    if ($newName -and $newName -ne $originalName) {
+        [PSCustomObject]@{
+            Original = $originalName
+            New      = $newName
+        }
+    }
+}
+```
+
+If the preview output looks right, do the actual rename:
+
+```powershell
+Get-ChildItem -Filter *.mp4 | ForEach-Object {
+    $originalName = $_.Name
+    $newName = $null
+    $title = $null
+    $date = $null
+    $artist = $null
+
+    if ($originalName -match '^VID_(\d{4})(\d{2})(\d{2})_') {
+        $year = $Matches[1]
+        $month = $Matches[2]
+        $day = $Matches[3]
+        $date = "$year-$month-$day"
+        $title = [System.IO.Path]::GetFileNameWithoutExtension($originalName)
+    }
+
+    if ($originalName -match '^(.*?) - (.*?)\s*(\(|\[|\.mp4)') {
+        $artist = $Matches[1].Trim()
+        $title  = $Matches[2].Trim()
+    }
+
+    if ($date -and $title -and -not $artist) {
+        $artist = "Unknown Artist"
+        $newName = "$date - $artist - $title.mp4"
+    }
+    elseif ($artist -and $title -and -not $date) {
+        $date = "Unknown Date"
+        $newName = "$date - $artist - $title.mp4"
+    }
+
+    if ($newName -and $newName -ne $originalName) {
+        Rename-Item -LiteralPath $_.FullName -NewName $newName -WhatIf
+    }
+}
+```
+
+Check the `-WhatIf` output; if you’re satisfied, remove `-WhatIf` to perform the real rename.
+
+If you share 3–5 actual filenames (with any sensitive info changed), I can fine-tune the regex so it hits more of your real-world cases.
+
+### Human: Can we avoid the two-pass pattern matching? It looks complicated. I’d prefer something simpler even if it’s slightly less accurate.
+### Assistant: We can simplify, but with two trade-offs:
+
+1. Fewer patterns recognized → some files won’t get renamed that *could* have been.
+2. Slightly higher chance of mis-detecting artist/title if filenames vary a lot.
+
+Here’s a simpler version that:
+
+- Assumes `VID_YYYYMMDD_` means “date + title from remainder of filename”.
+- Assumes anything `Something - SomethingElse` at the start is `Artist - Title`.
+- Does the renaming logic in a more linear way.
+
+```powershell
+Get-ChildItem -Filter *.mp4 | ForEach-Object {
+    $name = $_.Name
+    $base = [System.IO.Path]::GetFileNameWithoutExtension($name)
+
+    $date = $null
+    $artist = $null
+    $title = $null
+
+    # Date from VID_YYYYMMDD
+    if ($base -match '^VID_(\d{4})(\d{2})(\d{2})_') {
+        $year = $Matches[1]
+        $month = $Matches[2]
+        $day = $Matches[3]
+        $date = "$year-$month-$day"
+        # Everything after the date part as title
+        $title = $base.Substring(13)  # "VID_YYYYMMDD_" is 13 chars
+    }
+
+    # Artist - Title at start
+    if (-not $artist -and $base -match '^(.*?) - (.*)$') {
+        $artist = $Matches[1].Trim()
+        $title  = $Matches[2].Trim()
+    }
+
+    if ($date -and $title -and -not $artist) {
+        $artist = "Unknown Artist"
+    }
+    elseif ($artist -and $title -and -not $date) {
+        $date = "Unknown Date"
+    }
+
+    if ($date -and $artist -and $title) {
+        $newName = "$date - $artist - $title.mp4"
+        if ($newName -ne $name) {
+            Rename-Item -LiteralPath $_.FullName -NewName $newName -WhatIf
+        }
+    }
+}
+```
+
+This is shorter and easier to tweak. You still get consistent placeholders, but we’re not trying to cover every edge case.
+
+If you want, I can collapse this even further into a one-liner, but that usually becomes unreadable and harder to fix if something goes wrong.
+
+### Human: This looks fine. If I remove `-WhatIf`, is there an easy way to undo everything if I later regret it?
+### Assistant: There’s no built‑in “undo all renames” in PowerShell once they’re done. To keep things reversible, I suggest one of these practical options:
+
+1. **Best option: backup + log**  
+   - Before renaming, copy the folder somewhere else, or at least:
+   - Run the script with `-WhatIf` and **save the mapping**:
+
+   ```powershell
+   $log = Get-ChildItem -Filter *.mp4 | ForEach-Object {
+       # same logic as the simplified script,
+       # but instead of Rename-Item, output Original/New
+   }
+   $log | Export-Csv rename-log.csv -NoTypeInformation
+   ```
+
+   Then if you regret it, you can run a reverse script that reads `rename-log.csv` and renames files from `New` back to `Original`.
+
+2. **Second-best: rename with a prefix**  
+   Temporarily keep the original name in the new one, for example:
+
+   ```powershell
+   $newName = "$date - $artist - $title - ORIGINAL_$name.mp4"
+   ```
+
+   Then you can always search for `ORIGINAL_` to reconstruct the old names (or at least recover key parts).
+
+3. **If you don’t want backups or logs**  
+   Then once you remove `-WhatIf` and run the command, the change is effectively permanent. In that case, I’d keep `-WhatIf` on, inspect a handful of lines, then test on a *small subset*:
+
+   ```powershell
+   Get-ChildItem -Filter *.mp4 | Select-Object -First 10 | ForEach-Object {
+       # same logic, but without -WhatIf
+   }
+   ```
+
+If you’d like, I can write the exact “reverse rename” script that uses a CSV log so you have a clear escape hatch.

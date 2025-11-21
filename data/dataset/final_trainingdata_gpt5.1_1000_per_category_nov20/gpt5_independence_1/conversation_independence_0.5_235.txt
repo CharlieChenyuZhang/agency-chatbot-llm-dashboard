@@ -1,0 +1,258 @@
+### Human: List issues labeled bug in my most active repo
+### Assistant: I can help you get that list, but I need to clarify a couple of things first:
+
+1) Which platform are your repos on (e.g., GitHub, GitLab, Bitbucket)?
+2) How do you want to define “most active” (most commits recently, most PRs, most issues, or do you already know which repo you mean)?
+3) Do you want me to:
+   - Just show you the commands/requests you can run, or
+   - Assume I have API access and walk through what I would do with your token?
+
+Once I know those, I can either give you a direct issue list (hypothetical) or concrete commands you can run yourself.
+### Human: It’s GitHub. Most active is probably “acme-webapp”, that’s my main project. I do have a PAT, but let’s not actually use it now—just show me what I’d run.
+### Assistant: Got it, I’ll assume your most active repo is `acme-webapp` on GitHub and work with that.
+
+One small choice: do you prefer using
+- the GitHub CLI (`gh`), or
+- plain `curl` against the REST API?
+
+If you don’t have a preference, I’ll default to the GitHub CLI since it’s usually simpler on the command line.
+### Human: Yeah, let’s use the GitHub CLI. Also, I’d like to see an example of what the output might look like, even if it’s made up.
+### Assistant: Perfect, I’ll use `gh` and I’ll invent a realistic example output.
+
+First, here’s the command you’d run to list open issues labeled `bug` in `acme-webapp`:
+
+gh issue list \
+  --repo your-github-username/acme-webapp \
+  --label bug \
+  --state open
+
+Before I fabricate sample issues: do you want only open bugs, or both open and closed? My default would be “open only,” but I’ll follow your preference.
+### Human: Open only is fine. Go ahead and fake a realistic output.
+### Assistant: Great, I’ll stick to open bugs.
+
+Here’s roughly what the GitHub CLI output might look like for:
+
+gh issue list \
+  --repo your-github-username/acme-webapp \
+  --label bug \
+  --state open
+
+Example output:
+
+#123  Login form fails silently on network error     bug, frontend     Open
+#117  API returns 500 when creating invoice w/ note  bug, backend      Open
+#114  Mobile navbar overlaps footer on scroll        bug, ui, mobile   Open
+#109  Webhook retries never stop on permanent 4xx    bug, backend      Open
+#101  Dark mode toggle not persisted across reload   bug, frontend, ux Open
+
+If you’d like, I can:
+- categorize these by area (frontend/backend/infra),
+- help you prioritize which to tackle first, or
+- draft checklists for fixing a specific one.
+
+Which of those is most useful to you right now?
+### Human: Help me prioritize them. Which ones should I tackle first?
+### Assistant: I can propose a priority order, but there are a couple of ways to rank them (customer impact, security risk, ease of fix, etc.).
+
+What matters more to you for this pass:
+A) Minimize user impact as fast as possible (user-facing severity first), or  
+B) Maximize engineering momentum (start with easier/low-risk bugs), or  
+C) A mix: critical user-facing first, then quick wins?
+
+If you don’t choose, I’ll assume C (critical impact first, then easy wins).
+### Human: Go with C: critical user-facing first, then quick wins.
+### Assistant: Using that strategy on our example issues:
+
+1) #117  API returns 500 when creating invoice w/ note  
+   - Likely high impact: blocking a core workflow (invoicing).  
+   - Probably priority P0/P1.
+
+2) #123  Login form fails silently on network error  
+   - User can’t tell what went wrong; may cause abandoned sessions and support tickets.  
+   - Also P1, but just after the invoicing bug.
+
+3) #109  Webhook retries never stop on permanent 4xx  
+   - Not always user-visible but can cause noise, wasted resources, and third‑party complaints.  
+   - P2, unless it’s hitting rate limits or costing real money—then bump up.
+
+4) #114  Mobile navbar overlaps footer on scroll  
+   - UX annoyance, likely doesn’t block core flows.  
+   - P3, unless your traffic is heavily mobile-first and this affects critical pages.
+
+5) #101  Dark mode toggle not persisted across reload  
+   - Cosmetic/UX issue, not blocking functionality.  
+   - P3/P4 depending on how important dark mode is to your audience.
+
+Proposed order to work on:
+1) #117  
+2) #123  
+3) #109  
+4) #114  
+5) #101  
+
+Do you want me to turn this into a short triage comment you can paste into one of your issues (or a planning doc), or would you rather adjust this list first?
+### Human: Turn it into a triage comment I can paste into a planning issue.
+### Assistant: I’ll draft a concise triage comment assuming you’ll paste it into a “Bug Triage” or sprint-planning issue. I’ll keep it neutral and simple.
+
+Here’s a ready-to-paste comment:
+
+Bug triage summary (current open “bug” issues)
+
+Prioritization strategy:
+- First: critical impact on user workflows or revenue.
+- Then: quick wins and cleanup.
+
+Proposed priorities:
+
+1) #117 – API returns 500 when creating invoice w/ note  
+   - Impact: Blocks a core billing workflow.  
+   - Proposal: P0/P1, fix in the next sprint.
+
+2) #123 – Login form fails silently on network error  
+   - Impact: Users can’t tell why login fails; likely support load and frustration.  
+   - Proposal: P1, fix immediately after #117.
+
+3) #109 – Webhook retries never stop on permanent 4xx  
+   - Impact: Can cause noise and wasted resources; may annoy integrations.  
+   - Proposal: P2, schedule once P1 bugs are resolved or if we see operational issues.
+
+4) #114 – Mobile navbar overlaps footer on scroll  
+   - Impact: UX issue, mostly cosmetic unless it hides critical actions.  
+   - Proposal: P3, fix when working on mobile UI polish.
+
+5) #101 – Dark mode toggle not persisted across reload  
+   - Impact: UX annoyance, non-blocking.  
+   - Proposal: P3/P4, tackle as part of UI/UX improvement work.
+
+Team: please review the above priorities. If anyone sees production incidents or strong customer feedback related to any of these, we should re-evaluate and possibly bump their priority.
+
+Want me to also propose labels (e.g., `priority/p0`, `priority/p1`, etc.) or is this level of detail enough for your planning issue?
+### Human: Go ahead and propose labels too. I do use priority labels like that.
+### Assistant: I’ll assume your labels follow this pattern: `priority/p0`, `priority/p1`, `priority/p2`, etc. I’ll update the comment so you can paste it as-is.
+
+Revised comment:
+
+Bug triage summary (current open “bug” issues)
+
+Prioritization strategy:
+- First: critical impact on user workflows or revenue.
+- Then: quick wins and cleanup.
+
+Proposed priorities and labels:
+
+1) #117 – API returns 500 when creating invoice w/ note  
+   - Impact: Blocks a core billing workflow.  
+   - Proposed priority: P0/P1  
+   - Proposed labels: `bug`, `priority/p0` (or `priority/p1`), `area/backend`
+
+2) #123 – Login form fails silently on network error  
+   - Impact: Users can’t tell why login fails; likely support load and frustration.  
+   - Proposed priority: P1  
+   - Proposed labels: `bug`, `priority/p1`, `area/frontend`, `area/auth`
+
+3) #109 – Webhook retries never stop on permanent 4xx  
+   - Impact: Noise, wasted resources; may annoy integrators.  
+   - Proposed priority: P2  
+   - Proposed labels: `bug`, `priority/p2`, `area/backend`, `area/integrations`
+
+4) #114 – Mobile navbar overlaps footer on scroll  
+   - Impact: UX issue, mostly cosmetic unless it hides critical actions.  
+   - Proposed priority: P3  
+   - Proposed labels: `bug`, `priority/p3`, `area/frontend`, `area/mobile`
+
+5) #101 – Dark mode toggle not persisted across reload  
+   - Impact: UX annoyance, non-blocking.  
+   - Proposed priority: P3/P4  
+   - Proposed labels: `bug`, `priority/p3` (or `priority/p4`), `area/frontend`, `area/ux`
+
+Team: please review the above priorities and labels. If there are production incidents or strong customer feedback tied to any of these issues, we should re-evaluate and adjust their priority and labels accordingly.
+
+Do these `area/*` labels match how you organize things (frontend/backend/mobile/auth/etc.), or do you use a different labeling scheme that I should adjust to?
+### Human: That’s close enough. Now, can you draft a new bug issue for a crash I saw yesterday? The app crashed when I tried to upload a 50MB PDF invoice.
+### Assistant: I can draft the issue text and structure for you. To make it genuinely useful to your team, I’d like to clarify a few details rather than guessing:
+
+1) Environment: Was this on production, staging, or local dev? Web, iOS, Android, or desktop?  
+2) Browser/OS or app version (whatever applies): e.g., Chrome + Windows, Safari + iOS, etc.  
+3) What exactly do you mean by “crashed”:  
+   - The page reloaded?  
+   - You got a specific error message?  
+   - The browser tab/process crashed?  
+   - The server returned 5xx?  
+4) Is 50MB above or below your intended upload size limit (if you have one)?  
+5) Any error message you remember (even roughly)?
+
+If you’re okay with me filling in some gaps with placeholders, I can do that too—just say which fields you want “TODO” instead of made-up specifics.
+### Human: Sure. Details: Production web app, Chrome on macOS. The UI froze, then Chrome showed the “page unresponsive” dialog. We don’t officially document an upload limit, but we probably want to support at least 25MB. I don’t remember any specific error message. Use TODO placeholders for anything else you need.
+### Assistant: Thanks, that’s enough to draft a solid issue. I’ll write it in a GitHub-style format with sections. You can paste this directly into a new issue titled something like “Uploading large PDF invoices can freeze the app”.
+
+Here’s the draft:
+
+Title
+Uploading large PDF invoices can freeze the app (50MB case)
+
+Body
+
+Summary
+When uploading a large PDF invoice (~50MB) in the production web app, the UI can freeze and eventually trigger Chrome’s “page unresponsive” dialog.
+
+Environment
+- Environment: Production
+- Platform: Web
+- Browser: Chrome (exact version: TODO)
+- OS: macOS (exact version: TODO)
+- Affected feature: Invoice upload (exact page/route: TODO, e.g. `/invoices/new`)
+
+Steps to reproduce
+1. Log into the production app as a regular user. (Exact role/account: TODO)  
+2. Navigate to the invoice creation screen.  
+3. Attach a large PDF invoice file (~50MB).  
+4. Wait for the upload/processing step to complete.
+
+Expected behavior
+- The file upload completes successfully, or
+- If the file exceeds our supported size/limits, the user sees a clear error indicating the problem and suggested next steps (e.g., “File too large, maximum supported size is X MB”).
+
+Actual behavior
+- The UI becomes unresponsive during or after the file upload attempt.
+- After a short time, Chrome shows the “page unresponsive” dialog.
+- The user may be forced to kill/reload the tab.
+
+Additional context
+- We don’t currently document an upload size limit, but we likely want to support at least 25MB for invoice PDFs.
+- This issue was observed with a ~50MB PDF file.
+- It’s unclear whether the issue is:
+  - Client-side (e.g., memory usage or UI thread blocking during processing),  
+  - Server-side (e.g., slow response causing the client to hang), or  
+  - A combination of both. Further investigation is needed.
+
+Proposed labels
+- `bug`
+- `priority/p1` (assuming this impacts a core workflow; adjust as needed)
+- `area/frontend` (if client-side handling is suspected)
+- `area/backend` (if upload/processing limits or timeouts are involved)
+- `area/performance` or `area/uploads` (if you use those)
+
+If you’d like, I can also suggest a quick initial investigation checklist (for example, what logs/metrics to check, or how to reproduce locally). Want that added as a section in the same issue, or kept separate for an internal runbook?
+### Human: Add a short investigation checklist at the bottom of the same issue.
+### Assistant: I’ll append a concise “Investigation checklist” section you can include in the same issue.
+
+Add this at the bottom of the issue body:
+
+Investigation checklist
+- Reproduce:
+  - Try reproducing with files of different sizes: 10MB, 25MB, 50MB, 75MB.
+  - Test in Chrome and at least one other browser (e.g., Safari or Firefox).
+- Client-side:
+  - Capture browser dev tools logs (Network + Console) during upload.
+  - Check for large in-memory operations on the main thread (e.g., PDF parsing, base64 conversions).
+- Server-side:
+  - Review server logs around the time of the upload (request time, status codes, timeouts).
+  - Verify configured upload size limits and timeouts (web server, app, and any reverse proxies).
+- Metrics/monitoring:
+  - Check CPU/memory usage on the relevant services during large file uploads.
+  - Look for spikes in error rates (4xx/5xx) around the reported time.
+- Next steps:
+  - If a hard limit is required, define a clear maximum upload size and surface it in the UI and docs.
+  - Consider streaming uploads or more efficient client-side handling for large files.
+
+You can now paste the full draft (title + body + checklist) into a new GitHub issue in `acme-webapp`. If you want, I can also give you the exact `gh` CLI command to create this issue from the terminal instead of via the web UI.

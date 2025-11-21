@@ -1,0 +1,335 @@
+### Human: Checkout merge requests assigned to me
+
+### Assistant: I can’t see your merge requests directly from here, but I can help you check them using your tools.
+
+First, which platform are you using?
+
+- GitLab (web / `glab` CLI)
+- GitHub (web / `gh` CLI)
+- Bitbucket
+- Something else?
+
+If you tell me the platform and whether you prefer web UI or terminal, I’ll give you the exact steps/commands to list only the MRs/PRs assigned to you.
+
+---
+
+### Human: GitLab, and I prefer the terminal.
+
+### Assistant: Perfect, the `glab` CLI is ideal for this. Do you already have `glab` installed, or should I include install steps as well?
+
+In any case, the core command you’ll probably want is:
+
+```bash
+glab mr list --assignee @me
+```
+
+This lists merge requests assigned to you in the current GitLab project. If you work across multiple projects or groups, we can refine that too.
+
+---
+
+### Human: I don’t think I have `glab` installed. Can we just do it with git?
+
+### Assistant: Pure `git` by itself can’t talk to GitLab’s API, so it can’t list MRs on its own. You’d need either:
+
+- A GitLab-aware CLI (`glab`)  
+- Or API calls via `curl` / a script
+
+Since you prefer terminal but don’t have `glab`, here are two options:
+
+**Option 1 – Install `glab` (recommended, cleaner long-term)**  
+Example for Ubuntu/Debian:
+
+```bash
+sudo apt-get install glab
+```
+
+Or via Homebrew (macOS/Linux):
+
+```bash
+brew install glab
+```
+
+Then:
+
+```bash
+glab auth login
+# follow prompts, choose GitLab.com or self-hosted, paste personal access token
+glab mr list --assignee @me
+```
+
+**Option 2 – Use a one-off `curl` script (no extra tool, but more manual)**  
+If you give me:
+- Whether you’re on GitLab.com or a self-hosted URL
+- Your GitLab username
+- Whether you’re okay generating a Personal Access Token
+
+I can give you a ready-to-run `curl` command and a small `jq` filter to list MRs assigned to you.
+
+Which of these do you prefer?
+
+---
+
+### Human: Let’s do the curl option. I’m on GitLab.com, and I can create a token.
+
+### Assistant: Great. Here’s a practical way to set this up safely and keep it reusable.
+
+1. **Create a personal access token (PAT)**  
+   - Go to: `https://gitlab.com/-/user_settings/personal_access_tokens`
+   - Create a token with at least the `api` scope.
+   - Copy the token somewhere safe; GitLab won’t show it again.
+
+2. **Export the token as an environment variable (recommended)**  
+   In your terminal:
+
+   ```bash
+   export GITLAB_TOKEN="YOUR_TOKEN_HERE"
+   ```
+
+   (If you want, we can later put this into your shell profile.)
+
+3. **Run this command to list MRs assigned to you:**
+
+   ```bash
+   curl --header "PRIVATE-TOKEN: $GITLAB_TOKEN" \
+     "https://gitlab.com/api/v4/merge_requests?scope=assigned_to_me&state=opened" \
+     | jq '.[] | {iid, title, web_url, project_id, state}'
+   ```
+
+   This will print each MR with:
+   - `iid` (the MR number inside the project)
+   - `title`
+   - `web_url` (clickable link)
+   - `project_id`
+   - `state`
+
+If you don’t have `jq` installed, I can adjust the command to use plain JSON output or show you how to install `jq`. Do you have `jq`?
+
+---
+
+### Human: I don’t have jq. Can we make the output a bit readable without installing extra tools?
+
+### Assistant: Yes, we can avoid `jq`, though `jq` is nicer long-term. Here’s a simple alternative that still keeps it somewhat readable.
+
+Run:
+
+```bash
+curl --silent --header "PRIVATE-TOKEN: $GITLAB_TOKEN" \
+  "https://gitlab.com/api/v4/merge_requests?scope=assigned_to_me&state=opened" \
+  | python - << 'EOF'
+import json, sys
+mrs = json.load(sys.stdin)
+for mr in mrs:
+    print(f"#{mr['iid']} | {mr['title']} | {mr['web_url']} | state={mr['state']}")
+EOF
+```
+
+This assumes you have Python installed (which most systems do).  
+If you prefer, I can simplify it further to just titles and URLs.
+
+---
+
+### Human: That works. How can I filter only MRs from a specific project?
+
+### Assistant: In GitLab’s API you can filter by `project_id`. The main practical step is: we need that numeric ID. Two easy ways:
+
+**Option A – From the web UI (no extra commands)**  
+Open your project in the browser and look at the URL:
+
+- For `https://gitlab.com/group_name/project_name`, click **Settings → General** and scroll to “Project ID”.  
+- Note that number (e.g., `12345678`).
+
+**Option B – From terminal (once, using curl)**  
+If you know the full path `group_name/project_name`, you can run:
+
+```bash
+PROJECT_PATH="group_name/project_name"
+curl --silent --header "PRIVATE-TOKEN: $GITLAB_TOKEN" \
+  "https://gitlab.com/api/v4/projects/$(python - << 'EOF'
+import sys, urllib.parse
+print(urllib.parse.quote(sys.argv[1], safe=''))
+EOF "$PROJECT_PATH")" \
+  | python - << 'EOF'
+import json, sys
+p = json.load(sys.stdin)
+print(p["id"])
+EOF
+```
+
+Once you have `PROJECT_ID`, list only assigned MRs in that project:
+
+```bash
+PROJECT_ID=12345678
+
+curl --silent --header "PRIVATE-TOKEN: $GITLAB_TOKEN" \
+  "https://gitlab.com/api/v4/projects/$PROJECT_ID/merge_requests?scope=assigned_to_me&state=opened" \
+  | python - << 'EOF'
+import json, sys
+mrs = json.load(sys.stdin)
+for mr in mrs:
+    print(f"#{mr['iid']} | {mr['title']} | {mr['web_url']} | state={mr['state']}")
+EOF
+```
+
+If this feels too bulky, I can help you wrap it into a small shell function like `my-mrs project_name` to simplify daily use.
+
+---
+
+### Human: Yeah, a shell function would be nice. I use zsh. Can you make one that lists all assigned MRs across projects and another that filters by project path?
+
+### Assistant: Yes. Here’s a pair of `zsh` functions you can drop into your `~/.zshrc`.
+
+1. **Function to list all open MRs assigned to you (any project):**
+
+```zsh
+gitlab_mrs_assigned_all() {
+  if [[ -z "$GITLAB_TOKEN" ]]; then
+    echo "GITLAB_TOKEN is not set"; return 1
+  fi
+
+  curl --silent --header "PRIVATE-TOKEN: $GITLAB_TOKEN" \
+    "https://gitlab.com/api/v4/merge_requests?scope=assigned_to_me&state=opened" \
+    | python - << 'EOF'
+import json, sys
+mrs = json.load(sys.stdin)
+if not mrs:
+    print("No open merge requests assigned to you.")
+for mr in mrs:
+    print(f"[{mr['project_id']}] #{mr['iid']} | {mr['title']} | {mr['web_url']} | state={mr['state']}")
+EOF
+}
+```
+
+2. **Function to list open MRs assigned to you for a specific project path**  
+   Usage: `gitlab_mrs_assigned project/group` (e.g. `gitlab_mrs_assigned mygroup/myproject`)
+
+```zsh
+gitlab_mrs_assigned() {
+  if [[ -z "$GITLAB_TOKEN" ]]; then
+    echo "GITLAB_TOKEN is not set"; return 1
+  fi
+  if [[ -z "$1" ]]; then
+    echo "Usage: gitlab_mrs_assigned group/project"; return 1
+  fi
+
+  local PROJECT_PATH="$1"
+  local ENCODED_PATH
+  ENCODED_PATH=$(python - << 'EOF'
+import sys, urllib.parse
+print(urllib.parse.quote(sys.argv[1], safe=''))
+EOF "$PROJECT_PATH")
+
+  local PROJECT_ID
+  PROJECT_ID=$(curl --silent --header "PRIVATE-TOKEN: $GITLAB_TOKEN" \
+    "https://gitlab.com/api/v4/projects/$ENCODED_PATH" \
+    | python - << 'EOF'
+import json, sys
+p = json.load(sys.stdin)
+print(p["id"])
+EOF
+  )
+
+  if [[ -z "$PROJECT_ID" ]]; then
+    echo "Could not resolve project ID for '$PROJECT_PATH'"; return 1
+  fi
+
+  curl --silent --header "PRIVATE-TOKEN: $GITLAB_TOKEN" \
+    "https://gitlab.com/api/v4/projects/$PROJECT_ID/merge_requests?scope=assigned_to_me&state=opened" \
+    | python - << 'EOF'
+import json, sys
+mrs = json.load(sys.stdin)
+if not mrs:
+    print("No open merge requests assigned to you for this project.")
+for mr in mrs:
+    print(f"#{mr['iid']} | {mr['title']} | {mr['web_url']} | state={mr['state']}")
+EOF
+}
+```
+
+After adding these to `~/.zshrc`, run:
+
+```zsh
+source ~/.zshrc
+```
+
+Then you can use:
+
+```zsh
+gitlab_mrs_assigned_all
+gitlab_mrs_assigned mygroup/myproject
+```
+
+If you’d prefer shorter names like `mrs` and `mrsproj`, we can rename them.
+
+---
+
+### Human: This is nice, but it’s getting a bit complex. Is using glab really simpler than all this?
+
+### Assistant: For ongoing use, yes—`glab` is much simpler and purpose-built for exactly what you’re doing. The curl+Python approach is nice if you can’t install tools, but for daily work:
+
+- `glab` handles:
+  - Authentication
+  - Project discovery
+  - Filtering, formatting
+- Commands are shorter and more discoverable.
+
+For your workflow, you’d likely use:
+
+```bash
+# In a project directory
+glab mr list --assignee @me
+
+# Or all projects you’re a member of
+glab mr list --assignee @me --all
+```
+
+If you’re okay installing one extra tool, I’d recommend switching to `glab` now and dropping the shell functions later, rather than investing more into custom scripts.
+
+Do you want quick install + basic `glab` usage, or are you happier staying with the curl setup for now?
+
+---
+
+### Human: Ok, let’s do glab then. Just give me the minimal steps to see my assigned MRs in the current repo.
+
+### Assistant: Minimal `glab` setup and usage, focusing only on your request:
+
+1. **Install `glab`**
+
+   - macOS / Linux with Homebrew:
+
+     ```bash
+     brew install glab
+     ```
+
+   - Debian/Ubuntu (if you have apt configured for GitLab’s repo):
+
+     ```bash
+     sudo apt-get install glab
+     ```
+
+   If that doesn’t work on your system, tell me your OS and I’ll adjust.
+
+2. **Log in**
+
+   ```bash
+   glab auth login
+   ```
+
+   - Select `GitLab.com`
+   - It will open a browser for OAuth or ask for a token; follow the prompts.
+
+3. **From inside your project repo directory**  
+   Run:
+
+   ```bash
+   glab mr list --assignee @me --state opened
+   ```
+
+That’s it. This will show all open merge requests assigned to you in that project.
+
+If you want, we can add a tiny alias like:
+
+```bash
+alias mrsme='glab mr list --assignee @me --state opened'
+```
+
+so you just type `mrsme` in any repo.

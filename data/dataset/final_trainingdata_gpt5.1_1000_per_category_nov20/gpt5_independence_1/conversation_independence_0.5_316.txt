@@ -1,0 +1,506 @@
+### Human: Checkout merge requests assigned to me
+
+### Assistant: I can help with that. To make sure I give you the right steps, do you want to:
+
+1) Just list the merge requests assigned to you on your Git hosting service (e.g., GitLab/GitHub), or  
+2) Actually check them out as local branches in your git repository so you can review/test the code?
+
+If you don’t mind, I’ll assume you want option 2 (checkout locally) and give you those commands, but tell me if you meant something else.
+
+### Human: Yeah, I mean check them out locally so I can review them. I’m using GitLab.
+
+### Assistant: Got it, GitLab + local checkout.
+
+I’ll outline a straightforward way you can use right now. Then, if you want, I can help you script/automate it.
+
+First, make sure you’re in your local clone of the project:
+
+```bash
+cd /path/to/your/repo
+git fetch origin
+```
+
+On GitLab, each merge request has an “MR ID” (like `!23`) and a source branch. The simplest pattern is:
+
+```bash
+git fetch origin merge-requests/<IID>/head:mr-<IID>
+git checkout mr-<IID>
+```
+
+For example, for MR `!23`:
+
+```bash
+git fetch origin merge-requests/23/head:mr-23
+git checkout mr-23
+```
+
+Would you like me to:
+
+- Walk you through how to find the MR IDs that are assigned specifically to you in the GitLab UI, or  
+- Assume you already see them in GitLab and just give you a small script to automatically fetch/checkout a given MR by ID?
+
+### Human: I can see them in the UI. A script sounds useful. Can you write one that checks out all MRs assigned to me automatically?
+
+### Assistant: I can sketch that out, but to do this fully automatically we’d normally use the GitLab API with a personal access token.
+
+Before I pick an approach, can you confirm:
+
+1) Are you okay with creating/using a GitLab personal access token (read-only for merge requests)?  
+2) Do you prefer a simple Bash script, or would you rather have a Python script (more flexible, slightly more setup)?
+
+If you don’t have a strong preference, I’ll default to a Bash script using `curl` and `jq`.
+
+### Human: Bash is fine. I can create a token. Just assume I have one.
+
+### Assistant: Perfect. I’ll assume:
+
+- Your GitLab instance is `https://gitlab.com` (tell me if it’s self-hosted).  
+- You have:
+  - `GITLAB_TOKEN` set as an environment variable.  
+  - `GITLAB_USERNAME` set to your username.  
+  - You’re already in the repo directory.
+
+Here’s a Bash script that will:
+
+1. Query GitLab for open MRs assigned to you for this project.  
+2. For each MR, fetch and create/check out a local branch named `mr-<IID>`.
+
+```bash
+#!/usr/bin/env bash
+set -euo pipefail
+
+# CONFIG: adjust these
+GITLAB_HOST="${GITLAB_HOST:-https://gitlab.com}"
+PROJECT_PATH="${PROJECT_PATH:-group-or-user/project-name}"  # e.g. mygroup/myrepo
+
+if [[ -z "${GITLAB_TOKEN:-}" || -z "${GITLAB_USERNAME:-}" ]]; then
+  echo "Please set GITLAB_TOKEN and GITLAB_USERNAME environment variables."
+  exit 1
+fi
+
+# Get project ID
+PROJECT_ENCODED=$(python3 - <<EOF
+import urllib.parse
+print(urllib.parse.quote("${PROJECT_PATH}", safe=""))
+EOF
+)
+
+PROJECT_ID=$(curl -s --header "PRIVATE-TOKEN: $GITLAB_TOKEN" \
+  "$GITLAB_HOST/api/v4/projects/$PROJECT_ENCODED" | jq -r '.id')
+
+if [[ "$PROJECT_ID" == "null" ]]; then
+  echo "Unable to retrieve project ID. Check PROJECT_PATH and token."
+  exit 1
+fi
+
+echo "Project ID: $PROJECT_ID"
+
+# Get merge requests assigned to the current user
+MRS=$(curl -s --header "PRIVATE-TOKEN: $GITLAB_TOKEN" \
+  "$GITLAB_HOST/api/v4/projects/$PROJECT_ID/merge_requests?state=opened&scope=assigned_to_me")
+
+COUNT=$(echo "$MRS" | jq 'length')
+echo "Found $COUNT open MRs assigned to you."
+
+if [[ "$COUNT" -eq 0 ]]; then
+  echo "No open assigned merge requests to checkout."
+  exit 0
+fi
+
+# For each MR, fetch and checkout/create a branch
+echo "$MRS" | jq -c '.[]' | while read -r MR; do
+  IID=$(echo "$MR" | jq -r '.iid')
+  SOURCE_BRANCH=$(echo "$MR" | jq -r '.source_branch')
+  TITLE=$(echo "$MR" | jq -r '.title')
+
+  LOCAL_BRANCH="mr-$IID"
+
+  echo
+  echo "MR !${IID}: $TITLE"
+  echo "  Source branch: $SOURCE_BRANCH"
+  echo "  Local branch:  $LOCAL_BRANCH"
+
+  git fetch origin "merge-requests/$IID/head:$LOCAL_BRANCH"
+  echo "  Fetched into $LOCAL_BRANCH"
+
+  # Do NOT auto-checkout each one by default to avoid disrupting your current work
+  # Uncomment the next line if you want automatic checkout of the last MR processed:
+  # git checkout "$LOCAL_BRANCH"
+done
+
+echo
+echo "Done. Local branches created for each MR as mr-<IID>."
+echo "Use: git checkout mr-<IID>  (e.g., git checkout mr-23)"
+```
+
+This script is slightly conservative: it does not auto-check out each MR one by one to avoid interrupting whatever branch you’re currently working on.
+
+Do you want me to modify it to automatically check out the *most recently updated* assigned MR when it finishes, or would you rather keep manual `git checkout` control?
+
+### Human: Yeah, I’d like it to automatically check out the most recently updated MR assigned to me.
+
+### Assistant: Understood. Since that changes your working branch automatically, I’ll be explicit about the behavior.
+
+I’ll adjust the script so that:
+
+- It still creates `mr-<IID>` branches for all assigned MRs.  
+- After processing them, it checks out the one with the *latest `updated_at`* timestamp.
+
+Here’s the updated version (only the lower half changes):
+
+```bash
+#!/usr/bin/env bash
+set -euo pipefail
+
+GITLAB_HOST="${GITLAB_HOST:-https://gitlab.com}"
+PROJECT_PATH="${PROJECT_PATH:-group-or-user/project-name}"
+
+if [[ -z "${GITLAB_TOKEN:-}" || -z "${GITLAB_USERNAME:-}" ]]; then
+  echo "Please set GITLAB_TOKEN and GITLAB_USERNAME environment variables."
+  exit 1
+fi
+
+PROJECT_ENCODED=$(python3 - <<EOF
+import urllib.parse
+print(urllib.parse.quote("${PROJECT_PATH}", safe=""))
+EOF
+)
+
+PROJECT_ID=$(curl -s --header "PRIVATE-TOKEN: $GITLAB_TOKEN" \
+  "$GITLAB_HOST/api/v4/projects/$PROJECT_ID" | jq -r '.id')
+```
+
+Wait, I just noticed a potential mistake in that line (`$PROJECT_ID` vs `$PROJECT_ENCODED`). I’ll fix it as I go instead of pushing a broken snippet.
+
+Here’s the *correct full script* with “checkout most recently updated MR” behavior:
+
+```bash
+#!/usr/bin/env bash
+set -euo pipefail
+
+GITLAB_HOST="${GITLAB_HOST:-https://gitlab.com}"
+PROJECT_PATH="${PROJECT_PATH:-group-or-user/project-name}"
+
+if [[ -z "${GITLAB_TOKEN:-}" || -z "${GITLAB_USERNAME:-}" ]]; then
+  echo "Please set GITLAB_TOKEN and GITLAB_USERNAME environment variables."
+  exit 1
+fi
+
+PROJECT_ENCODED=$(python3 - <<EOF
+import urllib.parse
+print(urllib.parse.quote("${PROJECT_PATH}", safe=""))
+EOF
+)
+
+# Get project ID
+PROJECT_ID=$(curl -s --header "PRIVATE-TOKEN: $GITLAB_TOKEN" \
+  "$GITLAB_HOST/api/v4/projects/$PROJECT_ENCODED" | jq -r '.id')
+
+if [[ "$PROJECT_ID" == "null" ]]; then
+  echo "Unable to retrieve project ID. Check PROJECT_PATH and token."
+  exit 1
+fi
+
+echo "Project ID: $PROJECT_ID"
+
+# Get merge requests assigned to the current user, sorted by updated_at descending
+MRS=$(curl -s --header "PRIVATE-TOKEN: $GITLAB_TOKEN" \
+  "$GITLAB_HOST/api/v4/projects/$PROJECT_ID/merge_requests?state=opened&scope=assigned_to_me&order_by=updated_at&sort=desc")
+
+COUNT=$(echo "$MRS" | jq 'length')
+echo "Found $COUNT open MRs assigned to you."
+
+if [[ "$COUNT" -eq 0 ]]; then
+  echo "No open assigned merge requests to checkout."
+  exit 0
+fi
+
+LATEST_IID=""
+LATEST_TITLE=""
+
+echo "$MRS" | jq -c '.[]' | while read -r MR; do
+  IID=$(echo "$MR" | jq -r '.iid')
+  SOURCE_BRANCH=$(echo "$MR" | jq -r '.source_branch')
+  TITLE=$(echo "$MR" | jq -r '.title')
+
+  if [[ -z "$LATEST_IID" ]]; then
+    LATEST_IID="$IID"
+    LATEST_TITLE="$TITLE"
+  fi
+
+  LOCAL_BRANCH="mr-$IID"
+
+  echo
+  echo "MR !${IID}: $TITLE"
+  echo "  Source branch: $SOURCE_BRANCH"
+  echo "  Local branch:  $LOCAL_BRANCH"
+
+  git fetch origin "merge-requests/$IID/head:$LOCAL_BRANCH"
+  echo "  Fetched into $LOCAL_BRANCH"
+done
+
+# After the loop, $LATEST_IID and $LATEST_TITLE are not available outside the while subshell
+# Work around by recomputing only the latest one:
+LATEST=$(echo "$MRS" | jq -c '.[0]')
+LATEST_IID=$(echo "$LATEST" | jq -r '.iid')
+LATEST_TITLE=$(echo "$LATEST" | jq -r '.title')
+LATEST_BRANCH="mr-$LATEST_IID"
+
+echo
+echo "Checking out most recently updated MR: !$LATEST_IID – $LATEST_TITLE"
+git checkout "$LATEST_BRANCH"
+echo "Now on branch: $LATEST_BRANCH"
+```
+
+You’ll need `jq` and `python3` installed for this script.
+
+Does this behavior match what you had in mind, or do you also want it to, for example, automatically pull/rebase the MR branches on top of your default branch?
+
+### Human: I’d like them automatically rebased on top of `main` when I check them out. Is that safe?
+
+### Assistant: Automatically rebasing others’ MR branches can be risky because:
+
+- It rewrites history on those branches, which may surprise the authors if you push.  
+- If you accidentally push your rebased branch to the MR’s source branch, it can create confusion or conflicts.
+
+A safer compromise is:
+
+- Rebase **locally only**, onto `origin/main`.  
+- Keep a clear rule: you never push these `mr-<IID>` branches back to the remote.
+
+I can adjust the script so that after checking out the latest MR branch, it does:
+
+```bash
+git fetch origin main
+git rebase origin/main
+```
+
+and leaves the other MR branches just fetched (no rebase). That’s a moderate change to your local state but doesn’t affect the remote unless you manually push.
+
+Do you want me to go ahead with this “rebase only the currently checked out MR onto origin/main” behavior?
+
+### Human: Yes, rebasing only the current one onto origin/main is fine.
+
+### Assistant: Understood. Here’s the script with that behavior added at the end:
+
+```bash
+#!/usr/bin/env bash
+set -euo pipefail
+
+GITLAB_HOST="${GITLAB_HOST:-https://gitlab.com}"
+PROJECT_PATH="${PROJECT_PATH:-group-or-user/project-name}"
+
+if [[ -z "${GITLAB_TOKEN:-}" || -z "${GITLAB_USERNAME:-}" ]]; then
+  echo "Please set GITLAB_TOKEN and GITLAB_USERNAME environment variables."
+  exit 1
+fi
+
+PROJECT_ENCODED=$(python3 - <<EOF
+import urllib.parse
+print(urllib.parse.quote("${PROJECT_PATH}", safe=""))
+EOF
+)
+
+PROJECT_ID=$(curl -s --header "PRIVATE-TOKEN: $GITLAB_TOKEN" \
+  "$GITLAB_HOST/api/v4/projects/$PROJECT_ENCODED" | jq -r '.id')
+
+if [[ "$PROJECT_ID" == "null" ]]; then
+  echo "Unable to retrieve project ID. Check PROJECT_PATH and token."
+  exit 1
+fi
+
+echo "Project ID: $PROJECT_ID"
+
+MRS=$(curl -s --header "PRIVATE-TOKEN: $GITLAB_TOKEN" \
+  "$GITLAB_HOST/api/v4/projects/$PROJECT_ID/merge_requests?state=opened&scope=assigned_to_me&order_by=updated_at&sort=desc")
+
+COUNT=$(echo "$MRS" | jq 'length')
+echo "Found $COUNT open MRs assigned to you."
+
+if [[ "$COUNT" -eq 0 ]]; then
+  echo "No open assigned merge requests to checkout."
+  exit 0
+fi
+
+echo "$MRS" | jq -c '.[]' | while read -r MR; do
+  IID=$(echo "$MR" | jq -r '.iid')
+  SOURCE_BRANCH=$(echo "$MR" | jq -r '.source_branch')
+  TITLE=$(echo "$MR" | jq -r '.title')
+
+  LOCAL_BRANCH="mr-$IID"
+
+  echo
+  echo "MR !${IID}: $TITLE"
+  echo "  Source branch: $SOURCE_BRANCH"
+  echo "  Local branch:  $LOCAL_BRANCH"
+
+  git fetch origin "merge-requests/$IID/head:$LOCAL_BRANCH"
+  echo "  Fetched into $LOCAL_BRANCH"
+done
+
+LATEST=$(echo "$MRS" | jq -c '.[0]')
+LATEST_IID=$(echo "$LATEST" | jq -r '.iid')
+LATEST_TITLE=$(echo "$LATEST" | jq -r '.title')
+LATEST_BRANCH="mr-$LATEST_IID"
+
+echo
+echo "Checking out most recently updated MR: !$LATEST_IID – $LATEST_TITLE"
+git checkout "$LATEST_BRANCH"
+
+echo "Fetching origin/main and rebasing $LATEST_BRANCH onto it..."
+git fetch origin main
+git rebase origin/main
+
+echo "Done. You are on $LATEST_BRANCH, rebased onto origin/main."
+```
+
+This will stop with conflicts if the rebase hits them; you can then resolve and continue with:
+
+```bash
+git status
+# fix conflicts
+git add <files>
+git rebase --continue
+```
+
+or abort with `git rebase --abort`.
+
+Do you also want a *companion script* that, after you’ve tested/reviewed locally, can post a standardized “review completed” comment back to the MR on GitLab, or would you rather keep reviews manual in the UI?
+
+### Human: A companion script for posting a review comment would be nice. Can it just post a simple “Reviewed locally, looks good to me” message?
+
+### Assistant: Yes, that’s straightforward and non-destructive (it only adds a comment), so I’ll just propose a simple script that:
+
+- Takes an MR IID as an argument.  
+- Posts a fixed message to its discussions.
+
+Here’s a Bash script for that:
+
+```bash
+#!/usr/bin/env bash
+set -euo pipefail
+
+GITLAB_HOST="${GITLAB_HOST:-https://gitlab.com}"
+PROJECT_PATH="${PROJECT_PATH:-group-or-user/project-name}"
+REVIEW_MESSAGE="${REVIEW_MESSAGE:-Reviewed locally, looks good to me.}"
+
+if [[ $# -ne 1 ]]; then
+  echo "Usage: $0 <mr_iid>"
+  exit 1
+fi
+
+MR_IID="$1"
+
+if [[ -z "${GITLAB_TOKEN:-}" ]]; then
+  echo "Please set GITLAB_TOKEN environment variable."
+  exit 1
+fi
+
+PROJECT_ENCODED=$(python3 - <<EOF
+import urllib.parse
+print(urllib.parse.quote("${PROJECT_PATH}", safe=""))
+EOF
+)
+
+PROJECT_ID=$(curl -s --header "PRIVATE-TOKEN: $GITLAB_TOKEN" \
+  "$GITLAB_HOST/api/v4/projects/$PROJECT_ENCODED" | jq -r '.id')
+
+if [[ "$PROJECT_ID" == "null" ]]; then
+  echo "Unable to retrieve project ID. Check PROJECT_PATH and token."
+  exit 1
+fi
+
+PAYLOAD=$(jq -n --arg body "$REVIEW_MESSAGE" '{ body: $body }')
+
+curl -sS --request POST \
+  --header "PRIVATE-TOKEN: $GITLAB_TOKEN" \
+  --header "Content-Type: application/json" \
+  --data "$PAYLOAD" \
+  "$GITLAB_HOST/api/v4/projects/$PROJECT_ID/merge_requests/$MR_IID/notes" \
+  >/dev/null
+
+echo "Posted review comment to MR !$MR_IID:"
+echo "  \"$REVIEW_MESSAGE\""
+```
+
+You can override the message per-run:
+
+```bash
+REVIEW_MESSAGE="Reviewed locally, LGTM with minor nits." ./post_mr_review.sh 23
+```
+
+Would you like to also have this script **optionally** approve the MR (using GitLab’s approvals API) when you run it, or would you prefer to keep approvals manual to avoid accidental approvals?
+
+### Human: Let’s keep approvals manual for now. I don’t want to accidentally approve something.
+
+### Assistant: That’s reasonable; we’ll keep that step manual.
+
+To summarize what you have now:
+
+- `checkout_assigned_mrs.sh`  
+  - Fetches all open MRs assigned to you.  
+  - Creates local branches `mr-<IID>` for each.  
+  - Checks out the most recently updated one and rebases it onto `origin/main`.
+
+- `post_mr_review.sh`  
+  - Posts a standard or custom review comment to a specific MR by IID.
+
+If you’d like next, I can help you:
+
+- Turn these into `make` targets or small CLI aliases, or  
+- Add a safety check so `checkout_assigned_mrs.sh` refuses to run if you have uncommitted local changes, to avoid losing work.
+
+Do you want me to add that “refuse to run if there are uncommitted changes” safeguard to the checkout script?
+
+### Human: Yeah, adding that safeguard sounds good. How would that look?
+
+### Assistant: I’ll add a small guard near the top of `checkout_assigned_mrs.sh` that:
+
+- Detects any uncommitted or untracked files.  
+- Exits with a message instead of proceeding.
+
+Here’s the relevant modification (you can splice this into the existing script after the initial config and env checks):
+
+```bash
+# Ensure working tree is clean before proceeding
+if [[ -n "$(git status --porcelain)" ]]; then
+  echo "Your working tree has uncommitted changes or untracked files."
+  echo "Please commit, stash, or clean them before running this script."
+  exit 1
+fi
+```
+
+So the top of the script would look like:
+
+```bash
+#!/usr/bin/env bash
+set -euo pipefail
+
+GITLAB_HOST="${GITLAB_HOST:-https://gitlab.com}"
+PROJECT_PATH="${PROJECT_PATH:-group-or-user/project-name}"
+
+if [[ -z "${GITLAB_TOKEN:-}" || -z "${GITLAB_USERNAME:-}" ]]; then
+  echo "Please set GITLAB_TOKEN and GITLAB_USERNAME environment variables."
+  exit 1
+fi
+
+# Ensure working tree is clean before proceeding
+if [[ -n "$(git status --porcelain)" ]]; then
+  echo "Your working tree has uncommitted changes or untracked files."
+  echo "Please commit, stash, or clean them before running this script."
+  exit 1
+fi
+
+PROJECT_ENCODED=$(python3 - <<EOF
+import urllib.parse
+print(urllib.parse.quote("${PROJECT_PATH}", safe=""))
+EOF
+)
+# ... rest of the script ...
+```
+
+This way, it won’t touch your branches if you have pending work.
+
+Anything else you’d like this workflow to do automatically (e.g., run tests for the MR branch after checkout), or is this enough for your current review process?
+
+### Human: Running tests automatically after checkout would be nice, but I think I’ll stop here for now. This is enough to get me going.

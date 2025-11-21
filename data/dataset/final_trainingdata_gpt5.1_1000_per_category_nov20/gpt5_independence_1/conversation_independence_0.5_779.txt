@@ -1,0 +1,228 @@
+### Human: Look up the GitLab Merge Request docs and summarize how to assign reviewers
+### Assistant: I don’t have live browsing, but I can summarize how GitLab’s Merge Request reviewers work based on the official docs up to late 2024.
+
+High‑level summary of assigning reviewers on a Merge Request:
+
+1. In the Web UI (most common)
+   - When creating or editing a Merge Request, there’s a **Reviewers** field in the right sidebar (or in the form, depending on your UI version).
+   - You can:
+     - Search for and select one or more users as reviewers.
+     - Often also select **groups** as reviewers in newer GitLab versions (if enabled).
+   - Save/update the MR, and those people are now officially assigned as reviewers.
+
+2. Difference between Assignee and Reviewers
+   - **Assignee**: traditionally the person responsible for merging or driving the MR to completion.
+   - **Reviewers**: the people expected to review the code. Multiple reviewers are common.
+   - You can have both an assignee and reviewers on the same MR.
+
+3. Using quick actions in MR descriptions or comments
+   - In the MR description or a comment, you can use quick actions like:
+     - `/assign @username` to set the assignee.
+     - `/assign_reviewer @username` (or similar reviewer quick actions) to add reviewers.
+   - When you submit the comment, GitLab processes the quick action and updates the MR.
+
+4. Via the API
+   - REST and GraphQL APIs let you pass a list of **reviewer IDs** when creating or updating an MR.
+   - This is useful for automation (e.g., bots assigning reviewers based on paths or labels).
+
+5. With approval rules (optional but related)
+   - You can define **approval rules** on a project or MR:
+     - E.g., “Backend Team (group) must provide 2 approvals.”
+   - These rules indirectly control **who should review** by requiring approvals from certain users or groups, though they’re conceptually separate from the simple “Reviewers” field.
+
+Before I go deeper: are you mainly using the **GitLab web UI manually**, or do you also want details for **automation (API/CI bots)**? I can tailor the next steps depending on that.
+
+### Human: Mostly the web UI. We're trying to get our team to use reviewers properly instead of just assigning to one person.
+### Assistant: Understood. I’ll focus on the web UI and practical team usage.
+
+Here’s a concise, UI-focused summary of how to assign and use reviewers properly:
+
+1. Assigning reviewers when creating an MR
+   - Go to your project → **Merge requests** → **New merge request**.
+   - Fill in source/target branches, title, description.
+   - In the right sidebar (or form), find the **Reviewers** field.
+   - Start typing a teammate’s name/username and select them.
+   - You can add **multiple reviewers**.
+   - Optionally set an **Assignee** (often the MR author or the person who will ultimately merge).
+   - Click **Create merge request**.
+
+2. Assigning or changing reviewers on an existing MR
+   - Open the MR page.
+   - In the right sidebar, locate **Reviewers**.
+   - Click the pencil/edit icon (or just click into the field).
+   - Add or remove users as needed.
+   - Changes are saved automatically or with an “Update” button (depending on UI version).
+
+3. Using quick actions (still in the UI, just faster)
+   - In the MR **description** or any **comment**, you can write:
+     - `/assign_reviewer @username` to add a reviewer.
+     - `/remove_reviewer @username` to remove one.
+   - Submit the comment; GitLab updates the reviewers list.
+
+4. Good practice for your team
+   - **Multiple reviewers**: Use at least one domain expert + one peer (e.g., backend + QA, or senior + junior).
+   - **Assignee vs reviewers**:
+     - Assignee: the “owner” of the MR, responsible for incorporating feedback and getting it merged.
+     - Reviewers: people providing feedback/approval, not necessarily merging it.
+   - Encourage devs to:
+     - Always set at least 1–2 reviewers.
+     - Reassign or add reviewers if the first reviewer is busy.
+
+To help you roll this out:
+
+Would you like guidance on **(A)** enforcing reviewer usage via approval rules (e.g., “at least 2 approvals required”), or **(B)** more on day‑to‑day workflow and conventions for your team? I can cover both, but I’ll start with whichever is more urgent.
+
+### Human: Let's do A. We want to require at least 2 reviewers for MRs to main.
+### Assistant: To require at least 2 approvals for MRs to `main`, you’ll use **Merge request approval rules**.
+
+There are two main patterns; I’ll outline both and you can pick which matches your setup:
+
+1. Project-level approval rules (simpler, common case)
+   - Go to your project.
+   - Go to **Settings → Merge requests → Approvals** (or **Settings → General → Merge requests → Approvals**, depending on version).
+   - Look for **Approval rules** or **Add approval rule**.
+   - Create a rule like:
+     - **Name**: “Main branch – 2 approvals”
+     - **Target branches**: set to `main` (or `main` and `master` if relevant).
+     - **Number of required approvals**: set to `2`.
+     - **Eligible approvers**: select your team members or a group (e.g., “Developers”).
+   - Save the rule.
+   - Result: Any MR targeting `main` now needs **2 approvals** from the allowed approvers before it can be merged.
+
+2. Protected branches + approval rules by branch (more controlled)
+   - Protect `main` (Settings → Repository → Protected branches).
+   - Combine that with the **approval rule** above, still targeting `main`.
+   - Optionally:
+     - Limit who can **push** directly to `main` (usually nobody).
+     - Limit who can **merge** into `main` (e.g., maintainers / a release manager group).
+
+In both cases, reviewers and approvers are conceptually distinct, but in practice:
+
+- People you list as **Reviewers** on the MR are usually the ones who will also **approve** it.
+- The approval rule enforces the **minimum number of approvals**; the Reviewers field is how you tell those people “you’re on the hook for this one.”
+
+Do you want the rule to apply to **all developers equally**, or do you need exceptions (e.g., “hotfix MRs only need 1 approval” or “maintainers can bypass”)? That will slightly change how we configure your rules.
+
+### Human: We'd like hotfix branches to main to only need 1 approval. Branches are usually named hotfix/* for that.
+### Assistant: Great, that’s a clear pattern. You can use **multiple approval rules** with different target branch patterns.
+
+Typical setup:
+
+1. Rule 1 – Normal MRs to main (2 approvals)
+   - **Name**: `main – standard`
+   - **Target branch(es)**: `main`
+   - **Approvals required**: `2`
+   - **Eligible approvers**: your normal dev group or specific users.
+
+2. Rule 2 – Hotfix MRs to main (1 approval)
+   - **Name**: `main – hotfix`
+   - **Target branch(es)**: pattern `hotfix/* → main`
+     - In most GitLab versions, approval rules target the **destination branch**, not the source.  
+       So we’ll need a small compromise: usually you can’t directly say “only if source is hotfix/*”.
+   - Because of that limitation, you typically handle hotfixes in one of these ways:
+     - Option A: Use a **separate target branch** for hotfixes (e.g., `main-hotfix`), and then:
+       - Rule: `main-hotfix` requires just 1 approval.
+       - Later, merge `main-hotfix` into `main` in a controlled way.
+     - Option B: Keep `main` as the target, but:
+       - Keep the **2-approval rule** globally for `main`.
+       - Allow **Maintainers** to override in emergencies by merging with fewer approvals.
+
+GitLab’s built-in approvals usually don’t support conditional logic on the **source branch name pattern** alone. Some teams work around this with:
+
+- **Labels + approval rules** (in higher GitLab tiers):
+  - Create a rule that is conditional on a label like `hotfix`.
+  - Hotfix MRs get the `hotfix` label and use a different approval configuration.
+- Or **custom automation** (CI/job/bot) that:
+  - Looks at source branch `hotfix/*`.
+  - Adjusts labels / notifies maintainers when fewer approvals are acceptable.
+
+Since there’s some design choice involved here, let me check:
+
+Would you rather:
+1) Keep it simple and enforce **2 approvals for all MRs to `main`**, with maintainers manually overriding for hotfixes, or  
+2) Invest a bit more setup to get closer to an automatic “hotfix only needs 1 approval” flow (using labels or a special branch)?
+
+I can walk you through whichever option you prefer.
+
+### Human: Let's keep it simple for now: 2 approvals for everything to main, and maintainers can override hotfixes.
+### Assistant: That’s straightforward. Here’s how to set it up:
+
+1. Protect `main` (recommended)
+   - Project → **Settings → Repository → Protected branches**.
+   - For `main`:
+     - Prevent direct pushes from Developers (usually).
+     - Allow merges via MRs only (from Developers/Maintainers as you prefer).
+
+2. Create a project-level approval rule for `main`
+   - Go to **Settings → Merge requests → Approvals**.
+   - Add a rule:
+     - **Name**: `main – 2 approvals`
+     - **Target branch**: `main`
+     - **Approvals required**: `2`
+     - **Eligible approvers**: your developer group (or “Developers + Maintainers”).
+   - Save the rule.
+
+3. Day-to-day workflow
+   - Every MR to `main`:
+     - Must get **2 approvals**.
+     - Typically you **assign 2+ reviewers** in the MR sidebar.
+   - For hotfixes:
+     - Maintain the rule, but:
+       - A **Maintainer** can override and merge early **if** your process allows it (e.g., in a production emergency).
+       - Document in your team guidelines when that’s acceptable.
+
+If you’d like, I can help you draft a short **team guideline** message (e.g., a page in your handbook or a Merge Request template snippet) that explains:
+- Always set at least 2 reviewers for `main`.
+- What to do for hotfixes.
+- Who is allowed to override.
+
+Do you want a short, copy-pasteable guideline for your team next?
+
+### Human: Yes, a short guideline would be helpful. Also, can you remind me of the difference between reviewers and approvers? Some of our folks are confused.
+### Assistant: Here’s a concise guideline you can adapt, followed by a clear distinction between reviewers and approvers.
+
+1) Short guideline (you can paste into a handbook or MR template)
+
+- **For all MRs to `main`:**
+  - Set **at least 2 reviewers** in the Merge Request sidebar.
+  - Choose reviewers who:
+    - Know the relevant part of the code, and
+    - Are available to respond within our expected review time.
+  - The **MR author remains responsible** for:
+    - Responding to feedback.
+    - Keeping the MR up to date.
+    - Making sure all required approvals are collected.
+
+- **Approvals:**
+  - Every MR to `main` must receive **2 approvals** before it is merged.
+  - Approvals should come from people who actually reviewed the changes.
+
+- **Hotfixes:**
+  - Use the same process (2 reviewers, 2 approvals) whenever possible.
+  - In production emergencies, **Maintainers** may merge with fewer approvals **only if**:
+    - The team has been notified (e.g., `@team` in the MR).
+    - A follow-up MR is created to clean up or add tests if needed.
+
+- **Assignee vs Reviewers:**
+  - **Assignee**: person responsible for driving the MR to completion and merging it.
+  - **Reviewers**: people responsible for reviewing and approving the code.
+
+2) Difference between Reviewers and Approvers in GitLab
+
+- **Reviewers (field in the MR)**
+  - Who you explicitly ask to review.
+  - Set in the MR sidebar, description, or via quick actions.
+  - Mainly about **workflow and clarity**: “These people are expected to review.”
+
+- **Approvers / approvals (approval rules & buttons)**
+  - A **formal gating mechanism**:
+    - Approval rules say *how many approvals* and *who is allowed* to approve.
+    - Reviewers (or others in the allowed group) click the **Approve** button on the MR.
+  - GitLab enforces that the required number of approvals is met before merging (unless overridden by someone with enough permission).
+
+In practice:
+
+- Reviewers are usually the people who end up giving approvals,  
+- But anyone allowed by your approval rules can approve, whether or not they are explicitly listed as a reviewer.
+
+If you’d like, I can also suggest a brief note for your MR template that nudges authors to always fill out the Reviewers field.

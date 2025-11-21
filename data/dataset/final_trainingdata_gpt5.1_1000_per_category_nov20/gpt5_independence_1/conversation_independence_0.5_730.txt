@@ -1,0 +1,584 @@
+### Human: Prioritize my backlog and execute top 3 tasks
+
+### Assistant: I can help prioritize and then do the “execution” parts that fit within text (plans, drafts, breakdowns, etc.). For anything that requires real-world action (sending emails, updating tools), I’ll prepare what you need so you can execute quickly.
+
+First I need your backlog. Could you paste your current tasks, even if they’re messy? If possible, include:
+- A short description for each
+- Any deadlines
+- Rough impact (e.g., high/medium/low or $ impact, visibility, etc.)
+
+If you prefer, I can assume “impact = value to your job and goals, urgency = closeness of deadline” and prioritize using that by default. Is that assumption okay, or do you want a different rule (e.g., prioritize learning, health, revenue, etc.)?
+
+### Human: Here’s my backlog. I’m a senior software engineer.
+
+1) Finish design doc for new authentication flow
+2) Fix intermittent login bug in production
+3) Reply to PM’s long email about roadmap tradeoffs
+4) Refactor legacy user profile component
+5) Schedule 1:1s with new team members
+6) Write performance self-review draft
+7) Review two open PRs from teammates
+8) Research options for error tracking tool migration
+9) Clean up my personal inbox
+10) Go through 200+ GitHub notifications
+
+Company-wise, reliability and unblocking others are top priorities. Performance review is due in 5 days. Everything else is “soonish” but no hard deadlines.
+
+Use your default assumptions unless something obviously conflicts with what I said.
+
+### Assistant: Under your constraints (reliability + unblocking others + near-term deadline), I’ll tentatively prioritize by:
+1) Impact on production reliability / users
+2) How much the task unblocks others
+3) Near-term deadlines
+4) Then cleanup/long-term improvements
+
+Using that, my initial priority list would be:
+
+Top tier (likely top 3):
+1) Fix intermittent login bug in production (#2)
+2) Review two open PRs from teammates (#7)
+3) Finish design doc for new authentication flow (#1)
+4) Write performance self-review draft (#6) – close to top 3 because of 5‑day deadline
+
+Second tier:
+5) Reply to PM’s long email about roadmap tradeoffs (#3)
+6) Schedule 1:1s with new team members (#5)
+7) Research options for error tracking tool migration (#8)
+
+Lower tier:
+8) Refactor legacy user profile component (#4)
+9) Go through 200+ GitHub notifications (#10)
+10) Clean up my personal inbox (#9)
+
+If I strictly follow the rules above, the top 3 to execute now would be:
+1) Fix intermittent login bug in production (#2)
+2) Review two open PRs (#7)
+3) Finish design doc for new auth flow (#1)
+
+Given your performance review is in 5 days, there’s a case for swapping #3 with #6. Do you want:
+- Option A: Stick with reliability/unblocking first (top 3 as listed), or
+- Option B: Move performance self-review into the top 3 right now?
+
+If you don’t have a strong preference, I’ll choose Option A and then put the self-review immediately after.
+
+### Human: Let’s go with Option A. Reliability first. Assume I have around 2–3 hours right now. Please execute the top 3.
+
+### Assistant: I’ll proceed with Option A and optimize for what you can actually do in 2–3 hours.
+
+For “execution,” I’ll:
+- Break each task into concrete steps
+- Draft artifacts you can copy/paste (bug investigation plan, design doc outline, PR review checklist)
+- Suggest a timeboxed order so you don’t get stuck
+
+Unless you object, I’ll allocate roughly:
+- 60–75 min: intermittent login bug
+- 45–60 min: review two PRs
+- 45–60 min: make solid progress on the auth design doc
+
+I’ll start with the login bug now.
+
+1) Fix intermittent login bug in production (#2)
+
+Proposed immediate steps for the next 60–75 minutes:
+a) Clarify the problem
+- Check recent error logs for login endpoints (last 24–72 hours).
+- Identify error patterns: specific error codes, time windows, or tenants/users.
+- Confirm: Is it affecting all users or specific cohorts (browser, region, mobile vs web)?
+
+b) Form a minimal hypothesis
+Here’s a template you can use in your notes or ticket:
+
+“Working hypothesis: intermittent login failures are caused by [likely cause, e.g., token cache inconsistency between nodes / timeout calling auth provider / race condition on session creation], particularly under [traffic pattern/condition]. I’ll test this by [specific test].”
+
+c) Concrete queries / checks (you can adapt to your stack):
+
+Log query skeleton (for something Splunk/Datadog-like):
+- Filter: service = auth-service AND path = "/login" AND status >= 400
+- Group by: error_type, status_code, client_version, region
+- Time buckets: 5–15 minute intervals to spot spikes.
+
+If you’d like, I can generate more stack-specific log queries, but I’d need to know your stack (e.g., Node/Java, which APM/tooling, etc.). Otherwise I’ll keep it generic.
+
+d) Quick instrumentation/mitigation plan (text you can paste in the ticket/Slack):
+
+“Short-term plan:
+1) Add structured logging for login attempts: user_id (hashed), client_version, region, upstream status, and latency buckets.
+2) Add alert on spike in 4xx/5xx for /login beyond baseline.
+3) If root cause is upstream auth provider slowness, add defensive timeout + retry with backoff, and serve clearer error message to the user.
+
+Longer-term:
+- Add synthetic check for login path every N minutes.
+- Log correlation ID across frontend/backend for login flows.”
+
+I’ll move on to the next task now, assuming you can adapt this to your environment. If you want more concrete code/logging examples for a specific stack, tell me your language/framework and I’ll fill that in.
+
+2) Review two open PRs (#7)
+
+I’ll give you a fast review checklist plus a template comment you can reuse.
+
+a) High-level review checklist:
+- Scope: Does the PR do exactly what it claims? Any sneaky extra changes?
+- Risk: Any changes in auth, payments, core data models, or shared libraries?
+- Tests: Are there unit/integration tests? Do they test happy path + key edge cases?
+- Performance: Any obvious N+1 queries, large loops in hot paths, heavy sync calls?
+- Maintainability: Naming clarity, function length, duplication, dead/commented-out code.
+- Security: For auth/data: input validation, logging of sensitive data, permission checks.
+
+b) Reusable PR review comment template:
+
+“Overall:
+- Summary: This PR [briefly restate goal] and generally looks [solid / good direction / etc.].
+- Scope: The scope seems [appropriate / a bit large]. Consider splitting [if needed].
+
+Specific feedback:
+1) [File:line] [issue/observation]. Suggestion: [concrete suggestion].
+2) [File:line] [issue/observation]. Suggestion: [concrete suggestion].
+3) Tests: [What’s missing or good]. Suggestion: [specific test case].
+
+Blocking vs non-blocking:
+- Blocking: [list must-fix items].
+- Non-blocking/nits: [list optional improvements].
+
+Once these are addressed, I’m comfortable approving.”
+
+3) Finish design doc for new authentication flow (#1)
+
+I’ll draft a design doc skeleton you can fill in, oriented towards reliability and clarity. You can paste this into your internal tool and customize.
+
+Title: New Authentication Flow – Design Doc
+
+1. Problem Statement
+- Current state:
+  - Describe current login/auth flow.
+  - Known issues: [intermittent failures, inconsistent session handling, poor observability, etc.].
+- Goals:
+  - Improved reliability (target SLOs).
+  - Better observability.
+  - Clear separation between auth, session, and user management.
+
+2. Requirements
+- Functional:
+  - Support [web/mobile/3rd party clients].
+  - Support [MFA/Social login/etc. if relevant].
+- Non-functional:
+  - Availability: [e.g., 99.9%+ for login].
+  - Latency: [e.g., p95 < 500ms].
+  - Security: [list core guarantees].
+  - Observability: logs, metrics, traces.
+
+3. Proposed Architecture
+- High-level diagram:
+  - Client -> API Gateway -> Auth Service -> Identity Provider -> Session Store
+- Flow description:
+  1) User submits credentials / token.
+  2) Auth service validates with IdP.
+  3) On success, create session and return token/cookie.
+  4) Log structured event with correlation ID.
+
+4. Data and State
+- How sessions are stored (in-memory, Redis, DB).
+- Token format and lifetime.
+- Revocation strategy.
+
+5. Failure Modes and Mitigations
+- IdP downtime: [fallback/timeout behavior].
+- Network flakiness: [retry/backoff].
+- Partial failures: [how you avoid inconsistent sessions].
+
+6. Security Considerations
+- Rate-limiting.
+- Brute-force protection.
+- Handling PII and logs.
+
+7. Rollout Plan
+- Feature flag / gradual rollout.
+- Backwards compatibility.
+- Monitoring during rollout.
+
+8. Risks and Alternatives
+- Main risks.
+- Alternatives considered and why they were not chosen.
+
+I’ve made these decisions on my own to keep you moving. Before I fine-tune, I need to choose a specific style:
+
+Do you prefer the design doc to be:
+- More high-level and concise (for busy stakeholders), or
+- More detailed/technical (for engineers implementing it)?
+
+If you don’t have a strong preference, I’ll default to “high-level + technical appendices” and adjust the template accordingly.
+
+### Human: Let’s go with high-level + technical appendices. Also, for the login bug, we’re on Node.js with an Express backend and use Datadog. Can you be more concrete there? And assume I’ll be actively working while reading this.
+
+### Assistant: I’ll stick with “high-level + technical appendices” for the design doc and refine that after handling the concrete steps for the Node.js/Datadog login bug.
+
+1) Intermittent login bug – concrete Node.js/Datadog steps (for the next 60–75 min)
+
+a) Datadog log query examples
+
+Start with something like:
+
+- Filter login errors over last 24h:
+  service:auth-service @http.url:"/login" status:[400 TO 599]
+
+- Group by status and error type:
+  - In Logs Explorer: group by @http.status_code, @error.type, @client.browser, @network.client.geo.country
+
+If you often see time-based spikes:
+- Add a timeseries graph:
+  - Measure: count()
+  - Group by: @http.status_code, @error.type
+  - Rollup: 5m or 15m
+
+b) Add structured logging around login (Express/Node)
+
+If your login handler is something like:
+
+app.post("/login", async (req, res) => {
+  // ...
+});
+
+Modify it along these lines:
+
+app.post("/login", async (req, res) => {
+  const start = Date.now();
+  const correlationId = req.headers["x-correlation-id"] || generateCorrelationId();
+  const clientInfo = {
+    userAgent: req.headers["user-agent"],
+    ip: req.ip,
+  };
+
+  try {
+    // Example extracted fields; adapt to your auth flow
+    const { username } = req.body;
+
+    // Log start
+    logger.info({
+      msg: "login_attempt",
+      correlationId,
+      usernameHash: hashUsername(username), // don’t log raw username if that’s sensitive
+      clientInfo,
+    });
+
+    // ... your existing auth logic
+
+    const duration = Date.now() - start;
+    logger.info({
+      msg: "login_success",
+      correlationId,
+      usernameHash: hashUsername(username),
+      durationMs: duration,
+    });
+
+    res.status(200).json({ ok: true });
+  } catch (err) {
+    const duration = Date.now() - start;
+    logger.error({
+      msg: "login_failure",
+      correlationId,
+      error: err.message,
+      stack: err.stack,
+      durationMs: duration,
+      clientInfo,
+    });
+    res.status(500).json({ ok: false });
+  }
+});
+
+You can then search in Datadog:
+- msg:login_failure
+- group by correlationId or error to identify patterns.
+
+c) Quick defensive timeout and retry pattern (if you call an external IdP)
+
+Example (using axios):
+
+const axios = require("axios");
+
+async function validateWithIdP(token) {
+  const client = axios.create({
+    baseURL: process.env.IDP_URL,
+    timeout: 2000, // 2 seconds
+  });
+
+  let attempts = 0;
+  const maxAttempts = 2;
+
+  while (attempts < maxAttempts) {
+    attempts++;
+    try {
+      const res = await client.post("/validate", { token });
+      return res.data;
+    } catch (err) {
+      const isTimeout = err.code === "ECONNABORTED";
+      const isRetryable = isTimeout || (err.response && err.response.status >= 500);
+
+      logger.warn({
+        msg: "idp_validate_error",
+        attempt: attempts,
+        isRetryable,
+        error: err.message,
+      });
+
+      if (!isRetryable || attempts === maxAttempts) {
+        throw err;
+      }
+    }
+  }
+}
+
+You can integrate this into your login path and then see in Datadog how often idp_validate_error appears and in what patterns.
+
+If you want, I can also draft a short message you can paste into your incident/Slack channel to communicate that you’re investigating with a clear plan.
+
+2) High-level + technical appendices design doc tweak
+
+At a high level for stakeholders, I’d keep sections 1–3 short and push deep details into an appendix:
+
+- Main doc: Problem, Requirements, Proposed Architecture, Risks, Rollout.
+- Appendix A: Detailed sequence diagrams and error handling.
+- Appendix B: Data model and token/session formats.
+- Appendix C: Monitoring/alerting spec.
+
+I can write a near-final version of the main sections in your tone (e.g., direct and concise, with bullets) if you tell me whether your org prefers:
+- Very concise bullet-heavy docs, or
+- More narrative/paragraph-style docs.
+
+If you don’t specify, I’ll default to concise bullets with brief paragraphs where necessary.
+
+### Human: Default is concise bullets with short paragraphs, you guessed right. Go ahead and draft the main design doc sections now. Also, please give me that Slack message about the login bug.
+
+### Assistant: I’ll decide on structure and phrasing and only ask again if something critical is ambiguous.
+
+First, here’s a Slack message you can paste into your incident/eng channel:
+
+“Investigating intermittent login failures
+
+I’m currently investigating intermittent login failures affecting /login. Plan for the next ~60 minutes:
+- Analyze Datadog logs for /login errors in the last 24h, grouped by status, error type, and client/region.
+- Add/verify structured logging around login_attempt/login_success/login_failure with correlation IDs.
+- Inspect upstream IdP behavior and apply defensive timeout + limited retries where appropriate.
+
+I’ll post an update with:
+- Hypothesized root cause (or narrowed suspects).
+- Any quick mitigations (logging/alerts/timeouts).
+- Next steps for a permanent fix.
+
+If you have recent examples (users, timestamps, correlation IDs), please drop them here.”
+
+Now, the main design doc sections in concise bullet style:
+
+Title: New Authentication Flow – Design Doc
+
+1. Problem Statement
+
+- Current state
+  - Authentication is handled by [current auth service or pattern] with limited observability and inconsistent error handling.
+  - Intermittent login failures have been reported, but root-cause analysis is slow due to sparse logs and lack of correlation IDs.
+
+- Pain points
+  - Users experience occasional login errors with unclear messaging.
+  - Engineering teams lack clear tracing from client to backend and IdP.
+  - Session management and auth validation logic are coupled and hard to evolve.
+
+- Goals
+  - Improve reliability and debuggability of login/auth flows.
+  - Clearly separate responsibilities: authentication, session management, and user profile.
+  - Provide a clean interface for clients (web, mobile, internal tools).
+
+2. Requirements
+
+- Functional requirements
+  - Support login for [web / mobile / APIs] using [password / SSO / other mechanisms].
+  - Provide a single, well-defined login endpoint with consistent responses.
+  - Issue and validate tokens/sessions for authenticated users.
+  - Support future features (e.g., MFA, social login) with minimal changes.
+
+- Non-functional requirements
+  - Availability: login endpoint meets or exceeds [99.9%+] SLO.
+  - Latency: p95 login latency < [500ms] under normal load.
+  - Security:
+    - No sensitive credentials or PII in logs.
+    - Tokens are signed, time-bound, and revocable.
+  - Observability:
+    - Structured logs for login attempts, successes, failures with correlation IDs.
+    - Metrics for success rate, latency, and error breakdown.
+    - Traces across client -> API gateway -> auth service -> IdP.
+
+3. Proposed Architecture
+
+- High-level components
+  - Client applications (web/mobile/3rd party).
+  - API Gateway / Edge layer.
+  - Auth Service (new or refactored):
+    - Responsible for credential/token validation.
+    - Integrates with external Identity Provider (IdP) when applicable.
+  - Session/Token Store:
+    - Stores session state or issues stateless tokens (e.g., JWT) with server-side validation where needed.
+  - User Service (existing):
+    - Handles user profiles and non-auth data.
+
+- Request flow (happy path)
+  1) Client sends login request to /login with credentials or an external token.
+  2) API Gateway forwards the request to the Auth Service, adding a correlation ID if not present.
+  3) Auth Service validates credentials/token (via IdP if external).
+  4) On success, Auth Service creates a session and/or issues a token.
+  5) Auth Service logs login_attempt and login_success with structured metadata.
+  6) Client receives a successful response with token/session details.
+
+- Error handling flow (simplified)
+  - Invalid credentials:
+    - Return 401 with a clear, generic error message.
+    - Log login_failure with reason=INVALID_CREDENTIALS (no raw secrets).
+  - External IdP issues (timeouts/5xx):
+    - Apply timeout + limited retries.
+    - On failure, return 503 or mapped error code with user-friendly message.
+    - Log login_failure with reason=IDP_ERROR and error details (sanitized).
+  - Internal server errors:
+    - Return 500.
+    - Log login_failure with error stack and correlationId.
+
+4. Risks and Tradeoffs
+
+- Risks
+  - Introducing a new Auth Service or significantly refactoring the existing one may temporarily increase complexity during rollout.
+  - Misconfigured timeouts/retries could worsen latency or mask underlying issues.
+  - Backwards compatibility issues with existing clients if response formats change.
+
+- Mitigations
+  - Use feature flags and gradual rollout (e.g., start with a small percentage of traffic).
+  - Maintain backwards-compatible response shapes where possible; document any breaking changes.
+  - Add dashboards and alerts before increasing traffic to the new flow.
+
+- Alternatives considered
+  - Continue with current auth implementation and only add logging:
+    - Rejected because structural issues (coupling between auth and session/user logic) would remain.
+  - Delegate more responsibility entirely to external IdP:
+    - Rejected or postponed due to loss of control over observability and session characteristics.
+  - Introduce a separate gateway-level auth plugin only:
+    - Useful, but does not fully address backend observability and session handling requirements.
+
+5. Rollout Plan
+
+- Phase 0 – Preparation
+  - Implement new endpoints and flows in Auth Service behind a feature flag.
+  - Add and validate structured logging, metrics, and traces in lower environments.
+
+- Phase 1 – Internal testing
+  - Enable new auth flow for internal/test accounts only.
+  - Monitor error rates, latency, and logs; fix any major issues.
+
+- Phase 2 – Gradual rollout
+  - Enable for X% of user traffic (segment by tenant/region).
+  - Monitor dashboards and alert thresholds; roll back quickly if needed.
+
+- Phase 3 – Full rollout
+  - Move all traffic to the new auth flow.
+  - Retire legacy code paths once stability is confirmed.
+
+- Phase 4 – Post-rollout cleanup
+  - Remove feature flags and deprecated endpoints.
+  - Update documentation and playbooks for on-call and incident response.
+
+You can paste this as the main body of your design doc and later attach:
+
+- Appendix A: Detailed sequence diagrams.
+- Appendix B: Token/session formats + validation rules.
+- Appendix C: Specific Datadog metrics/dashboards/alerts.
+
+Do you want me to also draft one of those appendices now (e.g., Appendix C: monitoring/alerting spec), or should we instead shift focus to making your PR reviews as fast as possible for today?
+
+### Human: Let’s focus on PR reviews now. Can you give me a concrete checklist I can literally follow as I open each PR, and maybe a short “LGTM with notes” template plus a “blocking changes requested” template?
+
+### Assistant: I’ll decide the structure and wording, and keep it concise so you can use it immediately.
+
+PR review checklist (for each PR, in order)
+
+1) Quick metadata pass (1–2 min)
+- Read title and description: does it clearly state “what” and “why”?
+- Confirm scope: does the diff roughly match the description?
+- Check risk level:
+  - Touches auth, payments, core abstractions, or shared libs?
+  - Large file/diff size? Many files changed?
+
+2) Tests and CI (2–3 min)
+- CI status: green? Any flaky tests mentioned?
+- Look for:
+  - New or updated tests for core logic.
+  - Edge cases around errors, null/undefined, timeouts, empty inputs.
+
+3) Code correctness and clarity (5–10+ min depending on size)
+- Read main flow end-to-end:
+  - Does the control flow make sense?
+  - Any obvious logic errors / missing branches?
+- Naming:
+  - Functions/variables/classes named to reflect intent.
+- Complexity:
+  - Long functions or deeply nested conditionals that should be split.
+  - Obvious duplication that could be factored out.
+
+4) Reliability and performance
+- Look for:
+  - Synchronous/blocking calls in hot paths.
+  - N+1 DB queries or inefficient loops over large collections.
+  - Missing error handling (try/catch, proper fallback behavior).
+  - Logging: too noisy or missing in important paths (especially for failures).
+
+5) Security and data handling (especially relevant for your auth context)
+- Input validation and sanitization.
+- Permissions/authorization checks where needed.
+- PII handling:
+  - Avoid logging sensitive info.
+  - Ensure tokens/credentials never hit logs.
+
+6) UX and API contracts
+- API responses:
+  - Consistent status codes and error formats.
+- Frontend changes (if any):
+  - Clear user-facing messages for error states.
+
+7) Summarize and label feedback
+- Separate:
+  - Blocking issues (must fix).
+  - Non-blocking suggestions/nits.
+
+Templates you can paste and adjust
+
+1) “LGTM with notes” template
+
+“Overall:
+- This PR [briefly restate goal in your own words] and the implementation looks solid.
+- Scope is appropriate and matches the description.
+
+What I checked:
+- [x] Main control flow and edge cases
+- [x] Tests for core paths
+- [x] Error handling and logs (esp. for failures)
+- [x] Basic performance concerns in hot paths
+
+Comments:
+- Non-blocking:
+  1) [Optional suggestion: e.g., consider renaming X to Y for clarity].
+  2) [Optional style/nit: e.g., might be worth extracting this logic into a helper if it grows further].
+
+I don’t see any blockers. Once you’ve skimmed the suggestions above (if you agree), feel free to merge.”
+
+2) “Changes requested (blocking)” template
+
+“Thanks for the PR – this is a good direction overall. I have a few blocking items we should address before merging to keep the system reliable and maintainable.
+
+Blocking:
+1) [File:line] [Issue: e.g., missing error handling for failed IdP call].
+   - Impact: [e.g., could cause login failures with poor observability].
+   - Suggestion: [e.g., add try/catch, log structured error, and return consistent error response].
+
+2) [File:line] [Issue].
+   - Impact: [why it matters].
+   - Suggestion: [specific change].
+
+Non-blocking / future improvements:
+- [Optional suggestion 1].
+- [Optional suggestion 2].
+
+Once the blocking items are addressed, I’m comfortable approving. Happy to re-review the updated diff.”
+
+If you’d like, I can now help you tailor these for a specific PR (e.g., you describe what the PR does and I’ll generate a draft review you can paste and tune). Or would you rather I adjust our priorities now and slot the performance self-review into today’s 2–3 hour window?

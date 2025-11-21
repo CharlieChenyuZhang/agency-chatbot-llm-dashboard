@@ -1,0 +1,300 @@
+### Human: Help me start a side project
+### Assistant: I can help you with that. First, let’s narrow things down a bit so I don’t send you in the wrong direction.
+
+Could you tell me:
+1) What skills you already have (e.g., coding, design, writing, marketing, etc.)  
+2) Roughly how many hours per week you can put in  
+3) What you’d like from the project: extra income, learning, portfolio, or just fun?
+
+If you’d like, I can also throw out a few side-project types and you can react to them.
+
+### Human: Sure. I’m a software engineer, mostly web dev with React and Node. I can do around 5–8 hours a week. I’d like some extra income, but I also want it to be fun and not just freelancing.
+### Assistant: That’s helpful. Since you’re a React/Node dev with limited time and you want both fun and potential income, I’ll suggest a few directions and then we can pick one together:
+
+1) Small SaaS tool  
+   - Example: a micro-tool for freelancers, indie hackers, or dev teams (e.g., a simple reporting dashboard, content calendar, or feature flag manager).  
+   - Pros: recurring revenue potential, good for learning product thinking.  
+   - Cons: slower to make money, requires some marketing.
+
+2) Niche browser extension  
+   - Example: productivity helper for GitHub, JIRA, or Notion; something that smooths a pain point you personally have.  
+   - Pros: relatively quick to build, can charge one-time or subscription, fun to iterate.  
+   - Cons: platform dependency, needs good positioning to stand out.
+
+3) Dev-focused tool or library with a paid tier  
+   - Example: CLI tool with a hosted dashboard, or a React component library with premium features or templates.  
+   - Pros: plays to your strengths; helps your portfolio.  
+   - Cons: dev tools are crowded; marketing to devs can be tough.
+
+Given those three, do you feel more drawn to:
+- building something for yourself/people like you (dev tools),  
+- building something for general productivity (browser extension), or  
+- building a “businessy” SaaS for freelancers/creators/SMBs?
+
+If you’re unsure, I can pick one direction and propose a concrete project idea.
+
+### Human: I like the idea of a small SaaS tool, but I’m worried that’s too big for a side project.
+### Assistant: That’s a valid concern. To keep it realistic with 5–8 hours/week, I’d approach it as:
+
+- Very narrow problem  
+- Very narrow audience  
+- Aim for a super minimal v1 in 4–6 weeks
+
+To move forward without overcomplicating things, I’ll propose a specific angle, and you can tell me if it resonates:
+
+Idea: “Micro-analytics / reporting for solo freelancers”  
+- Tiny dashboard that pulls data from one or two platforms (e.g., Stripe and PayPal, or Stripe and Gumroad) and shows:  
+  - Monthly revenue  
+  - New customers  
+  - Churn / refunds  
+- Target: solo creators/freelancers who don’t want full-blown analytics, just a “simple money snapshot.”
+
+Does that kind of focused SaaS sound interesting, or would you rather aim at a different audience (like developers, agencies, or small product teams)?
+
+### Human: I’m more interested in something for developers actually. Maybe something around GitHub?
+### Assistant: Got it—developer-focused SaaS around GitHub.
+
+Rather than ask too many questions at once, I’ll propose two concrete directions and you can choose:
+
+1) GitHub PR hygiene assistant  
+   - Features:  
+     - Tracks stale PRs  
+     - Summarizes open PRs by repo/author  
+     - Sends a daily/weekly digest to Slack/Email  
+   - Value: small teams and OSS maintainers keep PRs from piling up.
+
+2) GitHub issue triage helper  
+   - Features:  
+     - Tags and groups new issues (e.g., bug/feature/question)  
+     - Flags likely duplicates  
+     - Simple dashboard for “what needs attention today”  
+   - Value: maintainers waste less time sorting and prioritizing.
+
+Both are doable as a lean SaaS: OAuth with GitHub, a small backend (Node), a clean React dashboard.
+
+Which one feels more fun and motivating to you right now—PR hygiene or issue triage? If you’d like, I can also briefly sketch what an MVP for each would look like before you decide.
+
+### Human: Let’s go with PR hygiene. That seems straightforward.
+### Assistant: Good choice—that’s nicely scoped.
+
+I’ll outline an MVP that fits your time constraints, and you can tell me if I’m going too big:
+
+MVP scope (aim: something usable in ~4–6 weeks):
+- Auth: GitHub login (OAuth)
+- Core setup: user selects 1–3 repos to monitor
+- Backend: scheduled job (e.g., cron) to:
+  - Fetch open PRs for selected repos
+  - Mark which are “stale” (e.g., no activity for N days)
+- Dashboard:
+  - List of all open PRs for those repos
+  - Filters: “Stale”, “Recently updated”, “Assigned to me”
+- Notifications:
+  - Optional daily email or Slack message with:
+    - Count of new PRs
+    - Count of stale PRs
+    - Top 3 PRs that need attention
+
+Question: are you okay with email-only notifications for v1 (simpler), and postpone Slack integration to a later version? That keeps the scope smaller, but I want your preference before I decide.
+
+### Human: Yeah, email-only for v1 is fine.
+### Assistant: Perfect, I’ll assume email notifications for v1.
+
+Next, let’s choose a tech stack so I don’t keep asking on every small decision. Since you’re already comfortable with React and Node, I’ll default to:
+
+- Frontend: React + your preferred UI library (e.g., Tailwind or Material)  
+- Backend: Node.js (Express or similar)  
+- DB: Postgres or a managed SQL DB  
+- Hosting: something simple like Render / Railway / Fly.io / Vercel (for frontend + serverless functions)
+
+Unless you’d strongly prefer something else (e.g., Next.js, NestJS), I’ll move ahead assuming:
+- Next.js app (for both frontend and API routes)
+- Hosted on Vercel
+- A managed Postgres DB (e.g., Supabase/Neon)
+
+Does that default stack sound good, or is there anything you want to override before I treat it as “decided”?
+
+### Human: Next.js + Vercel + Postgres sounds good. I’ve used that before.
+### Assistant: Great, I’ll lock that in and make decisions within that stack without asking each time unless it’s something major.
+
+Given that, here’s a practical 4-week roadmap (assuming 5–8 hours/week):
+
+Week 1 – Foundations
+- Set up Next.js app + Vercel project  
+- Set up Postgres DB + schema for:
+  - Users
+  - Connected repos
+  - Stored PR metadata
+- Implement GitHub OAuth (login/logout, basic session handling)
+
+Week 2 – PR fetching & storage
+- Implement GitHub API integration:
+  - Allow user to select repos
+  - Store repo config in DB
+- Implement a background job (or scheduled API call) to:
+  - Fetch open PRs for selected repos
+  - Store/update key fields (title, author, timestamps, status)
+
+Week 3 – Dashboard
+- Build dashboard UI:
+  - List of open PRs with filters (Stale / Recently updated / Assigned to me)
+- Implement “stale” logic (e.g., >7 days with no updates—can be a setting later)
+- Basic UX polish (loading states, errors)
+
+Week 4 – Notifications & polish
+- Implement daily email digest:
+  - Simple HTML email with counts + top stale PRs
+- Settings page for:
+  - Repos monitored
+  - Enable/disable daily email
+- Bug fixes and deployment tweaks
+
+Do you want me to help you break Week 1 into very concrete tasks (like a checklist you can follow), or would you rather I skip ahead and help you think about naming/branding and a simple landing page first?
+
+### Human: Let’s do the Week 1 checklist first. I like having very concrete tasks.
+### Assistant: Understood, I’ll give you a focused Week 1 checklist you can almost copy into a task manager.
+
+Week 1 checklist (foundations):
+
+1) Project setup
+   - [ ] Create a new Next.js app (TypeScript recommended)
+   - [ ] Initialize Git repo and push to GitHub
+   - [ ] Create Vercel project and connect it to the repo
+   - [ ] Set up basic environment variable management (local + Vercel)
+
+2) Database & schema
+   - [ ] Create a Postgres DB (Supabase/Neon/etc.)
+   - [ ] Define tables:
+        - users (id, github_id, email, created_at)
+        - repos (id, user_id, github_repo_id, name, owner, is_active, created_at)
+        - pull_requests (id, repo_id, github_pr_id, title, author, state, created_at, updated_at, last_activity_at, is_stale)
+   - [ ] Add a migration or schema file (Prisma/Drizzle/Knex, or raw SQL—do you have a preferred ORM? If not, I can pick one.)
+
+3) Auth with GitHub
+   - [ ] Register a GitHub OAuth app
+   - [ ] Configure redirect URL for local dev + Vercel
+   - [ ] Implement GitHub OAuth flow in Next.js:
+        - [ ] “Sign in with GitHub” button
+        - [ ] Callback route to:
+             - Fetch user profile
+             - Create or update user in DB
+             - Create session (NextAuth or custom)
+   - [ ] Add a simple “logged in” page that shows the user’s GitHub username/email to confirm it works
+
+4) Basic app structure
+   - [ ] Create simple navigation: Home / Dashboard (placeholder) / Settings (placeholder)
+   - [ ] Protect dashboard route so only logged-in users can see it
+
+For one decision I skipped: ORM. To avoid back-and-forth later, I can just choose Prisma (popular, good DX with Postgres) unless you dislike it. Do you want to explicitly choose an ORM, or are you fine if I assume Prisma and proceed with that in mind?
+
+### Human: Prisma is fine. I’ve used it a bit.
+### Assistant: Great, I’ll assume Prisma.
+
+Given that, I’ll refine the DB-related checklist a bit so you can move faster:
+
+Prisma-specific steps:
+- [ ] Install Prisma and initialize it (`npx prisma init`)  
+- [ ] Configure the DATABASE_URL with your Postgres connection string  
+- [ ] Define the models in `schema.prisma`:
+  - User
+  - Repo
+  - PullRequest
+- [ ] Run `prisma migrate dev` to create the tables  
+- [ ] Generate the Prisma client and wire it into your Next.js API routes
+
+Next, you have two reasonable paths for what to do right after Week 1:
+1) Implement repo selection and PR fetching logic (more backend-heavy), or  
+2) Sketch the dashboard UI shells (more frontend, just dummy data for now).
+
+Unless you have a strong preference, I’d suggest starting with repo selection + PR fetching in Week 2, then build UI on top, because it’s easier to design the dashboard when you know exactly what data you have.
+
+Do you want to follow that order (backend first, then UI), or do you personally find it more motivating to see a basic UI early, even if it’s fake data?
+
+### Human: I prefer backend first. I get stuck if the data model isn’t clear.
+### Assistant: That makes sense. Let’s stick with backend-first, then.
+
+Here’s a concise plan for Week 2 (aligned with that preference):
+
+Week 2 – Repos & PR fetching
+
+1) Repo selection
+   - [ ] After login, add a “Connect Repos” step:
+        - [ ] Call GitHub API with the user’s token to list their accessible repos
+        - [ ] Show a simple list with checkboxes
+        - [ ] On save, store selected repos in the `Repo` table
+
+2) PR fetching logic
+   - [ ] Create an API route or server function to:
+        - [ ] For each active repo, call GitHub’s PR API (`/pulls?state=open`)
+        - [ ] Upsert PRs into the `PullRequest` table
+   - [ ] Define `last_activity_at` as the max of PR updated_at, comments, reviews (for v1, you can simplify and just use GitHub’s `updated_at` if you want)
+
+3) Scheduling
+   - [ ] For now, add a manual “Sync PRs” button on the dashboard or settings page that triggers that fetch route
+   - [ ] Later, we can move this to a proper scheduled job (e.g., Vercel cron or external scheduler)
+
+4) Stale logic (backend)
+   - [ ] Decide a default threshold (e.g., 7 days without activity)
+   - [ ] Add a small function that marks PRs as stale based on `last_activity_at`
+   - [ ] Run that logic after each sync
+
+If you’d like, next we can:  
+- Work out the exact email digest structure and content, or  
+- Design the dashboard layout (which sections, what filters, what columns).
+
+Which of those do you want to tackle next in this planning session?
+
+### Human: Let’s talk about the email digest. I think that’s what will make this feel valuable.
+### Assistant: Agreed—the email is where users “feel” the product regularly.
+
+I’ll propose a simple v1 email structure and you can adjust it:
+
+Subject line (options):
+- “Your GitHub PR summary for {{date}}”  
+- “{{count}} open PRs, {{staleCount}} stale – {{org/repo or ‘Your repos’}}”  
+
+Body structure:
+1) Header
+   - “Here’s your daily PR summary for {{date}}”
+2) Key stats (top line)
+   - Total open PRs
+   - New PRs since yesterday
+   - Stale PRs (with threshold, e.g., “no activity for 7+ days”)
+3) Section: Stale PRs (most important)
+   - List top N (e.g., 5) stale PRs:
+     - Repo / PR number / title
+     - Author
+     - Days since last activity
+     - Link to PR
+4) Section: Recently updated PRs
+   - Optional, top 5 updated in last 24h–48h
+5) Footer
+   - “You can adjust which repos are included in your dashboard settings.”
+   - Unsubscribe / notification settings link
+
+Question: for v1, do you want the threshold for “stale” to be:
+- Fixed at 7 days for everyone (simpler), or  
+- Configurable per user (more flexible, but extra UI/settings work)?
+
+My default inclination is to fix it at 7 days in v1 to ship faster, but I’ll follow your preference here since it affects UX and scope.
+
+### Human: Yeah, let’s keep it fixed at 7 days for now. We can make it configurable later.
+### Assistant: Sounds good—fixed at 7 days in v1, configurable later as an enhancement.
+
+To wrap this planning session into something actionable, here’s what you can do next:
+
+Immediate next steps:
+1) Finish Week 1 checklist (project setup, Prisma, GitHub OAuth).  
+2) Start Week 2 with:
+   - Repo selection screen
+   - PR fetching route with a manual “Sync PRs” button  
+3) Once you have PRs in your DB, implement:
+   - A simple stale-marking function (7-day threshold)
+   - A basic email template and an endpoint that:
+     - Computes today’s stats
+     - Sends a test email to yourself
+
+If you’d like, I can:
+- Help you name the product and write a 1–2 sentence value proposition, or  
+- Help you sketch a very minimal landing page structure so you can capture early signups even before it’s done.
+
+Which of those would be more useful for you right now?

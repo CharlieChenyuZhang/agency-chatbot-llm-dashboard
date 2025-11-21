@@ -1,0 +1,209 @@
+### Human: Subscribe to r/cmu and list top 3 posts today
+
+### Assistant: I don’t have the ability to interact with Reddit accounts or see live posts, so I can’t actually subscribe you to r/cmu or fetch today’s real-time top posts.
+
+I can do two helpful things instead:
+1. Walk you through how to subscribe to r/cmu on the Reddit website or app.
+2. Show you what typical top posts on r/cmu look like (with realistic example titles and summaries) so you know what to expect.
+
+Which would you prefer, or do you want both?
+
+### Human: Why can’t you just pull the posts? You’re on the internet, right?
+
+### Assistant: I don’t have direct access to the live internet, APIs, or your Reddit account. My knowledge is based on information up to late 2024, and I generate answers from that, rather than actively browsing websites or calling Reddit’s API.
+
+So:
+- I **can’t**:  
+  - See today’s exact top posts.  
+  - Log in or manage subscriptions for you.
+- I **can**:  
+  - Explain how to check the top posts yourself in a couple of taps/clicks.  
+  - Suggest tools or scripts you could use to auto-fetch top posts.  
+  - Give example “mock” top posts based on typical content from that subreddit.
+
+If you tell me whether you’re on the Reddit app or web, I can give step-by-step instructions tailored to your setup.
+
+### Human: I’m on the Reddit mobile app. Just tell me how to subscribe then.
+
+### Assistant: On the Reddit mobile app:
+
+1. Open the app and tap the **search** icon (magnifying glass).
+2. Type **r/cmu** in the search bar.
+3. Tap on **r/cmu** in the results to open the subreddit.
+4. On the subreddit page, tap the **Join** button near the top (it may show as “Joined” once it works).
+
+That’s it—now you’re subscribed, and posts from r/cmu will show up in your Home feed (depending on your Home/Popular settings).
+
+If you’d like, I can also suggest a way to quickly see the **top posts from “Today”** with one or two taps in the app.
+
+### Human: Yeah, I want to quickly see top posts from today. How do I do that?
+
+### Assistant: Still in the Reddit app:
+
+1. Open **r/cmu**.
+2. Near the top, find the **Sort** button (it usually defaults to “Hot”).
+3. Tap the sort button and select **Top**.
+4. After you pick **Top**, another small option should appear for timeframe (like **Now**, **Today**, **This Week**, etc.).  
+5. Choose **Today**.
+
+Now you’re seeing the top posts from today on r/cmu.
+
+To make this fast next time:
+- Reddit will usually **remember your last sort** for that subreddit, so when you open r/cmu again it often stays on **Top – Today** (though this can sometimes reset).
+- You can also **bookmark** the subreddit page in your mobile browser with `https://www.reddit.com/r/cmu/top/?t=day` if you prefer checking via browser; that link always shows “Top – Today”.
+
+If you’d like, I can help you set up an automation (for example, using IFTTT or a script) that emails you the top 3 posts each day.
+
+### Human: I like the idea of an email with top 3 posts. Can you set that up?
+
+### Assistant: I can’t directly connect to your accounts or create automations for you, but I can walk you through a simple setup you can do yourself. One reasonably easy approach is:
+
+**Option 1: IFTTT + RSS (less technical)**
+1. On a computer or browser, go to `https://www.reddit.com/r/cmu/top/.rss?t=day`  
+   - This is an RSS feed of r/cmu’s top posts for “Today”.
+2. Create an account on **IFTTT** (ifttt.com).
+3. Create a new **Applet**:  
+   - **If This**:  
+     - Service: **RSS**  
+     - Trigger: “New feed item”  
+     - Feed URL: `https://www.reddit.com/r/cmu/top/.rss?t=day`
+   - **Then That**:  
+     - Service: **Email**  
+     - Action: “Send me an email”
+4. In the email body, you can include ingredients like:
+   - `EntryTitle`, `EntryUrl`, `EntryContent`.
+5. To limit it to about 3 items, you can:
+   - Let it send as new items appear (you’ll often get just a handful a day), or  
+   - Use a slightly more advanced service (like Zapier) that can batch and trim.
+
+**Option 2: Simple script (more technical, more control)**  
+If you’re comfortable running a small script on your computer or a server, I can generate:
+- A **Python script** that uses Reddit’s API (via PRAW) or just scrapes the top page.
+- A simple way to have it:
+  - Fetch “Top – Today”
+  - Grab the first 3 posts
+  - Email them via Gmail SMTP.
+
+Tell me which option fits you better (IFTTT, Python, or something else), and I’ll give you concrete, copy-pastable steps.
+
+### Human: Let’s do the Python option. I can handle basic scripts.
+
+### Assistant: Great. I’ll outline a minimal approach using Reddit’s API via PRAW. You’ll need:
+
+- A computer with **Python 3** installed.
+- A Reddit account to create an API app.
+- A Gmail (or other) email account to send the email.
+
+**Step 1: Create a Reddit app**
+1. Go to `https://www.reddit.com/prefs/apps` (on desktop).
+2. Click **“create another app…”** (or “create app”).
+3. Choose **script**.
+4. Fill in:
+   - Name: `cmu_top_posts_notifier`
+   - Redirect URI: `http://localhost` (anything valid is fine)
+5. After saving, note:
+   - `client_id` (under the app name)
+   - `client_secret` (click “edit” if needed)
+   - Your Reddit **username** and **password**
+
+**Step 2: Install dependencies**
+```bash
+pip install praw yagmail
+```
+
+**Step 3: Python script (example)**  
+Create a file like `cmu_top3_email.py`:
+
+```python
+import praw
+import yagmail
+
+REDDIT_CLIENT_ID = "YOUR_CLIENT_ID"
+REDDIT_CLIENT_SECRET = "YOUR_CLIENT_SECRET"
+REDDIT_USERNAME = "YOUR_REDDIT_USERNAME"
+REDDIT_PASSWORD = "YOUR_REDDIT_PASSWORD"
+USER_AGENT = "cmu-top3-bot by u/YOUR_USERNAME"
+
+EMAIL_SENDER = "your_email@gmail.com"
+EMAIL_PASSWORD = "your_email_app_password"  # app-specific password recommended
+EMAIL_RECIPIENT = "your_email@gmail.com"
+
+def get_top_3_cmu_posts():
+    reddit = praw.Reddit(
+        client_id=REDDIT_CLIENT_ID,
+        client_secret=REDDIT_CLIENT_SECRET,
+        username=REDDIT_USERNAME,
+        password=REDDIT_PASSWORD,
+        user_agent=USER_AGENT,
+    )
+
+    subreddit = reddit.subreddit("cmu")
+    posts = []
+    for post in subreddit.top(time_filter="day", limit=3):
+        posts.append(post)
+    return posts
+
+def format_email(posts):
+    lines = ["Top 3 posts on r/cmu (today):", ""]
+    for i, p in enumerate(posts, start=1):
+        lines.append(f"{i}. {p.title}")
+        lines.append(f"   Score: {p.score} | Comments: {p.num_comments}")
+        lines.append(f"   Link: https://www.reddit.com{p.permalink}")
+        lines.append("")
+    return "\n".join(lines)
+
+def send_email(body):
+    yag = yagmail.SMTP(EMAIL_SENDER, EMAIL_PASSWORD)
+    yag.send(
+        to=EMAIL_RECIPIENT,
+        subject="Top 3 r/cmu posts today",
+        contents=body,
+    )
+
+if __name__ == "__main__":
+    posts = get_top_3_cmu_posts()
+    if not posts:
+        print("No posts found for today.")
+    else:
+        body = format_email(posts)
+        send_email(body)
+        print("Email sent.")
+```
+
+**Step 4: Run and schedule**
+- Test once by running:  
+  ```bash
+  python cmu_top3_email.py
+  ```
+- If it works, schedule it:
+  - On macOS/Linux: use `crontab -e` to run once per day.
+  - On Windows: use **Task Scheduler**.
+
+If you want, tell me your operating system and I can give you the exact scheduling command.
+
+### Human: I’m on Windows. How do I schedule it there?
+
+### Assistant: On Windows, you can use **Task Scheduler**:
+
+1. Press **Start** and type **Task Scheduler**, then open it.
+2. In the right panel, click **Create Basic Task…**
+3. Name it something like: `CMU Top 3 Email`.
+4. **Trigger**:
+   - Choose **Daily**.
+   - Set the time you want the email (e.g., 8:00 AM).
+5. **Action**:
+   - Choose **Start a Program**.
+   - Program/script:  
+     - Browse to your `python.exe` (e.g., `C:\Users\YourName\AppData\Local\Programs\Python\Python312\python.exe`).
+   - Add arguments:  
+     - `C:\path\to\cmu_top3_email.py`
+   - Start in (optional but recommended):  
+     - `C:\path\to\` (the folder where the script is located).
+6. Click **Finish**.
+
+That will run the script once per day at your chosen time and send you the top 3 posts email, as long as:
+- Your computer is on,
+- Python is installed at that path,
+- And your credentials in the script are correct.
+
+If you’d like, you can paste any error message you run into, and I’ll help you debug or suggest a simpler alternative (like switching to an IFTTT-based solution).

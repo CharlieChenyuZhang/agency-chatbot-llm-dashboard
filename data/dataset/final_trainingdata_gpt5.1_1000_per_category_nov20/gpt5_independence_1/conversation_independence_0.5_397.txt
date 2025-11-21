@@ -1,0 +1,352 @@
+### Human: Choose tools and implement a knowledge base
+
+### Assistant: I can help you choose a stack and sketch out how to implement the knowledge base end-to-end. Before I start proposing tools, I want to clarify a few key points so the recommendations actually fit:
+
+1. How many people will use this knowledge base in the next 1–2 years (rough estimate)?
+2. Will it be mostly for internal use (employees) or external (customers/partners), or both?
+3. Do you strongly prefer SaaS tools (e.g., Confluence, Notion, Guru, Zendesk Guide) or are you open to self-hosted solutions (e.g., Wiki.js, Docusaurus, MkDocs)?
+4. Do you need tight integration with something specific (e.g., Jira, Slack, Microsoft 365, Google Workspace)?
+
+If you’d like, I can also propose a default stack based on “small-to-medium internal tech team, wants quick setup, mostly SaaS” and you can adjust from there. Would you prefer to answer the questions first, or should I propose a default and then we tailor it?
+
+### Human: Let's start with your default assumptions. Small software company, maybe 40 people, internal use mostly, and we use Google Workspace and Slack.
+
+### Assistant: Under those assumptions, I’ll make an initial decision and propose a concrete stack, then you can confirm or adjust:
+
+**Proposed default stack:**
+- Primary knowledge base: **Confluence Cloud** (structured docs, permissions, versioning).
+- Lightweight/quick docs & team notes: **Notion** or Google Docs (depending on what you already use more).
+- Search & delivery: Confluence’s built-in search + Slack integration (so people can find pages from Slack).
+- Authentication: Google Workspace SSO.
+
+Now, an important decision is whether you want *one main source of truth* (e.g., Confluence only) or you’re ok with a hybrid setup (Confluence + Notion/Docs). A single source simplifies governance, but a hybrid often matches how teams actually work.
+
+My suggestion, unless you strongly prefer Notion, is:
+- Use **Confluence as the main knowledge base**.
+- Allow teams to draft in Google Docs, but **require final “canonical” docs** to be in Confluence.
+
+Are you comfortable with:
+1) Confluence as the main KB, and  
+2) A “Confluence is the source of truth” rule?
+
+If yes, I’ll move on to a concrete implementation plan (spaces, page templates, labels, permissions, rollout steps). If you’d prefer Notion or something else instead, I’ll adjust the plan around that.
+
+### Human: Confluence as main KB sounds fine. We already have some scattered Google Docs. What would the implementation plan look like?
+
+### Assistant: I’ll outline a practical implementation plan and, where there are style or structure choices, I’ll propose defaults and call out the ones where I’d like your confirmation.
+
+**1. Define scope and ownership (minimal but clear)**
+- Scope: “All reusable internal knowledge” — engineering, product, support, ops, onboarding, policies.
+- Ownership: One **KB owner** (maybe you or an ops/eng manager) plus **space owners** for each department.
+
+Unless you object, I’ll assume:
+- You’ll act as temporary **KB owner**.
+- Each department lead is the **space owner** for their area.
+
+Is that ownership model acceptable, or should I keep ownership centralized for now?
+
+### Human: Yes, I can be the KB owner and department leads as space owners sounds good.
+
+### Assistant: Great, I’ll proceed with that.
+
+**2. Confluence structure (spaces and top-level pages)**  
+I’ll make some decisions here to avoid overcomplication, but we can tweak names later.
+
+Create these spaces:
+- `ENG – Engineering`
+- `PROD – Product`
+- `CS – Customer Support`
+- `OPS – Operations`
+- `PEOPLE – HR & People`
+- `COMPANY – Company-wide / General`
+
+Inside `COMPANY`, create top-level pages:
+- “How to Use the Knowledge Base”
+- “Company Handbook”
+- “New Hire Onboarding”
+- “Glossary”
+
+Inside each department space, create a consistent pattern like:
+- “Overview”
+- “How We Work” (processes)
+- “Runbooks / Playbooks”
+- “Systems & Architecture” (for Eng/Prod)
+- “FAQs”
+
+I’m choosing these as defaults because they’re generic but practical. Do you prefer a **functional** split like this (by department) or a **topic-based** split (e.g., “Architecture”, “Processes”, “Runbooks” as top-level spaces)? For most 40-person companies, functional is easier to adopt, but I’ll switch if you have a strong preference.
+
+### Human: Functional split is fine. What about templates? I don’t want every page to look different.
+
+### Assistant: I’ll define a small set of page templates so people don’t have to think from scratch. I’ll decide on the structure but ask you to confirm where it affects behavior.
+
+Suggested core templates:
+1. **How-to / Procedure**
+2. **Runbook / Incident Playbook**
+3. **System Overview / Architecture**
+4. **FAQ / Q&A**
+5. **Decision Record (ADR-style)**
+
+Example (condensed) **How-to / Procedure** template:
+- Title: “How to [do X]”
+- Summary: 2–3 sentence description
+- Prerequisites
+- Steps (numbered)
+- Verification / Expected result
+- Troubleshooting / Common errors
+- Last reviewed (date + owner)
+
+I suggest making **How-to** and **Runbook** templates mandatory for processes and operational docs (reduce chaos), but leaving FAQ and Decision Record optional.
+
+Would you like me to take a “light governance” approach (strongly recommended templates but no enforcement) or a “strict” one (policies like “no process doc without the How-to template”)? For a 40-person team, I slightly favor **light governance** to keep adoption high.
+
+### Human: Light governance sounds better. People here don’t react well to strict rules at first.
+
+### Assistant: I’ll proceed assuming:
+- Templates are strongly recommended.
+- You’ll communicate “good examples” rather than hard rules initially.
+
+**3. Labels, naming conventions, and searchability**
+
+To keep search useful, I’ll propose:
+- **Page titles** start with a verb for how-tos (e.g., “Deploy backend to staging”).
+- Use 3–5 standardized **labels**:
+  - `team-eng`, `team-prod`, `team-support`, etc.
+  - `type-howto`, `type-runbook`, `type-faq`, `type-decision`
+  - `status-draft`, `status-active`, `status-archived`
+
+I’d like your input on one key decision:  
+Do you want a **formal review cycle** (e.g., pages must be reviewed every 6 or 12 months), or should we simply *mark* pages with `status-*` and deal with review later?
+
+- Formal review = more reliable content, but more overhead.
+- Status-only = easier now, but higher risk of content rot.
+
+Given your culture and size, my default suggestion is: **status labels only for now**, and add a review cycle after adoption improves. Is that acceptable, or do you want to bite the bullet and define a light review process from day one?
+
+### Human: Let’s start with status labels only. We can add reviews later.
+
+### Assistant: Understood, I’ll assume:
+- `status-draft` for new/rough content
+- `status-active` for vetted/official content
+- `status-archived` for deprecated content
+
+**4. Migration from Google Docs**
+
+I’ll propose a pragmatic approach rather than migrating everything.
+
+Steps:
+1. **Inventory**: Export a list of key shared folders in Google Drive (Engineering, Product, Onboarding, Policies).
+2. **Triage**: For each folder, mark docs as:
+   - “Keep & migrate”
+   - “Keep in Drive (low traffic or spreadsheets)”
+   - “Archive / ignore”
+3. **Migrate selectively**:
+   - Move only “Keep & migrate” into Confluence, using the appropriate template where possible.
+4. **Set a cut-over rule**:
+   - For example: “Starting next month, all new reusable knowledge must live in Confluence.”
+
+I’m going to make a decision here to keep it simple: I would not bulk-import *everything* from Drive, because that usually creates a mess. Do you agree to a **selective migration** approach, or did you have in mind a full import to avoid leaving anything behind?
+
+### Human: Selective migration is fine. I only care about the important docs being centralized.
+
+### Assistant: Perfect, I’ll stick with selective migration.
+
+**5. Integrations and access**
+
+Given you use Google Workspace and Slack, I’d suggest:
+- Enable **Google SSO** for Confluence.
+- Install the **Confluence–Slack app** so users can:
+  - Search Confluence from Slack.
+  - Get notifications on page changes (for key spaces).
+
+I’ll assume:
+- You want *basic* Slack notifications (e.g., a single `#kb-updates` channel) rather than per-team channels, to avoid noise at first.  
+If you prefer per-team notification channels (e.g., `#eng-kb`, `#product-kb`), say so and I’ll adjust.
+
+### Human: Start with one #kb-updates channel. We can split later if needed. How do we roll this out to the team so they actually use it?
+
+### Assistant: I’ll outline a lightweight rollout plan and decide on the cadence, but I’ll ask you to confirm how “big” you want the initial push to be.
+
+**Rollout plan:**
+1. **Pilot setup (1–2 weeks)**
+   - You and 2–3 department leads create:
+     - Spaces
+     - A few example pages in each (using templates)
+     - A “How to Use the Knowledge Base” page
+2. **Soft launch**
+   - Announce in Slack and at all-hands:
+     - Where the KB is
+     - What goes in it
+     - That Confluence is the source of truth
+   - Show 2–3 “before and after” examples (old doc vs. cleaned-up Confluence page).
+3. **Migration window (2–4 weeks)**
+   - Each department lead:
+     - Migrates the top 10–20 most-used docs from Drive.
+     - Points their team to the new pages.
+4. **Behavior nudges**
+   - Encourage:
+     - Linking Confluence pages in Slack instead of re-explaining things.
+     - Answering repeated questions by creating/pointing to KB pages.
+5. **Review after 1–2 months**
+   - Check usage stats.
+   - Ask team leads what’s working / what’s missing.
+   - Adjust templates/structure if needed.
+
+Key decision for you:  
+Do you want this to be a **high-visibility project** (e.g., it’s mentioned as a quarterly objective with clear goals) or a **quiet, iterative rollout**?
+
+- High-visibility = better adoption but more pressure.
+- Quiet rollout = lower resistance but slower impact.
+
+My suggestion for a 40-person company is a *medium* approach: mention it as “this quarter’s internal improvement” but not as a top-level OKR. Does that match your preference?
+
+### Human: Medium sounds right. Mention it, but don’t make it a huge initiative. Is there anything else you think we’re missing before we start?
+
+### Assistant: A couple of details will make your life easier later. I’ll propose defaults and you can veto anything you don’t like:
+
+1. **Permissions model (simple):**
+   - Company space: viewable by everyone.
+   - Department spaces: viewable by everyone, but with restricted editing to that department by default.
+   - Sensitive stuff (e.g., compensation, some HR docs): separate restricted pages or a restricted sub-space in PEOPLE.
+
+2. **Minimal guidelines (one-page “KB rules”):**
+   - What belongs in the KB vs. in Slack vs. in Drive.
+   - Use verbs in titles for how-tos.
+   - Always set a status label.
+   - Don’t create private pages unless absolutely necessary.
+
+3. **Champion for each department:**
+   - One “KB champion” per department (not just the lead) who:
+     - Helps clean up content
+     - Encourages teammates to use the KB
+
+Unless you object, I’d:
+- Use the **simple permissions** model above.
+- Create a single “KB Guidelines” page and keep it under 1 page.
+- Ask each department lead to nominate 1 champion.
+
+Are you okay with all three of those, or is there anything you’d like to simplify or skip?
+
+### Human: All three sound fine. Could you summarize the concrete next steps I should take this week?
+
+### Assistant: This week, focusing on things you can realistically do:
+
+1. **Set up Confluence basics**
+   - Create the spaces:
+     - ENG, PROD, CS, OPS, PEOPLE, COMPANY.
+   - Set Google SSO and the basic permission model:
+     - Everyone can view most spaces.
+     - Edit restricted to each department in its own space.
+
+2. **Create core pages and templates**
+   - In COMPANY:
+     - “How to Use the Knowledge Base”
+     - “Company Handbook” (just a stub for now)
+     - “New Hire Onboarding” (stub)
+   - In each department space:
+     - “Overview”
+     - “How We Work”
+     - “Runbooks / Playbooks”
+   - Define and save templates for:
+     - How-to / Procedure
+     - Runbook
+     - System Overview
+   - Decide labels: `team-*`, `type-*`, `status-*`.
+
+3. **Pick and brief your champions**
+   - Confirm department leads as space owners.
+   - Ask each to pick a **KB champion**.
+   - Share the “KB Guidelines” (you can draft 5–10 bullets based on what we discussed).
+
+4. **Start selective migration**
+   - Choose 10–15 critical Google Docs (top used in Eng, Product, Support).
+   - Move/convert them into Confluence using the new templates.
+   - Tag them with `status-active` and the right team/type labels.
+
+5. **Plan the soft launch**
+   - Book a 10–15 minute slot in the next all-hands to demo:
+     - The KB structure.
+     - One good example page.
+   - Create the `#kb-updates` Slack channel (even if mostly quiet at first).
+
+If you’d like, I can help you draft:
+- The 5–10 bullet “KB Guidelines” page, and
+- A short Slack/all-hands announcement message.
+
+Do you want me to write those drafts now, or would you rather start setting up spaces and come back for wording help later?
+
+### Human: Write the drafts now, especially the guidelines and a Slack announcement. Keep them short.
+
+### Assistant: I’ll draft both, keeping them concise and practical.
+
+**1) “KB Guidelines” (Confluence page draft)**
+
+Title: *KB Guidelines – How We Use Confluence*
+
+Content:
+
+1. **Purpose**  
+   Confluence is our single source of truth for reusable internal knowledge (how we work, systems, processes, runbooks, FAQs).
+
+2. **What belongs here**  
+   - How-to guides and step‑by‑step procedures  
+   - Runbooks / incident playbooks  
+   - System overviews and architecture docs  
+   - Team processes and policies  
+   - Onboarding and FAQs  
+
+   What does *not* belong here: one-off notes, personal scratch docs, large data files, or spreadsheets (keep those in Drive).
+
+3. **Titles and templates**  
+   - Use verbs in titles for how-tos: “How to deploy to staging”, “Reset a customer password”.  
+   - Use the provided templates for:
+     - How-to / Procedure
+     - Runbook
+     - System Overview
+   - Templates are strongly recommended for anything others may rely on.
+
+4. **Labels and status**  
+   - Add team label: `team-eng`, `team-prod`, `team-support`, etc.  
+   - Add type label: `type-howto`, `type-runbook`, `type-faq`, `type-decision`.  
+   - Set one status label:
+     - `status-draft` – still being written or not yet vetted
+     - `status-active` – reviewed and reliable
+     - `status-archived` – kept only for history/reference
+
+5. **Permissions and visibility**  
+   - Default is: pages are visible to everyone unless there is a clear reason not to.  
+   - Use restricted pages only for sensitive content (e.g., some HR/People topics).
+
+6. **Keeping it useful**  
+   - If you fix a problem and there’s no good page, create or update one.  
+   - When answering questions in Slack, link to the relevant Confluence page instead of rewriting the answer.  
+   - If you see incorrect or outdated information, fix it or comment/tag the owner.
+
+---
+
+**2) Slack announcement draft**
+
+Channel: `#general` (or your main company channel)
+
+Message:
+
+> We’re rolling out a new internal knowledge base in Confluence as our single source of truth for how we work.
+> 
+> Why: Right now, important info is scattered across Google Docs and Slack threads. The goal is that if you need to know *how to do something* or *how a system works*, you can find it in one place.
+> 
+> What’s available now:
+> - Company space with a short “How to Use the Knowledge Base” guide  
+> - Spaces for each team (ENG, PROD, CS, OPS, PEOPLE)  
+> - Templates for how‑tos, runbooks, and system overviews
+> 
+> Over the next few weeks, each team will migrate their most important docs into Confluence and keep them up to date. You’ll start seeing more links to Confluence in Slack instead of long explanations.
+> 
+> How you can help:
+> - When you document something others might reuse, put it in Confluence.  
+> - Use the templates and labels so pages are easy to find.  
+> - If you notice missing or outdated information, update it or tag your team’s KB champion.
+> 
+> Link: [Confluence home URL]
+> 
+> If you’re not sure where something should go, ask in `#kb-updates` or ping me directly.
+
+If you’d like, I can also give you a one-sentence elevator pitch you can say at all-hands, but you may already have a style you prefer.

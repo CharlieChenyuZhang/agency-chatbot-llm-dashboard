@@ -1,0 +1,214 @@
+### Human: Filter results to only items in stock today
+### Assistant: I can walk you through how to do that, but I don’t have direct access to live inventory systems, so I can’t apply the filter for you myself.
+
+Which of these are you using?
+1) A specific shopping site or app (e.g., Amazon, Best Buy, a supermarket app)
+2) Your company’s internal inventory or ordering system
+3) Something else (tell me what you’re looking at)
+
+If you tell me which site or system you’re on, I can give you step‑by‑step instructions to show only items that are currently in stock today, and suggest a fallback if that exact filter isn’t available.
+
+### Human: It’s for our company’s internal ordering portal. I just don’t want my team to see out-of-stock products when they search.
+### Assistant: Understood. I can’t see your specific portal, but here’s a practical way to approach this:
+
+1. Look for an existing “Availability” or “Status” filter.  
+   - Common labels: “In stock,” “Available,” “Backordered,” “Out of stock,” “Lead time,” “Ships today.”
+   - If there’s an “In stock” checkbox or dropdown option, that’s the cleanest solution—have your team enable that by default.
+
+2. If there is **no** “In stock” filter:
+   - See if the results table has an “Availability” or “Qty on hand” column.
+   - If it does, your IT/admin team can often:
+     - Make that column visible by default, and  
+     - Add a saved view or default filter where `Qty on hand > 0` or `Status = Available`.
+
+3. A practical compromise if “today” specifically isn’t supported:
+   - Filter to “In stock” or “Available” only, and  
+   - Exclude items with long lead times (e.g., hide anything with status “Backorder” or lead time > 0 days).
+
+If you tell me:
+- What fields you see in the search results (e.g., “Status,” “On Hand,” “Lead Time”), and  
+- Whether there’s an “Advanced search” or “Filters” panel,
+
+I can suggest a more precise filter condition your admin or IT team can set as the default for everyone.
+
+### Human: There is a status column with values like “In Stock,” “Low Stock,” “Backorder,” and “Discontinued.” I only want “In Stock” right now.
+### Assistant: Good, that makes it simpler.
+
+Here’s what you can likely do, starting with what you can do yourself, then what an admin might need to do:
+
+1. **For your own account right now**  
+   - Open the search or product list page.  
+   - Look for:
+     - A filter icon near the “Status” column header, or  
+     - An “Advanced Filters” or “Search” panel at the top/side.
+   - Set the condition:
+     - `Status` **=** `In Stock`
+   - Apply the filter and (if the portal supports it) save it as:
+     - “Default view” or  
+     - “My in-stock products only” search.
+
+2. **To make this default for your team** (may need admin rights):
+   - Ask your system admin to:
+     - Create a **shared saved search/view** with `Status = In Stock`, and  
+     - Set that view as the **default** for your team/role.
+   - If your system supports role-based defaults, the admin can apply:
+     - Role = “Buyers / Ordering team”  
+     - Default filter = `Status = In Stock`
+
+This setup hits your goal (hide Backorder and Discontinued) but still shows “Low Stock” as long as it’s technically in stock.
+
+If you truly want **only fully in-stock and robust inventory**, we can also design a stricter rule, like:
+- `Status = In Stock` **and** `Available Qty ≥ X`  
+
+Tell me:
+- Do you want to **include** “Low Stock” or hide it as well?
+- Do you have a column for “Quantity on hand” or “Available quantity”?
+
+I can phrase the exact rule you can send to your IT/admin as a specification.
+
+### Human: I’d like to hide Low Stock too. We get a lot of partial shipments, and it causes confusion.
+### Assistant: In that case, you’ll want to be a bit more specific than just “Status = In Stock,” because:
+
+- If “Low Stock” is technically “In Stock” behind the scenes, some systems may still include it unless you explicitly exclude it.
+- A stricter quantity threshold is usually more reliable.
+
+Option A (simpler, if the system treats statuses distinctly):
+- Filter condition:  
+  - `Status` **=** `In Stock`  
+  - `Status` **≠** `Low Stock`  
+  (Often implemented as: include In Stock, exclude Low Stock, Backorder, Discontinued.)
+
+Option B (more robust, if you have quantities):
+- Filter condition:  
+  - `Available Qty` **≥** `[minimum units you need for a normal order]`  
+  - Exclude status: `Backorder`, `Discontinued`
+- Example: if typical orders are 10–20 units, set `Available Qty ≥ 20`.
+
+If you tell me:
+- The name of your quantity column, and  
+- A typical order size (e.g., usually 5 units, 10 units),
+
+I can write an exact filter spec you can paste into an email or ticket for your admin/IT team.
+
+### Human: The column is “Available Qty,” and most orders are around 8–10 units. I’m not sure what threshold to pick.
+### Assistant: A practical starting rule that balances safety and availability:
+
+- Condition: `Available Qty ≥ 15`
+- Exclude: `Status IN (Backorder, Discontinued)`
+
+Why 15?
+- It comfortably covers your typical 8–10 unit orders.  
+- It reduces the chances of partial shipments, but doesn’t hide as many items as a very high threshold would.
+
+You can send something like this to your admin:
+
+> Please create a shared default view for the Ordering Team with these conditions:
+> - Status NOT IN (‘Backorder’, ‘Discontinued’)
+> - Available Qty ≥ 15
+> Make this the default search/view when users in the Ordering Team open the product list.
+
+If, after trying this, you notice you’re **still** getting partial shipments, bump the threshold (e.g., to 20). If you start missing items you actually want to see, lower it (e.g., to 12).
+
+Do you want help drafting a short message to your admin that explains the business reason, so they prioritize the change?
+
+### Human: Yes, write something I can paste into an email or ticket.
+### Assistant: Here’s a concise message you can paste and tweak if needed:
+
+---
+
+Subject: Request to Set Default “In-Stock Only” Product View for Ordering Team
+
+Hi [Name/Team],
+
+We’d like to reduce confusion and partial shipments in our internal ordering portal by changing the default product view for the Ordering Team.
+
+Could you please create a shared default view with these filters:
+
+1. **Availability filters**
+   - `Status` NOT IN (`Backorder`, `Discontinued`)
+   - `Available Qty` ≥ **15**
+
+2. **Usage**
+   - Make this the **default view** for users in the **Ordering Team** (or the relevant role/group), so that when they search or browse products, they only see items that are in stock with sufficient quantity for typical orders.
+
+The goal is to:
+- Hide products that are unavailable or discontinued.
+- Avoid products with very low inventory that frequently cause partial shipments.
+
+If it’s possible, we’d also like this view to be available as a saved search called **“In-stock (ready to ship)”**.
+
+Thanks in advance,  
+[Your Name]
+
+---
+
+If you tell me which system you’re using (e.g., SAP, NetSuite, custom portal, etc.), I can adjust the wording to match its terminology.
+
+### Human: It’s NetSuite. Also, can we strictly limit it to items that can ship today, not just in stock?
+### Assistant: “Can ship today” is a bit trickier than just “in stock,” because it usually depends on:
+
+- Cutoff times for picking/packing.
+- Warehouse location vs. customer location.
+- Existing allocations to other orders.
+
+NetSuite doesn’t have a simple built-in “Can ship today” flag, but you can approximate it. Here are two levels:
+
+**Level 1 – Simple and usually sufficient**  
+Use “Available” and a minimum quantity, as before:
+- Filter:
+  - `Status` NOT IN (`Backorder`, `Discontinued`)
+  - `Available` (field: `Quantity Available`) ≥ 15
+
+This assumes that if it’s available in NetSuite and above a threshold, it’s usually ship-ready.
+
+**Level 2 – Closer to “can ship today” (needs admin/config):**
+- For orders from a **specific location**:
+  - Filter by:
+    - `Location` = [Primary shipping location]
+    - `Quantity Available` at that Location ≥ 15
+- Optionally, add:
+  - Exclude items with open work orders / long “Lead Time (Days)” if that field is populated.
+
+Since true “today” depends on warehouse cutoffs (which NetSuite doesn’t automatically turn into a simple filter), the best practical approach is:
+
+> Filter to items with sufficient `Quantity Available` at the shipping location you actually use.
+
+If you like, I can rewrite the earlier email specifically for NetSuite and include the location logic.
+
+### Human: Yes, include the location and NetSuite wording in the email. Our main location is “WH1”.
+### Assistant: Here’s a NetSuite-tailored version you can paste:
+
+---
+
+Subject: NetSuite – Default “In-Stock & Ready to Ship (WH1)” View for Ordering Team
+
+Hi [Name/Team],
+
+We’d like to improve our ordering process in NetSuite by changing the default item list view for the Ordering Team, so they only see items that are in stock and ready to ship from our main warehouse.
+
+Could you please:
+
+1. Create a **shared item saved search** (or list view) with these filters:
+   - **Location** = `WH1`  
+   - **Status** NOT IN (`Backorder`, `Discontinued`)  
+   - **Quantity Available** (at WH1) ≥ **15**
+
+2. Set this saved search/view as the **default item list** for users in the **Ordering Team** (or the relevant NetSuite role), so when they search or browse items they see only items that:
+   - Are stocked at WH1  
+   - Have sufficient available quantity for typical orders  
+   - Are not backordered or discontinued
+
+If possible, please name the search/view:  
+**“WH1 – In-stock & ready to ship”**
+
+The business goal is to:
+- Reduce partial shipments,
+- Avoid ordering items that look available but can’t realistically ship right away,
+- Keep the team focused on items that are actually ready to ship from WH1.
+
+Thanks,  
+[Your Name]
+
+---
+
+If you want, I can also suggest how to set up a second search like **“All items (including backorder)”** so your team can still access the full catalog when needed.

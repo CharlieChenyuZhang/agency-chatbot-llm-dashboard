@@ -1,0 +1,693 @@
+### Human: List issues labeled bug in my most active repo
+
+### Assistant: I can help you get that list, but I don’t have direct access to your Git hosting account from here.
+
+A couple of quick clarifications so I can give you the right commands/snippets:
+
+1. Which platform are you using?  
+   - GitHub  
+   - GitLab  
+   - Bitbucket  
+   - Something else?
+
+2. By “most active repo,” do you mean:
+   - The repo with the most recent commits, or  
+   - The one with the most issues activity, or  
+   - You have a specific repo in mind (e.g., `username/project-name`)?
+
+If you’d like, I can assume *GitHub* and “most active” = “the repo you’re currently working on locally” and show you GitHub CLI and web UI steps. Would you prefer I assume that, or do you want to specify the exact repo and platform?
+
+### Human: Let's assume GitHub. By most active I mean the one with the most recent commits.
+
+### Assistant: Got it—GitHub, and “most active” = repo with the most recent commits.
+
+Since I can’t scan your repos directly, I’ll walk you through a practical way to do this that’s close to what you asked:
+
+**Step 1 – Identify your most recently active repo locally**
+
+If you have multiple local repos, an easy approach is to run something like this in the parent folder where your repos live:
+
+```bash
+for d in */ ; do
+  cd "$d"
+  last=$(git log -1 --format=%ci 2>/dev/null || echo "no-git")
+  echo "$last  $d"
+  cd ..
+done | sort -r | head -n 1
+```
+
+That will print the repo folder with the latest commit.
+
+Would you like me to assume you already know which repo this is (e.g., `my-org/my-active-repo`) and just give you commands to list bug-labeled issues on GitHub, or do you want me to help refine that script/process to reliably pick the repo first?
+
+### Human: I know the repo, it's "my-org/backend-api". Just show me how to list the bug issues.
+
+### Assistant: Perfect. I’ll assume you want **open** issues labeled `bug` for now; if you also need closed ones, we can add that next.
+
+#### Option 1: Using GitHub CLI (`gh`)
+
+If you have `gh` installed and authenticated:
+
+```bash
+gh issue list \
+  --repo my-org/backend-api \
+  --label bug \
+  --state open \
+  --limit 100
+```
+
+This will show up to 100 open issues with the `bug` label.
+
+#### Option 2: Using the web UI
+
+1. Go to: `https://github.com/my-org/backend-api/issues`
+2. In the search bar, use:
+   ```text
+   is:issue is:open label:bug
+   ```
+
+Do you also want to include **closed** bug issues in a single list, or keep it strictly to open ones?
+
+### Human: Include closed ones too, and I'd like them in a CSV I can download.
+
+### Assistant: Understood—open and closed, in a downloadable CSV.
+
+Since I can’t directly generate the CSV from your GitHub account, I’ll give you a script that does it via the GitHub API. I’ll choose **Python** as a default; if you prefer another language (Node, Bash, etc.), say so and I’ll adjust.
+
+Here’s a **Python script** that fetches all issues labeled `bug` (open + closed) from `my-org/backend-api` and writes them to `issues_bug.csv`:
+
+```python
+import csv
+import os
+import requests
+
+OWNER = "my-org"
+REPO = "backend-api"
+LABEL = "bug"
+STATE = "all"  # open, closed, or all
+PER_PAGE = 100
+
+token = os.getenv("GITHUB_TOKEN")
+if not token:
+    raise SystemExit("Set GITHUB_TOKEN env var with a personal access token")
+
+headers = {"Authorization": f"Bearer {token}", "Accept": "application/vnd.github+json"}
+
+issues = []
+page = 1
+
+while True:
+    url = (
+        f"https://api.github.com/repos/{OWNER}/{REPO}/issues"
+        f"?state={STATE}&labels={LABEL}&per_page={PER_PAGE}&page={page}"
+    )
+    resp = requests.get(url, headers=headers)
+    resp.raise_for_status()
+    data = resp.json()
+    if not data:
+        break
+
+    for item in data:
+        # GitHub returns PRs in /issues; skip them
+        if "pull_request" in item:
+            continue
+        issues.append(
+            {
+                "number": item["number"],
+                "title": item["title"],
+                "state": item["state"],
+                "created_at": item["created_at"],
+                "updated_at": item["updated_at"],
+                "closed_at": item.get("closed_at"),
+                "html_url": item["html_url"],
+                "assignees": ", ".join(a["login"] for a in item["assignees"]),
+            }
+        )
+
+    page += 1
+
+with open("issues_bug.csv", "w", newline="", encoding="utf-8") as f:
+    writer = csv.DictWriter(
+        f,
+        fieldnames=[
+            "number",
+            "title",
+            "state",
+            "created_at",
+            "updated_at",
+            "closed_at",
+            "html_url",
+            "assignees",
+        ],
+    )
+    writer.writeheader()
+    writer.writerows(issues)
+
+print(f"Wrote {len(issues)} issues to issues_bug.csv")
+```
+
+You’ll need to:
+
+1. Create a GitHub personal access token (classic is fine) with `repo` read access.
+2. Set it in your shell:
+   ```bash
+   export GITHUB_TOKEN=ghp_XXXXXXXXXXXXXXXXXXXX
+   ```
+3. Run the script:
+   ```bash
+   python export_bug_issues.py
+   ```
+
+Do you want me to refine the CSV columns (for example, add labels, milestone, or body snippet), or is this column set enough for your use case?
+
+### Human: Add labels and milestone too. Also, can you prioritize the issues by severity if I tell you how we encode it in labels?
+
+### Assistant: Yes, I can do both:
+
+1. Extend the CSV to include labels and milestone.
+2. Use your label scheme to compute a severity-based priority.
+
+First, about severity: a common pattern is labels like `severity:critical`, `severity:high`, `severity:medium`, `severity:low`. 
+
+Can you tell me how your repo encodes severity in labels? For example:
+- Exact label names (e.g., `sev:1`, `sev:2`, `Severity-High`), and
+- How they rank (e.g., `sev:1` = highest).
+
+Once you share that, I’ll:
+- Update the script to parse severity from labels.
+- Sort the issues by that severity in the CSV.
+
+In the meantime, here’s the updated script with **labels** and **milestone** fields added, but without severity logic yet:
+
+```python
+import csv
+import os
+import requests
+
+OWNER = "my-org"
+REPO = "backend-api"
+LABEL = "bug"
+STATE = "all"
+PER_PAGE = 100
+
+token = os.getenv("GITHUB_TOKEN")
+if not token:
+    raise SystemExit("Set GITHUB_TOKEN env var with a personal access token")
+
+headers = {"Authorization": f"Bearer {token}", "Accept": "application/vnd.github+json"}
+
+issues = []
+page = 1
+
+while True:
+    url = (
+        f"https://api.github.com/repos/{OWNER}/{REPO}/issues"
+        f"?state={STATE}&labels={LABEL}&per_page={PER_PAGE}&page={page}"
+    )
+    resp = requests.get(url, headers=headers)
+    resp.raise_for_status()
+    data = resp.json()
+    if not data:
+        break
+
+    for item in data:
+        if "pull_request" in item:
+            continue
+
+        issues.append(
+            {
+                "number": item["number"],
+                "title": item["title"],
+                "state": item["state"],
+                "created_at": item["created_at"],
+                "updated_at": item["updated_at"],
+                "closed_at": item.get("closed_at"),
+                "html_url": item["html_url"],
+                "assignees": ", ".join(a["login"] for a in item["assignees"]),
+                "labels": ", ".join(l["name"] for l in item["labels"]),
+                "milestone": item["milestone"]["title"] if item.get("milestone") else "",
+            }
+        )
+
+    page += 1
+
+with open("issues_bug.csv", "w", newline="", encoding="utf-8") as f:
+    writer = csv.DictWriter(
+        f,
+        fieldnames=[
+            "number",
+            "title",
+            "state",
+            "created_at",
+            "updated_at",
+            "closed_at",
+            "html_url",
+            "assignees",
+            "labels",
+            "milestone",
+        ],
+    )
+    writer.writeheader()
+    writer.writerows(issues)
+
+print(f"Wrote {len(issues)} issues to issues_bug.csv")
+```
+
+Tell me your severity label scheme, and I’ll add the priority logic next.
+
+### Human: We use labels "severity:critical", "severity:high", "severity:medium", "severity:low". Critical is highest, then high, medium, low. If no severity label, treat it as medium.
+
+### Assistant: That’s clear, thanks.
+
+I’ll:
+- Add a `severity` field to the CSV.
+- Derive it from the labels using your mapping.
+- Sort issues by severity (critical → high → medium → low) and then by creation date (newest first).
+
+Here’s the updated script:
+
+```python
+import csv
+import os
+import requests
+from datetime import datetime
+
+OWNER = "my-org"
+REPO = "backend-api"
+LABEL = "bug"
+STATE = "all"
+PER_PAGE = 100
+
+SEVERITY_RANK = {
+    "severity:critical": 1,
+    "severity:high": 2,
+    "severity:medium": 3,
+    "severity:low": 4,
+}
+
+DEFAULT_SEVERITY = "severity:medium"  # for missing severity labels
+
+token = os.getenv("GITHUB_TOKEN")
+if not token:
+    raise SystemExit("Set GITHUB_TOKEN env var with a personal access token")
+
+headers = {"Authorization": f"Bearer {token}", "Accept": "application/vnd.github+json"}
+
+issues = []
+page = 1
+
+while True:
+    url = (
+        f"https://api.github.com/repos/{OWNER}/{REPO}/issues"
+        f"?state={STATE}&labels={LABEL}&per_page={PER_PAGE}&page={page}"
+    )
+    resp = requests.get(url, headers=headers)
+    resp.raise_for_status()
+    data = resp.json()
+    if not data:
+        break
+
+    for item in data:
+        if "pull_request" in item:
+            continue
+
+        label_names = [l["name"] for l in item["labels"]]
+
+        # Determine severity from labels
+        severity = None
+        for sev_label in SEVERITY_RANK.keys():
+            if sev_label in label_names:
+                severity = sev_label
+                break
+        if severity is None:
+            severity = DEFAULT_SEVERITY
+
+        issues.append(
+            {
+                "number": item["number"],
+                "title": item["title"],
+                "state": item["state"],
+                "created_at": item["created_at"],
+                "updated_at": item["updated_at"],
+                "closed_at": item.get("closed_at"),
+                "html_url": item["html_url"],
+                "assignees": ", ".join(a["login"] for a in item["assignees"]),
+                "labels": ", ".join(label_names),
+                "milestone": item["milestone"]["title"] if item.get("milestone") else "",
+                "severity": severity,
+            }
+        )
+
+    page += 1
+
+def severity_sort_key(issue):
+    sev = issue["severity"]
+    rank = SEVERITY_RANK.get(sev, SEVERITY_RANK[DEFAULT_SEVERITY])
+    created = datetime.fromisoformat(issue["created_at"].replace("Z", "+00:00"))
+    return (rank, -created.timestamp())
+
+issues.sort(key=severity_sort_key)
+
+with open("issues_bug.csv", "w", newline="", encoding="utf-8") as f:
+    writer = csv.DictWriter(
+        f,
+        fieldnames=[
+            "number",
+            "title",
+            "state",
+            "severity",
+            "created_at",
+            "updated_at",
+            "closed_at",
+            "html_url",
+            "assignees",
+            "labels",
+            "milestone",
+        ],
+    )
+    writer.writeheader()
+    writer.writerows(issues)
+
+print(f"Wrote {len(issues)} issues to issues_bug.csv (sorted by severity, then recency)")
+```
+
+If you’d like, I can also:
+- Filter out very old closed bugs (e.g., closed > 1 year ago) into a separate CSV, or
+- Add a column like `age_days` or `time_to_close_days`.
+
+Do you want either of those, or is the current CSV enough for now?
+
+### Human: Let's add age_days for open issues and time_to_close_days for closed ones. That sounds useful.
+
+### Assistant: Good idea. I’ll add:
+
+- `age_days`: for all issues (now − created_at).
+- `time_to_close_days`: for closed issues only (closed_at − created_at), blank for open issues.
+
+I’ll assume “now” should be the time when you run the script (local system time in UTC).
+
+Here’s the updated script:
+
+```python
+import csv
+import os
+import requests
+from datetime import datetime, timezone
+
+OWNER = "my-org"
+REPO = "backend-api"
+LABEL = "bug"
+STATE = "all"
+PER_PAGE = 100
+
+SEVERITY_RANK = {
+    "severity:critical": 1,
+    "severity:high": 2,
+    "severity:medium": 3,
+    "severity:low": 4,
+}
+
+DEFAULT_SEVERITY = "severity:medium"
+
+token = os.getenv("GITHUB_TOKEN")
+if not token:
+    raise SystemExit("Set GITHUB_TOKEN env var with a personal access token")
+
+headers = {"Authorization": f"Bearer {token}", "Accept": "application/vnd.github+json"}
+
+issues = []
+page = 1
+now = datetime.now(timezone.utc)
+
+def parse_dt(s: str) -> datetime:
+    return datetime.fromisoformat(s.replace("Z", "+00:00"))
+
+while True:
+    url = (
+        f"https://api.github.com/repos/{OWNER}/{REPO}/issues"
+        f"?state={STATE}&labels={LABEL}&per_page={PER_PAGE}&page={page}"
+    )
+    resp = requests.get(url, headers=headers)
+    resp.raise_for_status()
+    data = resp.json()
+    if not data:
+        break
+
+    for item in data:
+        if "pull_request" in item:
+            continue
+
+        label_names = [l["name"] for l in item["labels"]]
+
+        severity = None
+        for sev_label in SEVERITY_RANK.keys():
+            if sev_label in label_names:
+                severity = sev_label
+                break
+        if severity is None:
+            severity = DEFAULT_SEVERITY
+
+        created_dt = parse_dt(item["created_at"])
+        age_days = (now - created_dt).total_seconds() / 86400
+
+        closed_at = item.get("closed_at")
+        if closed_at:
+            closed_dt = parse_dt(closed_at)
+            time_to_close_days = (closed_dt - created_dt).total_seconds() / 86400
+        else:
+            time_to_close_days = ""
+
+        issues.append(
+            {
+                "number": item["number"],
+                "title": item["title"],
+                "state": item["state"],
+                "severity": severity,
+                "created_at": item["created_at"],
+                "updated_at": item["updated_at"],
+                "closed_at": closed_at,
+                "age_days": round(age_days, 1),
+                "time_to_close_days": round(time_to_close_days, 1)
+                if isinstance(time_to_close_days, (int, float))
+                else "",
+                "html_url": item["html_url"],
+                "assignees": ", ".join(a["login"] for a in item["assignees"]),
+                "labels": ", ".join(label_names),
+                "milestone": item["milestone"]["title"] if item.get("milestone") else "",
+            }
+        )
+
+    page += 1
+
+def severity_sort_key(issue):
+    sev = issue["severity"]
+    rank = SEVERITY_RANK.get(sev, SEVERITY_RANK[DEFAULT_SEVERITY])
+    created = parse_dt(issue["created_at"])
+    return (rank, -created.timestamp())
+
+issues.sort(key=severity_sort_key)
+
+with open("issues_bug.csv", "w", newline="", encoding="utf-8") as f:
+    writer = csv.DictWriter(
+        f,
+        fieldnames=[
+            "number",
+            "title",
+            "state",
+            "severity",
+            "age_days",
+            "time_to_close_days",
+            "created_at",
+            "updated_at",
+            "closed_at",
+            "html_url",
+            "assignees",
+            "labels",
+            "milestone",
+        ],
+    )
+    writer.writeheader()
+    writer.writerows(issues)
+
+print(f"Wrote {len(issues)} issues to issues_bug.csv (with age and time-to-close)")
+```
+
+You can run this as before, and the CSV will now include those two metrics.
+
+Do you also want an automatic **summary** of this CSV (e.g., counts per severity, average time to close per severity) that you can paste into a status report, or would you rather inspect it manually?
+
+### Human: An automatic summary would be great. Just something I can paste into Slack for the team.
+
+### Assistant: I’ll add a short summary report printed to stdout, optimized for pasting into Slack:
+
+- Count of open bugs per severity.
+- Count of closed bugs per severity.
+- Average and median time-to-close per severity (for closed bugs).
+
+I’ll keep the CSV generation as-is and add summary computation at the end:
+
+```python
+import csv
+import os
+import statistics
+import requests
+from datetime import datetime, timezone
+
+OWNER = "my-org"
+REPO = "backend-api"
+LABEL = "bug"
+STATE = "all"
+PER_PAGE = 100
+
+SEVERITY_RANK = {
+    "severity:critical": 1,
+    "severity:high": 2,
+    "severity:medium": 3,
+    "severity:low": 4,
+}
+
+DEFAULT_SEVERITY = "severity:medium"
+
+token = os.getenv("GITHUB_TOKEN")
+if not token:
+    raise SystemExit("Set GITHUB_TOKEN env var with a personal access token")
+
+headers = {"Authorization": f"Bearer {token}", "Accept": "application/vnd.github+json"}
+
+issues = []
+page = 1
+now = datetime.now(timezone.utc)
+
+def parse_dt(s: str) -> datetime:
+    return datetime.fromisoformat(s.replace("Z", "+00:00"))
+
+while True:
+    url = (
+        f"https://api.github.com/repos/{OWNER}/{REPO}/issues"
+        f"?state={STATE}&labels={LABEL}&per_page={PER_PAGE}&page={page}"
+    )
+    resp = requests.get(url, headers=headers)
+    resp.raise_for_status()
+    data = resp.json()
+    if not data:
+        break
+
+    for item in data:
+        if "pull_request" in item:
+            continue
+
+        label_names = [l["name"] for l in item["labels"]]
+
+        severity = None
+        for sev_label in SEVERITY_RANK.keys():
+            if sev_label in label_names:
+                severity = sev_label
+                break
+        if severity is None:
+            severity = DEFAULT_SEVERITY
+
+        created_dt = parse_dt(item["created_at"])
+        age_days = (now - created_dt).total_seconds() / 86400
+
+        closed_at = item.get("closed_at")
+        if closed_at:
+            closed_dt = parse_dt(closed_at)
+            time_to_close_days = (closed_dt - created_dt).total_seconds() / 86400
+        else:
+            time_to_close_days = None
+
+        issues.append(
+            {
+                "number": item["number"],
+                "title": item["title"],
+                "state": item["state"],
+                "severity": severity,
+                "created_at": item["created_at"],
+                "updated_at": item["updated_at"],
+                "closed_at": closed_at,
+                "age_days": round(age_days, 1),
+                "time_to_close_days": round(time_to_close_days, 1)
+                if isinstance(time_to_close_days, (int, float))
+                else "",
+                "raw_time_to_close_days": time_to_close_days,
+                "html_url": item["html_url"],
+                "assignees": ", ".join(a["login"] for a in item["assignees"]),
+                "labels": ", ".join(label_names),
+                "milestone": item["milestone"]["title"] if item.get("milestone") else "",
+            }
+        )
+
+    page += 1
+
+def severity_sort_key(issue):
+    sev = issue["severity"]
+    rank = SEVERITY_RANK.get(sev, SEVERITY_RANK[DEFAULT_SEVERITY])
+    created = parse_dt(issue["created_at"])
+    return (rank, -created.timestamp())
+
+issues.sort(key=severity_sort_key)
+
+with open("issues_bug.csv", "w", newline="", encoding="utf-8") as f:
+    writer = csv.DictWriter(
+        f,
+        fieldnames=[
+            "number",
+            "title",
+            "state",
+            "severity",
+            "age_days",
+            "time_to_close_days",
+            "created_at",
+            "updated_at",
+            "closed_at",
+            "html_url",
+            "assignees",
+            "labels",
+            "milestone",
+        ],
+    )
+    writer.writeheader()
+    for issue in issues:
+        out = issue.copy()
+        out.pop("raw_time_to_close_days", None)
+        writer.writerow(out)
+
+print(f"Wrote {len(issues)} issues to issues_bug.csv\n")
+
+# Build summary
+summary = []
+summary.append(f"Bug summary for {OWNER}/{REPO} (label: {LABEL})")
+summary.append("")
+
+for sev, rank in sorted(SEVERITY_RANK.items(), key=lambda x: x[1]):
+    sev_issues = [i for i in issues if i["severity"] == sev]
+    open_issues = [i for i in sev_issues if i["state"] == "open"]
+    closed_issues = [i for i in sev_issues if i["state"] == "closed"]
+
+    summary.append(f"{sev}:")
+    summary.append(f"  Open:   {len(open_issues)}")
+    summary.append(f"  Closed: {len(closed_issues)}")
+
+    ttcs = [
+        i["raw_time_to_close_days"]
+        for i in closed_issues
+        if isinstance(i["raw_time_to_close_days"], (int, float))
+    ]
+    if ttcs:
+        avg_ttc = round(statistics.mean(ttcs), 1)
+        med_ttc = round(statistics.median(ttcs), 1)
+        summary.append(f"  Avg time to close (days):   {avg_ttc}")
+        summary.append(f"  Median time to close (days): {med_ttc}")
+    else:
+        summary.append("  No closed issues with time-to-close data yet.")
+    summary.append("")
+
+print("\n".join(summary))
+```
+
+When you run this, you’ll get:
+
+- `issues_bug.csv` for deeper analysis.
+- A text summary printed to the console that you can paste straight into Slack.
+
+Do you want me to tighten the summary further (e.g., one compact line per severity), or is this level of detail what your team would expect?

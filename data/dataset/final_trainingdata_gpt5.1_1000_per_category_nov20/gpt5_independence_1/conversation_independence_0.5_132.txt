@@ -1,0 +1,668 @@
+### Human: Help me systematically debug complex software issues
+
+### Assistant: To debug complex software issues systematically, it helps to think in terms of a repeatable “playbook” rather than ad‑hoc tactics. In most cases a robust process has these stages:
+
+1. **Clarify and scope the problem**
+   - What exactly is broken? When did it start? How often does it happen?
+   - Who is affected (all users, some users, a specific tenant, a specific path)?
+
+2. **Make it observable**
+   - Logs, metrics, traces, feature flags, and reproducible test cases.
+   - If you can’t see it, you can’t debug it.
+
+3. **Reproduce or approximate**
+   - Reproduce locally or in a staging environment.
+   - If you can’t reproduce, you look for patterns in real traffic.
+
+4. **Form hypotheses and prioritize**
+   - Generate a few likely causes based on data.
+   - Prioritize by likelihood × impact × ease of testing.
+
+5. **Design focused experiments**
+   - Change one thing at a time (config, code path, environment).
+   - Observe how the signals (logs/metrics/traces) change.
+
+6. **Confirm the root cause**
+   - Don’t stop at the first “it works now.”
+   - Ask: what *exactly* changed and *why* did that fix it?
+
+7. **Fix, verify, and prevent regression**
+   - Implement a fix, add a test, and add a guardrail (alert/logging/check).
+
+To make this concrete and tailored to you, I need a bit of context so I don’t stay too abstract:
+
+- What kind of system are you working on (e.g., backend microservices, frontend SPA, mobile app, data pipeline)?
+- What languages/stack are you using?
+- Are the “complex issues” more about performance (slow/timeout), correctness (wrong data/bugs), reliability (crashes), or something else?
+
+If you’d like, I can propose a specific step‑by‑step debugging workflow customized to your stack. Would you prefer we:
+1) Design a general debugging playbook you can apply anywhere, or  
+2) Walk through a concrete example issue you’re facing right now and build the process from that?
+
+### Human: Mostly backend microservices in Java and Kotlin, running on Kubernetes. The worst issues are intermittent production bugs that are hard to reproduce, like occasional timeouts or strange data inconsistencies across services.
+
+### Assistant: Given that context—Java/Kotlin microservices on Kubernetes with intermittent prod issues—I’d focus on a playbook that leans heavily on **observability** and **controlled experiments in production**.
+
+Let me outline a tailored workflow, then we can refine it:
+
+1. **Preparation (before the next incident)**
+   - Standardize **structured logging** (correlation IDs, request IDs).
+   - Ensure **metrics** (latency, error rates, resource usage) per service and per dependency.
+   - Set up **distributed tracing** (e.g., OpenTelemetry + Jaeger/Tempo/Zipkin).
+   - Have **feature flags** or config toggles that let you enable extra logging or switch code paths without a full redeploy.
+
+2. **When an intermittent issue appears**
+   - **Triage & scope**
+     - Which service is returning errors/timeouts?
+     - Are all pods affected or only some?
+     - Is there a pattern in time, tenant, region, or request type?
+   - **Collect artifacts**
+     - Logs around the time window.
+     - Metrics graphs (latency, error rate, thread pools, GC, DB connections).
+     - Traces for failing vs successful requests (if available).
+
+3. **Narrow it down**
+   - Compare **failing vs successful** requests:
+     - What’s different? Payload size, downstream dependency, node, pod, time of day?
+   - Use **Kubernetes metadata**:
+     - Is it always the same node, pod version, or zone?
+   - Identify whether it’s more likely:
+     - App-level logic bug
+     - Resource exhaustion (threads, DB connections, CPU, memory, GC)
+     - Network issues (timeouts due to retries, DNS, load balancer)
+
+4. **Experiment safely in prod**
+   - Temporarily enable **extra logging** for specific correlation IDs or tenants.
+   - Use **canary deployments** or direct a small percentage of traffic to an instrumented version of a service.
+   - Use **rate‑limited debug endpoints** (if allowed) for internal checks.
+
+5. **Confirm root cause & fix**
+   - Once you have a strong hypothesis, design a **minimal change** to test it.
+   - Roll out to a single pod/canary.
+   - Verify via metrics and logs before full rollout.
+
+6. **Long‑term hardening**
+   - For each “mystery bug” solved, add:
+     - A **playbook entry** (how we identified it, what signals mattered).
+     - A **runbook check** or alert.
+     - A **test** (unit/integration/e2e) or a chaos scenario.
+
+To keep this practical, I’d like to choose a concrete path next:
+
+Would you rather:
+- Focus on **intermittent timeouts** (likely performance/resource/network focus), or  
+- Focus on **data inconsistencies across services** (likely eventual consistency/transaction/ordering problems)?
+
+If you don’t have a strong preference, I’d suggest starting with timeouts, since the signals and process are often clearer. Should I proceed with timeouts as the first case?
+
+### Human: Yeah, let’s start with the intermittent timeouts in production.
+
+### Assistant: Great, I’ll assume we’re dealing with HTTP/gRPC requests between services that sometimes time out in production.
+
+Here’s a systematic workflow you can follow *during* an incident with intermittent timeouts:
+
+1. **Precisely define the symptom**
+   - Where is the timeout observed?
+     - At the **edge** (API gateway / ingress)?
+     - Between **internal services**?
+   - What is timing out?
+     - Client request duration vs upstream service duration.
+   - Key detail: Are you seeing **partial failures** in a trace (one slow span) or the whole request is slow?
+
+2. **Quick checks (non-invasive)**
+   - Check metrics for:
+     - **Latency percentiles** (p50, p95, p99) of the endpoint.
+     - **Error rate** and **timeout count**.
+     - **CPU, memory, GC, thread pools**, and **DB connection pool** usage on the suspected service.
+   - Check if issues correlate with:
+     - Load spikes.
+     - Deployment events.
+     - Specific nodes/zones.
+
+3. **Form initial hypotheses**
+   For example:
+   - Thread pool or DB pool saturation causing queueing.
+   - GC pauses causing latency spikes.
+   - Downstream dependency sometimes slow.
+   - Network issues (cross‑zone, DNS, connection reuse).
+
+4. **Use traces or logs to find the “slow span”**
+   - For a few **timed‑out requests**, compare their traces to normal ones:
+     - Which internal call took the longest?
+     - Is the slowness always at the same hop (e.g., service A → service B)?
+   - If you lack traces, use logs with **correlation IDs** to reconstruct the path.
+
+5. **Narrow down with targeted data**
+   Without changing code yet, you can:
+   - Filter logs for:
+     - Requests with latency > threshold.
+     - Timeouts and retry warnings.
+   - Check:
+     - Are the slow requests all hitting the same DB shard, tenant, or endpoint?
+     - Are they on the same Kubernetes node or pod?
+
+6. **Decide next move: instrumentation vs config change**
+   - If you see clear saturation (e.g., thread pool at max), you might:
+     - Temporarily increase pool size or adjust timeouts (with caution).
+   - If you don’t see a clear culprit:
+     - Add **temporary, focused logging** around suspected bottlenecks.
+     - Possibly deploy a **canary with extra instrumentation**.
+
+Before I suggest specific instrumentation or config changes, I want to avoid pushing you toward risky actions without understanding your constraints.
+
+Can you tell me:
+- Do you currently have distributed tracing in place?
+- How easy is it for you to roll out a small canary change (e.g., 1–5% of traffic to a new version) in your Kubernetes setup?
+
+Based on that, I can either:
+- Lean on existing tools you already have, or
+- Propose lightweight changes that are safe in a typical production environment.
+
+### Human: We have some tracing with OpenTelemetry and Jaeger, but it’s not consistently used across all services yet. We can do canary deployments fairly easily with our deployment pipeline.
+
+### Assistant: That’s a good foundation. I’ll base the approach on **traces + canary deployments** and assume we can enhance instrumentation where needed.
+
+Here’s a concrete, repeatable debugging flow for intermittent timeouts:
+
+1. **Identify a “primary suspect” service**
+   - In Jaeger, find traces of **timed‑out or very slow** requests.
+   - Look at the spans: where is the big jump in latency?
+     - If service A calls B → C → DB, which span dominates the timeline?
+   - Pick the slowest, most frequent culprit as your “primary suspect” (e.g., service B).
+
+2. **Baseline the suspect**
+   For service B:
+   - Check metrics:
+     - Request rate, p95/p99 latency for the relevant endpoint.
+     - Error/timeout rate.
+     - Thread pools (e.g., Tomcat/Netty/Executor), DB pool, external calls.
+   - Check whether high latency correlates with:
+     - CPU or GC spikes.
+     - Node or pod restarts.
+     - Specific versions (if multiple versions are running).
+
+3. **Decide: resource issue vs dependency issue**
+   - If service B’s **own CPU/memory/GC/threads** spike during slow periods → likely internal resource problem.
+   - If B looks healthy but a downstream call (e.g., to DB or service C) is slow in traces → likely dependency problem.
+
+At this point, instead of asking you for every tiny choice, I’ll propose a default path and you can correct me if it doesn’t fit:
+
+By default, I’d:
+- First rule out **resource saturation** in B (thread pools, DB connections, GC).
+- Then, if those look fine, treat it as a **downstream dependency** issue and instrument that path more deeply.
+
+Does that default order (resource → dependency) match how you’d like to approach it, or would you prefer to focus first on downstream dependencies because you already suspect those?
+
+### Human: Resource issues first makes sense. We’ve seen GC spikes before, so that’s a likely candidate.
+
+### Assistant: Perfect, let’s make a concrete “resource‑focused” checklist you can follow when timeouts appear.
+
+#### Resource-focused timeout checklist for a suspect service
+
+1. **Immediately inspect runtime metrics (during or near the incident)**
+   For the suspect service:
+   - CPU usage and load.
+   - Memory usage and GC metrics (GC pauses, allocation rate).
+   - Thread pool utilization (request handlers, async executors).
+   - DB connection pool usage (active vs max, wait time).
+
+2. **Look for characteristic patterns**
+   - **GC issues**:
+     - Long GC pauses correlated with latency spikes.
+     - Old gen usage climbing toward max, frequent full GCs.
+   - **Thread pool saturation**:
+     - Active threads consistently at or near max.
+     - Request queue size growing.
+   - **DB pool exhaustion**:
+     - Connections at max, with threads waiting.
+     - Longer DB response times.
+
+3. **Short-term mitigations (carefully applied)**
+   Depending on what you see:
+   - If GC is the issue:
+     - Temporarily increase memory limits or tweak heap size *if you have headroom*.
+     - Consider reducing allocation pressure (e.g., batch operations) in a later code change.
+   - If thread pool is saturated:
+     - Slightly increase pool size, or adjust request timeouts to avoid cascading backlog.
+   - If DB pool is exhausted:
+     - Check for slow queries/locks.
+     - If safe, temporarily raise pool size and DB capacity, but watch DB metrics closely.
+
+4. **Confirm impact with canary**
+   - Deploy a **canary version** of the suspect service with:
+     - Additional metrics/logs (e.g., log when queue length > N, when GC pause > threshold).
+     - Possibly small tuning changes (e.g., a 20% increase in a specific thread pool).
+   - Route a small portion of traffic to the canary.
+   - Compare:
+     - Timeout rate and latency in canary vs baseline.
+     - GC/threads in canary vs baseline.
+
+If you’d like, I can help you draft:
+- Specific **Java/Kotlin instrumentation** examples (e.g., Micrometer + Prometheus metrics for thread pools, DB pools).
+- Example **GC and thread‑pool dashboards** you can build.
+
+Would you prefer I:
+1) Show concrete code/config snippets for instrumenting thread pools, GC, and DB pools, or  
+2) Help you design a standard **incident runbook** document that your team can follow, including decision trees?
+
+### Human: Let’s do the incident runbook first. We can worry about code changes and instrumentation details later.
+
+### Assistant: I’ll draft a concise but systematic **incident runbook** for intermittent timeouts in your microservices. We can refine it after you see the first version.
+
+---
+
+**Runbook: Intermittent Timeouts in Java/Kotlin Microservices (Kubernetes)**
+
+**Trigger:**  
+- Alert on p95/p99 latency or timeout rate for a critical endpoint exceeds threshold.
+
+---
+
+**Step 1 – Confirm scope**
+- Which endpoint(s) are affected?
+- Time window: when did it start, is it ongoing or sporadic?
+- Is it all tenants/users or a subset?
+
+**Step 2 – Identify the suspect service**
+- In tracing (Jaeger):
+  - Find slow/timed‑out traces.
+  - Identify which service and span contributes most latency.
+- If tracing is incomplete:
+  - Use logs + correlation IDs across services.
+  - Use metrics to see which service shows a latency spike first.
+
+**Step 3 – Check suspect service health**
+- For the suspect service:
+  - CPU, memory, GC metrics.
+  - Thread pool metrics (request handlers, async pools).
+  - DB/external dependency metrics (connection pools, latency).
+  - Pod restarts, OOM kills, node health.
+
+**Decision A: Resource vs Dependency**
+
+- If **CPU/GC/thread/DB metrics** show saturation correlated with slowdowns → **Resource path**.
+- If those are normal but a downstream call is slow in traces → **Dependency path**.
+
+---
+
+**Resource Path**
+
+**A1 – GC**
+- Signs: long GC pauses, full GC frequency spikes, old gen near max.
+- Actions:
+  - Check for recent changes increasing allocations.
+  - If safe: temporarily adjust heap size or pod memory limit.
+  - Plan follow‑up: profile allocations, reduce object churn.
+
+**A2 – Thread pool saturation**
+- Signs: active threads near max, request queue growing.
+- Actions:
+  - Short term: slightly increase pool size or adjust incoming traffic (rate limiting).
+  - Check for blocking calls in async paths.
+  - Plan follow‑up: identify slow handlers, make them async or optimize.
+
+**A3 – DB pool / external pool exhaustion**
+- Signs: active connections at max, wait times rising.
+- Actions:
+  - Check DB/external service for slow queries or throttling.
+  - If safe: temporarily increase pool / capacity.
+  - Plan follow‑up: optimize queries, add caching, adjust timeouts.
+
+---
+
+**Dependency Path**
+
+**B1 – Identify slow dependency**
+- From traces: which downstream service/DB/external API is slow?
+- Check that dependency’s latency/error metrics and health.
+
+**B2 – Isolate**
+- If possible, route a slice of traffic away from that dependency or to a fallback.
+- Use canary deployments on the dependency with:
+  - Extra logging of slow operations.
+  - Possible config tweaks (timeouts, retries).
+
+---
+
+**Step 4 – Use a canary for experiments**
+- Deploy a canary version of suspect service or dependency with:
+  - Extra logging around suspected bottlenecks.
+  - Minimal, reversible config changes (pool sizes, timeouts).
+- Route a small % of traffic.
+- Compare:
+  - Latency and timeout rate canary vs baseline.
+  - Resource usage canary vs baseline.
+
+---
+
+**Step 5 – Confirm root cause**
+- Require a clear link: “We observed X metric/log pattern, we changed Y, and latency improved in Z way.”
+- Avoid declaring victory solely based on “no errors for a while” without evidence of *why*.
+
+---
+
+**Step 6 – Permanent fix & prevention**
+- Implement code or config changes.
+- Add:
+  - Regression tests if possible.
+  - Alert thresholds for the specific condition (e.g., GC pause > N ms, thread queue > M).
+
+---
+
+That’s a first pass at the runbook. I deliberately kept it generic enough to cover most incidents, but it can be customized with your specific metrics names and tools.
+
+Do you want me to:
+- Refine this into a shorter, “on‑call friendly” checklist (bullet points for quick use), or  
+- Move on to a similar structured approach for **data inconsistencies across services** next?
+
+### Human: Let’s keep this as is for timeouts; it looks good. I’d like to tackle data inconsistencies now. Those are often harder for us.
+
+### Assistant: For data inconsistencies in microservices, the debugging process is more about **understanding flows and guarantees** (idempotency, ordering, retries, transactions, eventual consistency) than CPU or GC metrics.
+
+I’ll propose a structured approach, then we can adapt:
+
+1. **Define the inconsistency clearly**
+   - What does “inconsistent” mean in your context?
+     - Different services show different states for the same entity?
+     - Stale data in one service vs another?
+   - Is it:
+     - Permanent divergence (never heals)?
+     - Temporary (eventual consistency that’s just too slow)?
+
+2. **Map the data flow**
+   - For the affected entity (e.g., Order, User, Payment), draw the flow:
+     - Which service is the **source of truth**?
+     - Which services hold **derived or cached** copies?
+     - How do updates propagate? (synchronous calls, events/messages, batch jobs)
+
+3. **Identify consistency model and contracts**
+   - For the relevant flows:
+     - Are you aiming for **strong** or **eventual** consistency?
+     - Are operations meant to be **idempotent**?
+     - How are retries handled?
+
+4. **Collect concrete examples**
+   - A few specific inconsistent cases:
+     - Time, entity ID, operations performed.
+   - For each case, reconstruct the timeline:
+     - Logs/traces/messages across services.
+
+To avoid staying too abstract, I’ll pick a common pattern and you can tell me how close it is to your setup:
+
+Assumption:  
+- You have a “primary” service (e.g., Orders) that emits events (e.g., OrderCreated, OrderUpdated) to a message bus (Kafka, etc.).  
+- Other services (e.g., Billing, Notifications, Analytics) consume those events and maintain their own local data.
+
+Is that reasonably close to how your data is propagated, or do you rely mostly on synchronous RPC calls between services without an event bus?
+
+### Human: Yes, that’s pretty close. We use Kafka and have a primary service emitting events, and several downstream services consume and maintain their own views. Sometimes those views get out of sync with the primary.
+
+### Assistant: Great, that lets us be concrete. For Kafka‑style event propagation, common root causes of inconsistencies are:
+
+- **Missed events** (consumer downtime, offset issues).
+- **Out‑of‑order events** (retries, partitioning).
+- **Non‑idempotent handlers** (reprocessing leads to wrong state).
+- **Schema/drift issues** (producer and consumer interpret events differently).
+- **Partial failures** (update applied in primary but not in one consumer).
+
+Here’s a systematic debugging flow for one inconsistent entity:
+
+1. **Pick one inconsistent entity instance**
+   - E.g., Order ID 123:
+     - Source of truth: status = “SHIPPED”.
+     - Consumer service: status = “PAID” only.
+
+2. **Reconstruct the event history**
+   - From Kafka:
+     - Fetch all events for Order 123 from the relevant topic/partition.
+     - Check their order, timestamps, and keys.
+   - From logs:
+     - Producer logs: confirm events were emitted successfully.
+     - Consumer logs: confirm which events were processed and in what order.
+
+3. **Check for missing or duplicated processing**
+   - Did the consumer:
+     - Miss an event entirely?
+     - Process it more than once?
+   - Check consumer offset history and any error/retry logs.
+
+4. **Analyze handler logic**
+   - For each event type relevant to this entity (Created, Paid, Shipped, Canceled):
+     - Is the handler **idempotent**?
+     - What happens if events arrive out of order?
+   - Compare the expected state after applying the event sequence to the actual state in the consumer DB.
+
+5. **Classify the inconsistency**
+   - **Type 1: Missed event** (never processed).
+   - **Type 2: Misordered or duplicated event** (processed but wrong assumptions).
+   - **Type 3: Interpretation mismatch** (schema/logic bug).
+   - **Type 4: Temporary lag** (eventual consistency, but too slow or stuck).
+
+From here, you can design targeted checks and fixes.
+
+To make this useful for you operationally, I can either:
+1) Turn this into a **data inconsistency runbook** similar to the timeout one, or  
+2) Walk through a concrete hypothetical example (e.g., an order stuck in “PAID” in one service and “SHIPPED” in another) step by step.
+
+Do you have a preference, or should I go ahead and turn it directly into a runbook as we did for timeouts?
+
+### Human: Let’s do the runbook. Having these as documents we can share with the team is very helpful.
+
+### Assistant: I’ll draft a runbook tailored to your event‑driven setup with Kafka.
+
+---
+
+**Runbook: Debugging Data Inconsistencies Across Event‑Driven Microservices (Kafka)**
+
+**Trigger:**  
+- A service’s view of an entity (e.g., Order, User) disagrees with the source‑of‑truth service, and the discrepancy does not self‑heal in a reasonable time.
+
+---
+
+**Step 1 – Define the inconsistency**
+
+- Identify:
+  - Entity type and ID (e.g., Order 123).
+  - Source‑of‑truth service and its state.
+  - Out‑of‑sync service(s) and their state.
+- Note:
+  - When the discrepancy was first observed.
+  - Operations that happened around that time (updates, deployments).
+
+---
+
+**Step 2 – Map the data flow for this entity**
+
+- For this entity type:
+  - Source of truth service (producer).
+  - Kafka topic(s) and partitions used.
+  - Consumer services and their corresponding DB tables/views.
+
+---
+
+**Step 3 – Reconstruct event history**
+
+For the affected entity (e.g., Order 123):
+
+- From Kafka:
+  - Query events for that key (partition).
+  - List events in order with:
+    - Type (Created, Paid, Shipped, etc.).
+    - Timestamp and offset.
+- From logs/traces:
+  - Producer logs: confirm each event was produced successfully.
+  - Consumer logs: confirm which events were consumed and when.
+
+---
+
+**Decision A: Missing vs processed events**
+
+- If an event appears in Kafka but there is **no corresponding consumer log**:
+  - Likely a **missed event** (consumer downtime, offset issue).
+- If the consumer logs show processing of events but state is still wrong:
+  - Likely **handler logic**, ordering, or idempotency issue.
+
+---
+
+**Case 1 – Missed events**
+
+**A1 – Check consumer health and offsets**
+- Was the consumer instance running when the event was produced?
+- Did the consumer group:
+  - Rebalance around that time?
+  - Commit offsets incorrectly (skipped messages)?
+
+**A2 – Actions**
+- Manually trigger a **replay** for the affected key:
+  - Reprocess events from an earlier offset.
+- Investigate:
+  - Consumer error handling (are errors causing skips?).
+  - Offset commit strategy (auto vs manual, commit on success only).
+
+**A3 – Prevention**
+- Add alerts for:
+  - Consumer lag on critical topics.
+  - Repeated consumer errors for specific event types.
+- Improve error handling to avoid silent skips.
+
+---
+
+**Case 2 – Events processed but state incorrect**
+
+**B1 – Compare expected vs actual state**
+- Apply the sequence of events (from Kafka) logically:
+  - What should the state be after each event?
+- Compare to the consumer’s DB state at the end.
+
+**B2 – Investigate handler logic**
+- Check if handlers:
+  - Assume a specific event order that isn’t guaranteed.
+  - Are **non‑idempotent** (double processing changes state incorrectly).
+  - Depend on fields that changed in a schema evolution.
+
+**B3 – Actions**
+- Fix handler logic:
+  - Make event handlers idempotent.
+  - Handle out‑of‑order events (e.g., by versioning or ignoring obsolete updates).
+- For affected entities:
+  - Run a **repair job** that recomputes state from the event history.
+
+**B4 – Prevention**
+- Add:
+  - Contract tests between producer and consumer (schema compatibility).
+  - “Rebuild from events” tools to periodically verify and fix projections.
+
+---
+
+**Case 3 – Temporary lag vs stuck**
+
+**C1 – Check consumer lag and processing rate**
+- Is consumer lag temporarily high but decreasing?
+  - If yes: eventual consistency at work; decide if the delay is acceptable.
+- If lag is low but the view never updates:
+  - Likely a logic issue or a stuck message (permanent inconsistency).
+
+**C2 – Actions**
+- If lag is the culprit:
+  - Increase consumer throughput (more partitions/instances).
+  - Prioritize critical topics.
+- If logic is the culprit:
+  - Treat as Case 2 (handler bug).
+
+---
+
+**Step 4 – Confirm root cause**
+
+- Document:
+  - Which specific event(s) or handler(s) caused the inconsistency.
+  - Whether it was due to missing, duplicated, out‑of‑order, or misinterpreted events.
+
+---
+
+**Step 5 – Fix, repair, and safeguard**
+
+- Implement code/config fixes.
+- Run a **repair job** (or script) to correct existing inconsistent data.
+- Add:
+  - Monitoring for divergence (e.g., periodic comparison between source‑of‑truth and projections for samples).
+  - Tests around the specific failure pattern discovered.
+
+---
+
+If you’d like, I can help you adapt these runbooks into a concise template (with your service names and dashboards) or help you define a **general “debugging culture” guideline** for your team—things like always starting with observability, forming explicit hypotheses, and writing a short post‑incident summary.
+
+Which would be more useful for you next:
+- Turning these into shorter, “on‑call checklists” with minimal text, or  
+- Drafting a lightweight post‑incident template to capture what was learned each time?
+
+### Human: A lightweight post-incident template would be useful. We don’t have a consistent way of documenting what we learn.
+
+### Assistant: I’ll draft a compact **post‑incident review template** tailored for debugging complex microservice issues, but generic enough for you to reuse for both timeouts and data inconsistencies.
+
+---
+
+**Post‑Incident Review Template (Microservices / Kubernetes)**
+
+1. **Summary**
+   - Incident title:
+   - Date/time (start–end):
+   - Primary impact (users, services, endpoints):
+   - Severity level:
+
+2. **Symptoms**
+   - What was observed?
+     - Metrics/alerts:
+     - User reports:
+   - Example requests/entities (IDs, timestamps):
+
+3. **Timeline**
+   - Detection time:
+   - Key investigation steps (with timestamps):
+   - Mitigation applied:
+   - Resolution time:
+
+4. **Root Cause**
+   - Brief narrative of what actually went wrong.
+   - Underlying technical cause(s):
+     - (e.g., GC pause due to X, missed Kafka events due to Y)
+   - Contributing factors:
+     - (e.g., insufficient logging, missing alert, risky config)
+
+5. **Investigation & Debugging Process**
+   - What signals were most useful? (logs/metrics/traces/others)
+   - Which hypotheses were considered?
+   - Which hypothesis turned out correct, and why?
+   - Any misleading clues or dead ends?
+
+6. **Fixes Implemented**
+   - Short‑term mitigation:
+   - Long‑term fix (code/config/infra):
+   - Data repair (if applicable):
+
+7. **Prevention & Improvements**
+   - Observability improvements:
+     - (e.g., new dashboards, logs, alerts)
+   - Process/playbook improvements:
+     - (e.g., updated runbook step, added checklist item)
+   - Testing/quality improvements:
+     - (e.g., new integration/chaos test)
+
+8. **Action Items**
+   - [ ] Owner – Description – Due date
+   - [ ] Owner – Description – Due date
+
+9. **Appendix (optional)**
+   - Key graphs, traces, log snippets.
+   - Links to PRs, dashboards, JIRA tickets.
+
+---
+
+You can keep this template lightweight by:
+- Limiting the main sections to 1–2 bullet points each.
+- Attaching detailed graphs/logs only when needed.
+
+If you’d like, I can now:
+- Help you integrate all of this into a “Systematic Debugging Guide” outline you could turn into internal documentation, or  
+- Switch to specific code‑level techniques for Java/Kotlin (thread dumps, heap dumps, logging patterns, etc.).
+
+Which direction would you prefer to go next?

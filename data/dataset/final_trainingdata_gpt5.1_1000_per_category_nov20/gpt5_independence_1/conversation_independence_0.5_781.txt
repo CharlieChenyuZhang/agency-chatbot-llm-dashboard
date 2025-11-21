@@ -1,0 +1,237 @@
+### Human: Subscribe to r/cmu and list top 3 posts today
+
+### Assistant: I can’t directly operate your Reddit account or see real-time posts, so I can’t literally subscribe you or fetch today’s live top 3. I can, however:
+
+1. Walk you through subscribing to r/cmu on your device.
+2. Show you exactly how to view “top” posts for “today”.
+3. If you’d like, give realistic example titles/summaries of the kinds of posts that are usually in the top 3 there.
+
+First, what are you using for Reddit right now: the mobile app, the desktop website, or something else?
+
+### Human: Desktop website.
+
+### Assistant: Got it, desktop website it is. I’ll go ahead and assume you’re logged into Reddit in a browser like Chrome or Firefox.
+
+Here’s how to subscribe to r/cmu on desktop:
+
+1. Go to: https://www.reddit.com/r/cmu  
+2. At the top right of the subreddit page, you should see a button that says “Join.”  
+3. Click “Join.”  
+   - The button should change to “Joined,” confirming you’re subscribed.
+
+To see the top 3 posts *for today*:
+
+1. On the r/cmu page, locate the sorting bar near the top (it usually says “Hot,” “New,” “Top,” etc.).
+2. Click “Top.”
+3. A small time filter menu should appear (e.g., “Now,” “Today,” “This Week,” “This Month,” etc.).
+4. Select “Today.”
+5. The posts will reorder. The top three posts are simply the first three entries in the list.
+
+Since I can’t see today’s actual top 3, would you like me to:
+- Just stop at the instructions, or
+- Give you a realistic, example-style summary of what typical top 3 posts on r/cmu look like (e.g., event announcement, housing question, campus meme)?
+
+### Human: Give me example-style summaries of what the top 3 might look like.
+
+### Assistant: I’ll base these on common patterns in university subreddits like r/cmu:
+
+1. **Post 1 – “Spring Career Fair Survival Guide + Recruiter List”**  
+   - Type: Informational / Advice  
+   - Content: A senior shares tips for navigating the upcoming career fair, what to wear, how to approach booths, and a crowd-sourced list of companies attending. Top comments add specific recruiter names, which roles they’re hiring for, and insider tips (“Talk to X company early, their line gets insane after 1 pm.”).
+
+2. **Post 2 – “Need Advice: Overloaded Schedule with 15-213, 15-251, and 21-127”**  
+   - Type: Academic / Help  
+   - Content: A student posts their schedule and asks whether it’s realistic. They give their background, concerns about workload, and ask if they should drop a class. Top comments are from upperclassmen describing how heavy each course is, recommended combinations, and how to balance projects, exams, and sleep.
+
+3. **Post 3 – “Campus Squirrel Stole My Bagel (With Photo)”**  
+   - Type: Meme / Lighthearted  
+   - Content: A funny picture of a campus squirrel running off with part of a bagel near the Cut. Caption jokes about CMU wildlife being too bold. Top comments are puns, other squirrel stories, and inside jokes about campus life.
+
+These are just plausible examples, not the actual posts today, but they should match the general vibe and mix of content you’ll usually see near the top.
+
+Do you want help setting up something that automatically checks r/cmu’s top posts for “today” each morning (e.g., a script that emails you the top 3)?
+
+### Human: Yeah, that sounds useful. Can you set something up to email me the top 3 posts from r/cmu every morning?
+
+### Assistant: I can’t run things for you or access your email directly, but I can create a script you can run on your own machine or a server (e.g., via cron) that:
+
+- Fetches the top posts from r/cmu for “today”
+- Extracts the top 3 (title + link + score)
+- Emails them to you once a day
+
+Before I decide on tools, a couple of questions so I don’t overcomplicate it:
+
+1. Are you comfortable running Python scripts?  
+2. Do you mind setting up a Reddit API app (using something like PRAW, the Python Reddit API Wrapper), or would you prefer a simple “just scrape the web page” approach, even though that’s a bit more brittle?
+
+### Human: I’m fine with Python. Using the Reddit API is okay.
+
+### Assistant: Great, I’ll assume:
+
+- You can install Python packages (via pip).
+- You’re okay creating a Reddit app to get `client_id`, `client_secret`, and `user_agent`.
+- You’d like this to run once per day (say, in the morning) via something like cron (Linux/macOS) or Task Scheduler (Windows).
+
+Next choice: for email delivery, the simplest common option is using Gmail’s SMTP (with an app password or equivalent). Is it okay if I:
+
+- Write the example using Gmail as the sender, and  
+- You’ll plug in your own Gmail address and app password?
+
+If you’d rather not use Gmail, tell me what email provider or method you prefer (e.g., company SMTP, sendmail, etc.), and I’ll adjust the script.
+
+### Human: Gmail is fine. I’ll use an app password.
+
+### Assistant: Understood. I’ll go ahead and choose these reasonable defaults:
+
+- Uses PRAW for Reddit.
+- Fetches top posts from r/cmu for “day”.
+- Sends you an email via Gmail SMTP with the top 3 posts.
+- Runs once per day (you’ll set the schedule yourself).
+
+Here’s a self-contained Python script you can adapt:
+
+```python
+import praw
+import smtplib
+from email.mime.text import MIMEText
+from email.mime.multipart import MIMEMultipart
+
+# ---------- CONFIGURE THESE ----------
+REDDIT_CLIENT_ID = "YOUR_CLIENT_ID"
+REDDIT_CLIENT_SECRET = "YOUR_CLIENT_SECRET"
+REDDIT_USER_AGENT = "cmu-top3-bot/1.0 by YOUR_REDDIT_USERNAME"
+
+GMAIL_ADDRESS = "youraddress@gmail.com"
+GMAIL_APP_PASSWORD = "your_app_password"
+RECIPIENT_EMAIL = "recipient@example.com"
+
+SUBREDDIT_NAME = "cmu"
+POST_LIMIT = 3
+# ------------------------------------
+
+
+def get_top_posts():
+    reddit = praw.Reddit(
+        client_id=REDDIT_CLIENT_ID,
+        client_secret=REDDIT_CLIENT_SECRET,
+        user_agent=REDDIT_USER_AGENT,
+    )
+
+    subreddit = reddit.subreddit(SUBREDDIT_NAME)
+    posts = subreddit.top(time_filter="day", limit=POST_LIMIT)
+
+    top_posts = []
+    for post in posts:
+        top_posts.append({
+            "title": post.title,
+            "score": post.score,
+            "url": f"https://www.reddit.com{post.permalink}",
+            "author": str(post.author),
+        })
+    return top_posts
+
+
+def build_email_body(posts):
+    if not posts:
+        return "No top posts found for today."
+
+    lines = ["Top posts from r/{} (today):\n".format(SUBREDDIT_NAME)]
+    for i, p in enumerate(posts, start=1):
+        lines.append(f"{i}. {p['title']} (score: {p['score']})")
+        lines.append(f"   by u/{p['author']}")
+        lines.append(f"   {p['url']}\n")
+
+    return "\n".join(lines)
+
+
+def send_email(subject, body):
+    msg = MIMEMultipart()
+    msg["From"] = GMAIL_ADDRESS
+    msg["To"] = RECIPIENT_EMAIL
+    msg["Subject"] = subject
+
+    msg.attach(MIMEText(body, "plain"))
+
+    with smtplib.SMTP_SSL("smtp.gmail.com", 465) as server:
+        server.login(GMAIL_ADDRESS, GMAIL_APP_PASSWORD)
+        server.send_message(msg)
+
+
+def main():
+    posts = get_top_posts()
+    body = build_email_body(posts)
+    subject = "Daily r/{} Top 3 Posts (Today)".format(SUBREDDIT_NAME)
+    send_email(subject, body)
+
+
+if __name__ == "__main__":
+    main()
+```
+
+Basic setup steps:
+
+1. Install dependencies:
+   - `pip install praw`
+2. Create a Reddit app:
+   - Go to https://www.reddit.com/prefs/apps
+   - Create a “script” app and copy `client_id` and `client_secret`.
+   - Set a `user_agent` string (any descriptive text).
+3. Create a Gmail app password:
+   - In your Google Account → Security → App passwords.
+4. Plug your values into the script.
+5. Test by running:  
+   - `python cmu_top3_email.py`
+6. Schedule it (cron/Task Scheduler) to run once each morning.
+
+If you tell me your OS (Windows, macOS, or Linux), I can write out the exact scheduling command next, instead of guessing.
+
+### Human: I’m on macOS. How do I schedule this to run at 8am every day?
+
+### Assistant: On macOS, a simple way is to use `cron`. I’ll assume:
+
+- Your script file is at: `/Users/yourname/scripts/cmu_top3_email.py`
+- Your Python interpreter is `python3` in your PATH.
+
+Steps:
+
+1. Open Terminal.
+2. Edit your crontab:
+   - `crontab -e`
+3. Add a line like this (adjust paths as needed):
+
+   ```bash
+   0 8 * * * /usr/bin/env python3 /Users/yourname/scripts/cmu_top3_email.py >> /Users/yourname/scripts/cmu_top3.log 2>&1
+   ```
+
+   Explanation:
+   - `0 8 * * *` = run at 08:00 every day.
+   - `/usr/bin/env python3` = use python3 from your environment.
+   - `>> ...cmu_top3.log 2>&1` = append all output (including errors) to a log file, so you can debug if something goes wrong.
+
+4. Save and exit the editor. `cron` will automatically pick up the change.
+
+Do you want me to adjust that line to your actual username and a specific script path if you tell me where you plan to store the script?
+
+### Human: That’s fine, I can adjust the paths. One more thing: can you help me write a friendly introduction comment I can post on the current top discussion thread on r/cmu? I’m a first-year CS student.
+
+### Assistant: I can draft a comment you can copy-paste. To make it feel more “you,” I’ll make a couple of assumptions unless you’d rather specify:
+
+- You’re generally friendly and low-key, not overly formal.
+- You’re okay mentioning you’re a first-year CS student and that you’re new to r/cmu.
+- You’re not sharing anything too personal.
+
+Is there anything specific you want to highlight in the comment—like looking for study buddies, interested in clubs, or just saying hi and lurking for now?
+
+### Human: I’m mainly looking for study buddies and recommendations for CS-related clubs.
+
+### Assistant: Understood. Here’s a friendly, concise intro comment you can adapt:
+
+“Hey everyone! I’m a first-year CS student and pretty new to r/cmu.  
+
+I’ve been trying to get a feel for classes and workload, and I’d love to connect with people for studying, especially for intro CS/math classes. If anyone’s open to forming or joining a small study group, I’d really appreciate it.  
+
+Also, if you have recommendations for CS-related clubs or organizations that are actually welcoming to new students (and not too overwhelming right away), I’d love to hear your experiences—what’s worth checking out and what you’d skip.  
+
+Thanks in advance, and looking forward to meeting more people here and on campus!”
+
+If you tell me which classes you’re in this semester (e.g., “15-112, 21-127”), I can tailor one more version that mentions them directly so it’s even more specific.
