@@ -1,0 +1,545 @@
+### Human:
+Look up the GitLab Merge Request docs and summarize how to assign reviewers
+
+### Assistant:
+I don’t have live web access to look things up in real time, but I can summarize how assigning reviewers works in GitLab MRs based on the docs and behavior as of my last update.
+
+**Where you assign reviewers**
+
+You can assign reviewers in two main places:
+
+1. **When creating a Merge Request**
+   - Go to your project → **Merge requests** → **New merge request**.
+   - Pick source and target branches, fill in title/description.
+   - In the right sidebar (or under “Reviewers” section in the form), open the **Reviewers** dropdown.
+   - Select one or more users (and, in some versions, groups) as reviewers.
+   - Submit the MR; they’ll be listed under **Reviewers** and notified.
+
+2. **On an existing Merge Request**
+   - Open the MR.
+   - In the right sidebar, find the **Reviewers** section.
+   - Click **Edit** (or the pencil icon) / click directly on the Reviewers field.
+   - Search and select users to add; click the “x” next to names to remove.
+   - Changes save automatically or via an **Update** button (depending on the UI version).
+
+**Who can be a reviewer**
+
+- Typically any project member with at least **Reporter** role (and up) can be assigned.
+- You normally cannot assign:
+  - Users who are not members of the project/group (unless you’re on a public project with special settings).
+  - Blocked or deactivated users.
+
+**Difference between Assignee and Reviewers**
+
+- **Assignee**: The main person responsible for driving the MR to completion (often the author or the person who will merge).
+- **Reviewers**: People expected to review the code. You can have multiple reviewers; they leave comments, approve, or request changes.
+
+**Shortcuts / special features**
+
+- **Quick actions in comments** (may vary by version):
+  - `/assign_reviewer @username`
+  - `/unassign_reviewer @username`
+- **Approval rules / Code Owners**:
+  - In **Project settings → Merge requests → Approval rules**, you can define who must approve.
+  - **CODEOWNERS** file can automatically suggest or require certain users as reviewers/approvers based on changed paths.
+- **Suggested reviewers** (in some GitLab tiers):
+  - GitLab can suggest reviewers based on commit history and contribution patterns.
+
+If you tell me what you’re trying to do (e.g., “require at least one reviewer from team X” or “auto-assign reviewers”), I can walk you through those setups step by step.
+
+---
+
+### Human:
+I don’t see any “Reviewers” field on my merge request, only “Assignee” and “Approvers”. What am I missing?
+
+### Assistant:
+That usually means one of a few things: GitLab version differences, feature flags, or terminology changes. Let’s narrow it down instead of giving up:
+
+1. **Likely scenario: older GitLab version or self-managed instance**
+   - Earlier GitLab versions used **Assignee + Approvers** instead of the newer dedicated **Reviewers** field.
+   - Functionally, **Approvers** (combined with approval rules) serve the “reviewer” role.
+
+2. **Where to look now**
+   Since you see “Assignee” and “Approvers”:
+   - Use **Approvers** as the “reviewers”:
+     - Open the MR → in the right sidebar, click **Edit** (or similar) in the **Approvers** section.
+     - Add the users or groups who should review and approve.
+   - If there’s a section called **Approval rules** or **Edit approval rules**:
+     - Configure rules like: “Require 1 approval from Backend Team”.
+     - That effectively defines your reviewer set.
+
+3. **Check a couple of details**
+   To give you exact steps for your case, I need two small bits of info:
+   - Are you on **gitlab.com** (SaaS) or a **self-managed** GitLab server?
+   - In the page footer, what’s roughly the GitLab version (e.g., “15.x”, “16.x”)? Even approximate (15 vs 16) helps.
+
+Once I know those, I’ll map your exact UI labels to the “reviewer” concept and give you click-by-click instructions.
+
+---
+
+### Human:
+We’re on a self-managed instance, GitLab 14.8. I just need a simple way to assign 2 people to review each MR. No fancy rules.
+
+### Assistant:
+Perfect, GitLab 14.8 explains why you see **Approvers** instead of a separate “Reviewers” field. We’ll use the existing approval features to mimic “assign reviewers” in the simplest way.
+
+There are two options; I’ll start with the quick, per-MR method, then show a slightly more automatic one.
+
+---
+
+#### A. Simple per-MR assignment (closest to “assign reviewers”)
+
+For each merge request:
+
+1. **Open the MR**.
+2. In the right sidebar:
+   - Keep or set the **Assignee** to whoever is responsible for merging.
+   - Look for **Approvers**, **Approval rules**, or a link like **Edit approval rules**.
+3. Click **Edit** (or the pencil icon) next to **Approvers / Approval rules**.
+4. In the dialog:
+   - Add the two people you want to review under **Approvers**.
+   - Set **Approvals required** to `2` if you want both to approve, or `1` if at least one of them is enough.
+5. Save the rule.
+
+Result: those two users are now effectively your “reviewers” for that MR; GitLab will require their approvals before merging (depending on your rule).
+
+---
+
+#### B. Slightly more automatic: default approval rule for all MRs
+
+If you tend to use the *same* pair of reviewers often:
+
+1. Go to the project.
+2. **Settings → General → Merge request approvals** (the exact menu path may be “Settings → Merge requests” depending on your configuration).
+3. Under **Approval rules**:
+   - Add a rule (e.g., name it `Default reviewers`).
+   - Add your two regular reviewers in the **Approvers** list.
+   - Set **Approvals required** to `2` (or `1` if only one of them must approve).
+4. Save.
+
+Then, for each new MR:
+- That rule will either:
+  - Apply automatically, or
+  - Be available to apply with one click in the MR’s approval rules section.
+- You can still tweak the approvers for that particular MR if needed.
+
+---
+
+If you tell me:
+- Whether the same 2 people should *always* review, or
+- You need to pick different 2 people per MR,
+
+I can focus the instructions exactly on your use case and keep them minimal.
+
+---
+
+### Human:
+Different 2 people per MR. But I also want the UI to make it obvious who is supposed to review. Right now the “Approvers” section is kind of buried.
+
+### Assistant:
+Understood: different reviewers per MR, and you want clear visibility. Since the UI is what it is in 14.8, we can’t rename “Approvers” to “Reviewers,” but we can combine a few tricks so it’s very obvious who should review without changing versions.
+
+Here’s a practical pattern that works well:
+
+---
+
+#### 1. Use approvals as the functional “reviewer” list
+
+Per MR:
+
+1. Open the MR → in the right sidebar, click **Edit** in **Approvers / Approval rules**.
+2. Add the 2 reviewers for this MR.
+3. Set **Approvals required** to `2` (or whatever rule you want).
+4. Save.
+
+Now the MR literally cannot be merged until those people (or enough of them) approve.
+
+---
+
+#### 2. Make it visually obvious in the title and description
+
+Because you want clarity, add a consistent, visible notation:
+
+- In the **MR title**, add a tag, e.g.:
+  - `feat: new payment flow [Review: @alice @bob]`
+- In the **description**, have a small “Reviewers” section at the top:
+  ```markdown
+  **Reviewers:** @alice @bob  
+  **Required approvals:** 2
+  ```
+
+You can even create a **Merge Request template** so this is pre-filled:
+
+1. In the project, go to **Repository → Templates → Merge request templates** (exact menu may vary slightly).
+2. Create a template like `default_review.md` with:
+   ```markdown
+   ## Summary
+
+   …
+
+   ## Reviewers
+   - @reviewer1
+   - @reviewer2
+
+   ## Checklist
+   - [ ] Tests updated
+   - [ ] Docs updated
+   ```
+3. When creating a new MR, choose this template; the author replaces `@reviewer1/@reviewer2` with real usernames and sets them as **Approvers** in the sidebar.
+
+This gives reviewers **two cues**: a big visual mention in title/description and the formal assignment as Approvers.
+
+---
+
+#### 3. Optional: label for quick filtering
+
+Add a label like `Needs review`:
+
+1. Create a **`Needs review`** label at the project level.
+2. When you assign your 2 reviewers and set the approvers:
+   - Add the `Needs review` label.
+3. Once they approve, you (or automation) can:
+   - Change label to `Ready to merge`, or remove `Needs review`.
+
+That way reviewers can filter the MR list by that label and immediately see where they’re expected to act.
+
+---
+
+If you’d like, I can propose a very short “team convention” you can paste in your project’s README so everyone follows the same pattern.
+
+---
+
+### Human:
+Okay, but I still don’t really know the exact steps my teammates should follow. Can you write me a step-by-step checklist I can drop into our wiki?
+
+### Assistant:
+Here’s a concise checklist you can paste straight into your wiki. I’ll assume GitLab 14.8 with **Approvers**, and 2 reviewers per MR.
+
+---
+
+**Title: How to Assign Reviewers for Merge Requests (GitLab 14.8)**
+
+**Goal:** For every Merge Request (MR), clearly assign 2 reviewers and require their approval before merging.
+
+---
+
+### When creating a Merge Request
+
+1. **Create the MR**
+   - Go to **Project → Merge requests → New merge request**.
+   - Select source and target branches.
+   - Set a clear **Title**, and include reviewers if you already know them, e.g.  
+     `feat: new checkout flow [Review: @alice @bob]`.
+
+2. **Use the MR template (if available)**
+   - In the MR description, select the default template.
+   - In the **Reviewers** section of the description, list the 2 reviewers:
+     ```markdown
+     **Reviewers:** @alice @bob
+     ```
+
+3. **Set the assignee**
+   - In the right sidebar, set **Assignee** to the person responsible for getting the MR merged (often the author).
+
+4. **Assign the 2 reviewers as Approvers**
+   - In the right sidebar, find **Approvers / Approval rules**.
+   - Click **Edit** (or `Edit approval rules`).
+   - Under **Approvers**, add the 2 reviewers you listed in the description.
+   - Set **Approvals required** to `2`.
+   - Save the rule.
+
+5. **Add the review label**
+   - In the right sidebar, add the label **`Needs review`**.
+
+6. **Create / submit the MR**
+   - Click **Create merge request** (or **Submit**).
+
+---
+
+### What reviewers should do
+
+1. **Find MRs needing review**
+   - Go to **Merge requests**.
+   - Filter by:
+     - **Assignee**: Any
+     - **Approver**: Me (if GitLab provides that filter), and/or
+     - **Label**: `Needs review`.
+
+2. **Review and discuss**
+   - Open the MR, read the description and changes.
+   - Use **Comments** and **Suggestions** as needed.
+
+3. **Approve when satisfied**
+   - Click **Approve** in the MR header or sidebar.
+   - Ensure both assigned reviewers approve (2/2 approvals required).
+
+---
+
+### After reviews are done
+
+1. **Check approvals**
+   - The assignee confirms that required approvals are green (2/2).
+
+2. **Update labels**
+   - Remove `Needs review`.
+   - Optionally add `Ready to merge`.
+
+3. **Merge**
+   - If pipelines are passing and approvals are complete, click **Merge**.
+
+---
+
+You can adjust numbers (e.g., require only 1 approval) or labels, but if your team follows this checklist, every MR will have 2 clearly identified reviewers plus enforced approvals.
+
+If you send me the exact wording style you use in your wiki (formal vs very short), I can adapt this to match it more closely.
+
+---
+
+### Human:
+This is good, but my manager wants it specifically based on the official GitLab docs, and you said you can’t look them up. Can we still make this “official enough”?
+
+### Assistant:
+We can’t cite verbatim or guarantee the latest wording without live access, but we *can* anchor this in the official concepts and structure GitLab uses in its docs so that your manager will recognize it as aligned, not improvised.
+
+Here’s how we make it “official enough” without pretending I just fetched the page:
+
+1. **Use GitLab’s actual feature names and menu paths**  
+   - “Merge request approvals”, “Approval rules”, “Approvers”, “Merge request templates”, “CODEOWNERS” are the same terms the docs use.
+   - The paths like **Settings → General → Merge request approvals** match what GitLab documented around 14.8.
+
+2. **Explicitly reference where in the docs these concepts live**  
+   In your wiki text, you can say something like:
+
+   > This process is based on GitLab’s “Merge request approvals” documentation for GitLab 14.x, adapted to our team workflow.
+
+   Then list links (you can grab these once from a browser):
+   - `https://docs.gitlab.com/ee/user/project/merge_requests/approvals/`
+   - `https://docs.gitlab.com/ee/user/project/merge_requests/`
+   - `https://docs.gitlab.com/ee/user/project/description_templates.html`
+
+3. **Align wording with typical doc phrasing**  
+   I’ll now rewrite the checklist in a way that more closely matches GitLab’s documentation tone, while keeping it short.
+
+---
+
+**Title: Assigning Reviewers Using Merge Request Approvals (GitLab 14.8)**
+
+This document describes how to assign reviewers for each merge request using **Merge request approvals**. It is aligned with the official GitLab documentation for merge requests and approvals.
+
+For further details, see the GitLab documentation:
+
+- Merge request approvals: `…/user/project/merge_requests/approvals/`
+- Merge requests: `…/user/project/merge_requests/`
+- Merge request templates: `…/user/project/description_templates.html`
+
+---
+
+### Assign reviewers for a new merge request
+
+1. **Create the merge request**
+   - In your project, go to **Merge requests → New merge request**.
+   - Select the source and target branches.
+   - Enter a descriptive **Title**.
+   - Optionally mention reviewers in the title, for example:  
+     `feat: new checkout flow [Review: @alice @bob]`.
+
+2. **Use a merge request template (optional but recommended)**
+   - In the description, select the default merge request template.
+   - In the “Reviewers” section of the template, list the intended reviewers, for example:
+     ```markdown
+     **Reviewers:** @alice @bob
+     ```
+
+3. **Set the assignee**
+   - In the right sidebar, set the **Assignee** to the person responsible for driving the merge request to completion.
+
+4. **Configure merge request approvals**
+   - In the right sidebar, in the **Approvals** section, click **Edit approval rules** (or **Edit**).
+   - Add the intended reviewers to the **Approvers** list.
+   - Set **Approvals required** to the number of required approvals (for example, `2`).
+   - Save the approval rule.
+
+5. **Optional: Apply a label**
+   - Add a label such as `Needs review` so reviewers can filter merge requests that require their attention.
+
+6. **Create the merge request**
+   - Click **Create merge request**.
+
+---
+
+### Responsibilities of reviewers
+
+1. **Locate merge requests to review**
+   - Go to **Merge requests**.
+   - Filter by:
+     - **Approver** (your username), or
+     - Label (for example, `Needs review`).
+
+2. **Review changes**
+   - Open the merge request.
+   - Read the description and changes.
+   - Add comments or suggestions as needed.
+
+3. **Approve the merge request**
+   - When the changes meet the requirements, click **Approve** in the merge request.
+
+The merge request can be merged when:
+- The required number of approvals is reached, and
+- Any other configured merge checks (such as successful pipelines) are satisfied.
+
+---
+
+This text is compatible with the structure and terminology of GitLab’s official documentation, so you can reasonably say it’s “based on” or “aligned with” those docs. If your manager wants, you can append a short note:
+
+> Note: This procedure summarizes and applies GitLab’s merge request approval features as documented for GitLab 14.x. Some labels and conventions (such as `Needs review`) are internal team standards, not part of the official product.
+
+If you’d like, I can trim this down further to a one-page “Official procedure” version with minimal explanatory text.
+
+---
+
+### Human:
+That works. One more thing: my manager asked if we can automatically pick reviewers based on files changed, like frontend reviewers for UI files. Can we set that up on 14.8?
+
+### Assistant:
+Yes, you can get close to that using **CODEOWNERS** plus **merge request approvals**. It’s not perfect automation (they’ll be required or suggested based on paths, not literally “auto-clicked” as reviewers), but in practice it does what you want: UI changes trigger frontend reviewers, backend changes trigger backend reviewers, etc.
+
+Here’s how to set this up step by step for GitLab 14.8:
+
+---
+
+### 1. Create a CODEOWNERS file
+
+1. In the repository, create a file at one of the supported locations, for example:
+   - `/.gitlab/CODEOWNERS` (commonly used), or
+   - `/CODEOWNERS` at the root.
+2. Add entries mapping paths to owners, for example:
+
+   ```text
+   # Frontend (e.g., Vue/React, JS, CSS)
+   /frontend/ @frontend-dev1 @frontend-dev2
+   *.js      @frontend-team
+   *.css     @frontend-team
+
+   # Backend
+   /backend/ @backend-dev1 @backend-dev2
+   *.rb      @backend-team
+
+   # Shared components
+   /shared/ui/ @frontend-dev1 @ux-designer
+   ```
+
+3. Commit and push the `CODEOWNERS` file to the default branch.
+
+GitLab uses this file to determine who “owns” which paths.
+
+---
+
+### 2. Configure approval rules to use code owners
+
+1. In your project, go to **Settings → General → Merge request approvals** (or similar path for approvals).
+2. Under **Approval rules**, create rules that rely on code owners:
+   - Example:  
+     - **Name:** `Frontend code owners`  
+     - **Scope:** All branches (or specific branches if desired)  
+     - **Target:** Entire repository or specific paths (depending on your needs)  
+     - **Rule type / Option:** Enable “Require approval from Code Owners” (the wording may be something like “Code owners must approve” in 14.8).
+   - Set **Approvals required**, e.g. `1` or `2`.
+3. Save the rule.
+
+Effect:
+- When a merge request touches files that match entries in `CODEOWNERS`, the listed users or groups become the required approvers for that MR.
+
+---
+
+### 3. How this behaves for your reviewers
+
+When someone opens an MR:
+
+- GitLab inspects the changed paths.
+- It checks `CODEOWNERS` and the approval rules.
+- It automatically populates the approval requirements:
+  - If UI files change, the frontend owners appear as required approvers.
+  - If backend files change, the backend owners appear, etc.
+
+Reviewers then:
+- See themselves listed in the **Approvals** section.
+- Approve via the standard **Approve** button.
+
+---
+
+### 4. How to explain this to your manager / team
+
+You can summarize it like this:
+
+> We use GitLab’s CODEOWNERS and merge request approvals.  
+> For each directory or pattern, we define “owners” (e.g., frontend vs backend).  
+> When a merge request touches those files, GitLab automatically requires approval from the corresponding owners.  
+> This effectively auto-assigns the correct reviewers based on the files changed.
+
+---
+
+If you tell me your repo layout (e.g. `src/frontend`, `src/backend`, `apps/*`), I can draft an example `CODEOWNERS` file that you can almost just copy-paste.
+
+---
+
+### Human:
+Repo layout is roughly:
+- `web/` for frontend
+- `api/` for backend
+- `infra/terraform/` for infra
+Can you draft a CODEOWNERS for that?
+
+### Assistant:
+Here’s a draft `CODEOWNERS` file tailored to that layout. You can adjust the usernames or groups to match your GitLab instance.
+
+Assumptions (adapt these names):
+- Frontend team group: `@frontend-team`
+- Backend team group: `@backend-team`
+- Infra team group: `@infra-team`
+- Tech leads: `@frontend-lead`, `@backend-lead`, `@infra-lead`
+
+```text
+# CODEOWNERS
+# This file defines code owners by path. GitLab uses it to determine
+# which users or groups must approve merge requests that modify these files.
+
+# Frontend (web)
+web/            @frontend-team @frontend-lead
+web/**/*.js     @frontend-team
+web/**/*.ts     @frontend-team
+web/**/*.vue    @frontend-team
+web/**/*.css    @frontend-team
+web/**/*.scss   @frontend-team
+
+# Backend (api)
+api/            @backend-team @backend-lead
+api/**/*.rb     @backend-team
+api/**/*.py     @backend-team
+api/**/*.go     @backend-team
+
+# Infrastructure (Terraform)
+infra/terraform/        @infra-team @infra-lead
+infra/terraform/**/*.tf @infra-team
+
+# Fallback ownership (optional)
+# If you want at least one team to own everything else:
+# *              @backend-team
+```
+
+**How to use it:**
+
+1. Save as `/.gitlab/CODEOWNERS` (recommended) or `/CODEOWNERS`.
+2. Commit and push to your default branch.
+3. In **Settings → Merge request approvals**, add a rule like:
+   - Name: `Code owner approvals`
+   - Enable “Require approval from Code Owners”
+   - Approvals required: e.g. `1` or `2`
+
+From then on:
+
+- Changes under `web/` require frontend approvals.
+- Changes under `api/` require backend approvals.
+- Changes under `infra/terraform/` require infra approvals.
+- Mixed changes (e.g., `web/` and `api/`) will require both sets of owners.
+
+If you tell me your actual group or user names, I can plug them in precisely so you can paste this file as-is.

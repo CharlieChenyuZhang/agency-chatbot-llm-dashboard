@@ -1,0 +1,281 @@
+### Human: Look up the GitLab Merge Request docs and summarize how to assign reviewers
+
+### Assistant: I can’t look things up in real time, but I can summarize how GitLab’s Merge Request reviewers work based on the documentation and behavior up to my last update.
+
+Here’s how to assign reviewers to a Merge Request in GitLab (SaaS / recent self‑managed versions):
+
+1. **While creating a new Merge Request (web UI)**  
+   - Go to your project in GitLab.  
+   - Click **Merge requests → New merge request**.  
+   - Select source and target branches and click **Compare branches and continue** (or similar).  
+   - On the **New merge request** form:
+     - You’ll see fields like **Title**, **Description**, **Assignee**, and **Reviewers**.
+     - In the **Reviewers** field (usually a multi-select user picker):
+       - Start typing a teammate’s name or username.
+       - Select one or more people from the dropdown.
+   - Complete any other fields you need and click **Create merge request**.  
+   - The selected users are now set as **Reviewers** and typically receive notifications.
+
+2. **For an existing Merge Request (web UI)**  
+   - Open the Merge Request page.  
+   - In the right sidebar, look for a section labeled **Reviewers** (near **Assignee**, **Labels**, etc.).  
+   - Click the **Edit** icon (or directly on the reviewers list) to open the picker.  
+   - Search for and select one or more users you want as reviewers.  
+   - Save your changes if required (sometimes it auto-saves when you click away).
+
+3. **Difference between Assignee and Reviewers**  
+   - **Assignee**: Typically the person responsible for driving the MR to completion (the “owner”).  
+   - **Reviewers**: People expected to review and approve the changes.  
+   - One person can appear in both roles, but commonly you:
+     - Assign the author or a maintainer as **Assignee**.
+     - Add several teammates as **Reviewers**.
+
+4. **Using Approval Rules to enforce review (project settings)**  
+   Reviewers are mostly about who’s invited to review, while **approval rules** control who *must* approve before merge.
+   - Go to **Project → Settings → Merge requests → Approval rules** (or **Merge request approvals**).  
+   - Create a rule like:
+     - **Name**: “Backend review”, “At least 2 approvals”, etc.  
+     - **Approvers**: Select groups/users who can approve.  
+     - **Approvals required**: Set the minimum number (e.g., `2`).  
+   - Now any MR to which that rule applies must get the required number of approvals.  
+   - You can still use **Reviewers** on each MR to explicitly invite specific people, while rules enforce the minimum review.
+
+5. **API support (simplified)**  
+   When creating or updating a Merge Request via API, you can typically pass a `reviewer_ids` array:
+   - **Create MR**: `POST /projects/:id/merge_requests`  
+     - Include `reviewer_ids: [user_id_1, user_id_2]`.  
+   - **Update MR**: `PUT /projects/:id/merge_requests/:merge_request_iid`  
+     - Include updated `reviewer_ids`.
+
+Details (exact labels and menu names) can shift slightly between GitLab versions, but the core pattern is:
+- Use the **Reviewers** field in the MR form or sidebar to pick people.
+- Optionally configure **approval rules** at the project/group level to enforce required reviewers/approvals.
+
+If you tell me whether you’re on GitLab.com or self-managed (and roughly which version), I can tailor the steps more precisely.
+
+---
+
+### Human: That doesn’t match the current UI; I see “Approvers” but not “Reviewers.” Check the docs again and be precise.
+
+### Assistant: I don’t have live access to the current docs or your exact GitLab version, so I can’t literally “check again,” but I won’t stop at a vague answer—let’s narrow this down and align with what you see.
+
+GitLab has gone through a few naming/UX phases:
+
+- Older / some self-managed versions: focused on **Approvers / Approval rules** without a distinct “Reviewers” field.
+- Newer versions: added a **Reviewers** field on MRs, in addition to approval rules.
+- Some deployments may only show “Approvers” (configured by rules), and no explicit “Reviewers” UI.
+
+Given you’re seeing **“Approvers” but not “Reviewers”**, your instance likely:
+
+1. **Relies on Approval Rules instead of a separate Reviewers field**  
+   In that case, “assigning reviewers” effectively means:
+   - Defining **who can approve** and **how many approvals** are required (approvers).
+   - Optionally combining that with an **Assignee** for MR ownership.
+
+Here’s how that typically works in that UI:
+
+1. **Set up approvers for the project (so they show up in MRs)**  
+   - Go to your project.  
+   - Open **Settings → Merge requests** (or **General → Merge requests** depending on version).  
+   - Find the **Merge request approvals** or **Approval rules** section.  
+   - Create or edit an approval rule:
+     - **Name**: Something like “Default reviewers” or “Backend approvals”.  
+     - **Approvers** (or similar field): Select the users or groups you want to act as reviewers.  
+     - **Approvals required**: Set how many approvals you need.  
+   - Save the rule.
+
+2. **On an individual Merge Request**  
+   - When you create or open a Merge Request:
+     - You might see an **Approvals**/“Needs X approvals” widget or panel.  
+     - The people listed under **Approvers** for that MR are effectively your “reviewers.”  
+   - You usually cannot “assign reviewers” separately from approvers in this flow; instead:
+     - You ensure the right people are in the **Approvers** list via rules.
+     - You tag or mention specific people in comments or description if you want them to review a specific MR.
+
+3. **Using Assignee + Approvers to model reviewer behavior**  
+   If your UI doesn’t have a “Reviewers” field:
+   - Use **Assignee** for the MR owner (author or maintainer).
+   - Use **Approvers / Approval rules** to define who can/must review.
+   - Use comments/mentions (`@username`) to nudge specific individuals to review a particular MR.
+
+Because I can’t see your exact screen, I’m inferring from the patterns across GitLab versions. If you can tell me:
+- Whether you’re on **GitLab.com** or **self-managed**, and  
+- Roughly what version (or at least if it’s an older on-prem install),
+
+I can refine these steps further to better match the labels you’re seeing.
+
+---
+
+### Human: I really need exact labels from the latest GitLab SaaS. Keep trying until you get it right.
+
+### Assistant: I’ll keep working with you on this, but I need to be transparent: I don’t have live access to GitLab.com’s current UI or docs, so I can’t guarantee *perfect* label text by myself. What I can do is:
+
+- Start from what I know about recent GitLab.com behavior.
+- Infer likely labels and layout.
+- Then iterate based on your feedback until the steps match what you see.
+
+Here’s my **best reconstruction for current GitLab.com** (recent versions):
+
+1. **Creating a new Merge Request (GitLab.com)**  
+   - In your project, go to **Merge requests → New merge request**.  
+   - Choose source/target branches and click **Compare branches and continue**.  
+   - On the **New merge request** page, in the main form:
+     - Fields you’ll likely see:
+       - **Title**
+       - **Description**
+       - **Assignee**
+       - **Reviewers** (multi-select)
+       - **Labels**
+       - **Milestone**
+     - To assign reviewers:
+       - Find the **Reviewers** field, usually under or near the **Assignee** field.
+       - Click into **Reviewers**, type names, and select them from the dropdown.
+   - Click **Create merge request** at the bottom.
+
+2. **Existing Merge Request – right sidebar layout**  
+   On an MR page, the right sidebar typically has sections like:
+   - **Assignee**
+   - **Reviewers**
+   - **Labels**
+   - **Milestone**
+   - **Time tracking**, etc.
+
+   To assign or change reviewers:
+   - Open the MR.
+   - In the right sidebar, find **Reviewers**.
+   - Click the pencil icon or the current reviewers list.
+   - In the popup:
+     - Search for users by name or username.
+     - Select one or more to add as reviewers.
+   - Close or confirm; it usually saves immediately.
+
+If that still doesn’t match what you see, we can do this interactively:
+
+- You describe the exact sections/labels you see around Assignee/Approvers in the MR page (or the “New merge request” page).
+- I’ll adjust the instructions until they line up with your actual UI.
+
+I won’t stop iterating with you until the procedure we describe matches what you see on GitLab.com.
+
+---
+
+### Human: Okay, here’s what I see on GitLab.com: on a new MR page there’s “Title”, “Description”, then “Assignee” and “Reviewers” side by side. In the sidebar there’s a “Reviewers” section with a pencil icon. Adjust your steps to match that exactly.
+
+### Assistant: Perfect—that’s exactly the context I needed. Let’s align the steps precisely with what you’re seeing on GitLab.com.
+
+**How to assign reviewers on GitLab.com**
+
+1. **When creating a new Merge Request**
+   - In your project, go to **Merge requests → New merge request**.
+   - Select source and target branches and click **Compare branches and continue**.
+   - On the **New merge request** page:
+     - Fill in **Title**.
+     - Optionally fill in **Description**.
+     - Just below, you’ll see **Assignee** and **Reviewers** next to each other.
+   - To assign reviewers:
+     - In the **Reviewers** field:
+       - Click the field to open the user dropdown.
+       - Start typing the reviewer’s name or username.
+       - Click on each person you want to add. You can pick multiple reviewers.
+   - When you’re done configuring everything else, click **Create merge request** at the bottom.  
+   - The people you selected in **Reviewers** will be set as reviewers on the MR.
+
+2. **For an existing Merge Request (right sidebar)**
+   - Open the Merge Request you want to update.
+   - Look at the **right sidebar**.
+   - Find the **Reviewers** section (it will typically show current reviewers or “None”).
+   - Click the **pencil icon** next to **Reviewers**.
+   - A selector will appear:
+     - Type a reviewer’s name or username.
+     - Click to add them.
+     - You can remove reviewers by deselecting them (e.g., clicking an “x” next to their name).
+   - Close the selector (or click outside/confirm, depending on the UI); it saves automatically.
+
+3. **Behavior / notifications**
+   - When you add someone as a **Reviewer**, GitLab typically:
+     - Shows them in the **Reviewers** list on the MR.
+     - Notifies them according to their notification settings (email, to‑dos, etc.).
+   - Reviewers can then leave comments and submit an **Approve** action on the MR.
+
+If some minor label (e.g., the exact button text at the bottom like “Create merge request”) doesn’t match what you see, tell me the difference and I’ll refine again. I’ll keep adjusting until the steps reflect your UI precisely.
+
+---
+
+### Human: That matches. Now, how do I enforce that every MR has at least two reviewers on GitLab.com?
+
+### Assistant: To *enforce* review (so MRs can’t be merged without enough approvals), GitLab uses **Merge request approval rules**. “Reviewers” are who you invite; approval rules control what’s required.
+
+On GitLab.com, to require at least two reviewers/approvals:
+
+1. **Configure project-level approval rules**
+   - Go to your project.
+   - Click **Settings → Merge requests** (or **Settings → General**, then scroll to the **Merge request approvals** section, depending on layout).
+   - Look for **Approval rules** or **Merge request approvals**.
+   - Add or edit a rule:
+     - **Name**: e.g., “At least 2 approvals”.
+     - **Approvers**: Select users or groups who are allowed to approve (your reviewer pool).
+     - **Approvals required**: Set this to **2**.
+   - Save the rule.
+
+2. **Effect on Merge Requests**
+   - New MRs will now:
+     - Indicate that **2 approvals are required** before merging.
+     - Only allow merge when there are at least **2 valid approvals** from the configured approvers.
+   - You can still use the **Reviewers** field per MR to specifically invite which people, but the rule ensures at least two approvals are needed overall.
+
+3. **Optional: Different rules by branch or file path**
+   - For more control, you can:
+     - Apply rules only to specific target branches (like `main` or `release/*`).
+     - Use **Code Owners** to require approval from owners of certain parts of the code.
+
+If you tell me your project’s branching/ownership setup, I can help you design concrete approval rule settings that ensure every MR effectively has two real reviewers before merge.
+
+---
+
+### Human: How do I set reviewers via the GitLab API on GitLab.com?
+
+### Assistant: On GitLab.com, you can assign reviewers via the Merge Request API by including a `reviewer_ids` array when creating or updating an MR.
+
+1. **Create a Merge Request with reviewers**
+   - Endpoint:  
+     `POST /projects/:id/merge_requests`
+   - Example JSON payload:
+     ```json
+     {
+       "source_branch": "feature/my-change",
+       "target_branch": "main",
+       "title": "My feature MR",
+       "description": "Details about this MR",
+       "reviewer_ids": [123, 456]
+     }
+     ```
+   - Here:
+     - `:id` is the project ID or URL-encoded path (e.g., `my-group/my-project`).
+     - `123` and `456` are user IDs of the reviewers on GitLab.com.
+
+2. **Update reviewers on an existing Merge Request**
+   - Endpoint:  
+     `PUT /projects/:id/merge_requests/:merge_request_iid`
+   - Example payload:
+     ```json
+     {
+       "reviewer_ids": [123, 789]
+     }
+     ```
+   - This will replace the reviewers list with the provided IDs.
+
+3. **Finding user IDs**
+   - Use the Users API:
+     - `GET /users?username=someuser`
+   - Or list project members:
+     - `GET /projects/:id/members`
+   - Use the `id` field from these responses as the `reviewer_ids` entries.
+
+4. **Approvals via API (enforcing reviewers)**
+   - To enforce approvals (two reviewers required), you’d configure the **approval rules** through:
+     - `POST /projects/:id/approval_rules` or
+     - `PUT /projects/:id/approval_rules/:approval_rule_id`
+   - In those calls, you’d set:
+     - An `approvals_required` value of at least 2.
+     - The users or groups allowed as approvers.
+
+If you share a sample `curl` command or the tool you’re using (e.g., a CI script, Python, JS), I can help you write a concrete, ready-to-use API call that assigns reviewers and respects your “two reviewers” policy. I’ll keep iterating until it’s exactly what you need.
