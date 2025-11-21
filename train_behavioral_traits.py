@@ -149,7 +149,8 @@ accuracy_dict = {}
 DATASET_FAMILY = 'gpt5' # or 'gpt5'
 
 # Use training data from final_trainingdata_gpt5 directory
-BASE_DATASET_DIR = "data/dataset/final_trainingdata_gpt5_flatten"
+# TODO: edit this to the corresponding dataset directory
+BASE_DATASET_DIR = "data/dataset/final_trainingdata_gpt5.1_1000_per_category_nov20_subset"
 
 # Build selected dataset directories based on the chosen family
 if DATASET_FAMILY == 'gpt5':

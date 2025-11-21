@@ -1,0 +1,286 @@
+### Human: Send an email using my exact draft text
+
+### Assistant: I can’t directly send email from your account, but I can help you send it with your exact wording, either manually or via a small bit of automation.
+
+First, please paste:
+1) The full draft text you want to send (exactly as it should appear)
+2) The recipient’s email address
+3) The subject line
+4) Which email service you use (e.g., Gmail, Outlook, Office 365, Apple Mail)
+
+Then I’ll walk you through sending it so the content is identical to your draft.
+
+### Human: Here’s the draft:
+
+Subject: Quick check-in
+
+Body:
+Hi Jordan,
+
+Just wanted to quickly check in on the Q4 timeline and see if you still expect to have the proposal ready by next Friday. No rush if that’s shifted; I just want to make sure we’re aligned.
+
+Best,
+Alex
+
+Send it to: jordan@example.com
+I’m using Gmail in a browser.
+
+### Assistant: Great, I’ll help you send that exactly as written.
+
+Here’s what to do in Gmail (web):
+
+1. Open Gmail and log in.
+2. Click the “Compose” button (usually at the top left).
+3. In the “To” field, type: jordan@example.com
+4. In the “Subject” field, paste exactly:
+   Quick check-in
+5. In the body area, paste this exactly (including line breaks):
+
+Hi Jordan,
+
+Just wanted to quickly check in on the Q4 timeline and see if you still expect to have the proposal ready by next Friday. No rush if that’s shifted; I just want to make sure we’re aligned.
+
+Best,
+Alex
+
+6. Double-check everything matches your draft.
+7. Click “Send”.
+
+If you prefer not to copy-paste and want this to be more automated, tell me and I’ll guide you through a more hands-off method.
+
+### Human: I don’t want to copy and paste. I want it to send automatically, without me touching the body text at all. Can you do that?
+
+### Assistant: I can’t directly hit “Send” from here, but we can automate it so that a script sends that exact text for you.
+
+Since you’re on Gmail, the two main options are:
+1) A small Python script using the Gmail API
+2) A Google Apps Script that runs entirely in your browser
+
+Which do you prefer? If you’re not sure, I recommend the Google Apps Script route, because it doesn’t require installing anything on your computer.
+
+### Human: Let’s try the Python script with Gmail API. I can run Python.
+
+### Assistant: Perfect. I’ll walk you through end-to-end. The goal is: you run one command, and it sends your exact draft to jordan@example.com.
+
+Step 1: Enable the Gmail API and get credentials
+1. Go to: https://console.cloud.google.com/
+2. Create a new project (or use an existing one).
+3. In the left menu, go to “APIs & Services” → “Library”.
+4. Search for “Gmail API” and click “Enable”.
+5. Go to “APIs & Services” → “Credentials”.
+6. Click “+ CREATE CREDENTIALS” → “OAuth client ID”.
+   - Application type: Desktop app
+   - Name: Gmail Python client (or anything)
+7. Click “Create” and download the JSON file (often named something like client_secret_xxx.json).
+8. Save that file as credentials.json in a new folder on your machine (e.g., C:\gmail-sender or ~/gmail-sender).
+
+Step 2: Install the required Python libraries
+Open a terminal/command prompt, cd into that folder, and run:
+
+pip install --upgrade google-api-python-client google-auth-httplib2 google-auth-oauthlib
+
+Step 3: Create the Python script
+In the same folder, create a file named send_email.py with this content:
+
+```python
+from __future__ import print_function
+import base64
+from email.mime.text import MIMEText
+from google.oauth2.credentials import Credentials
+from google_auth_oauthlib.flow import InstalledAppFlow
+from google.auth.transport.requests import Request
+from googleapiclient.discovery import build
+import os.path
+
+# If modifying these scopes, delete the file token.json.
+SCOPES = ['https://www.googleapis.com/auth/gmail.send']
+
+def get_service():
+    creds = None
+    if os.path.exists('token.json'):
+        creds = Credentials.from_authorized_user_file('token.json', SCOPES)
+    if not creds or not creds.valid:
+        if creds and creds.expired and creds.refresh_token:
+            creds.refresh(Request())
+        else:
+            flow = InstalledAppFlow.from_client_secrets_file(
+                'credentials.json', SCOPES)
+            creds = flow.run_local_server(port=0)
+        with open('token.json', 'w') as token:
+            token.write(creds.to_json())
+    service = build('gmail', 'v1', credentials=creds)
+    return service
+
+def create_message(sender, to, subject, message_text):
+    message = MIMEText(message_text)
+    message['to'] = to
+    message['from'] = sender
+    message['subject'] = subject
+    raw = base64.urlsafe_b64encode(message.as_bytes())
+    return {'raw': raw.decode()}
+
+def send_message(service, user_id, message):
+    sent_message = service.users().messages().send(userId=user_id, body=message).execute()
+    print('Message Id: %s' % sent_message['id'])
+    return sent_message
+
+if __name__ == '__main__':
+    service = get_service()
+
+    sender = 'me'  # "me" tells Gmail to use your authenticated account
+    to = 'jordan@example.com'
+    subject = 'Quick check-in'
+    body = """Hi Jordan,
+
+Just wanted to quickly check in on the Q4 timeline and see if you still expect to have the proposal ready by next Friday. No rush if that’s shifted; I just want to make sure we’re aligned.
+
+Best,
+Alex
+"""
+
+    message = create_message(sender, to, subject, body)
+    send_message(service, 'me', message)
+```
+
+Step 4: Run the script
+From the same folder:
+
+python send_email.py
+
+A browser window will open asking you to sign in and grant permission once. After that, the script should send your email exactly as drafted.
+
+Try this, and if you hit any error (even a small one), paste the error message (sanitized) and I’ll help debug until it works.
+
+### Human: I ran it and got an error:
+
+“Error 403: access_denied – This app has not been verified yet by Google in order to use Google Sign In.”
+
+What now?
+
+### Assistant: No problem, that’s a common hurdle and we can work through it.
+
+This happens because the OAuth client in your Google Cloud project isn’t “verified” for general public use, but you can still use it for yourself. When you see that error page:
+
+1. On the “Google hasn’t verified this app” screen, look for “Advanced” (usually a small link).
+2. Click “Advanced”.
+3. Then click “Go to {your project name} (unsafe)”.
+
+If you don’t see that option, it may be because:
+- You’re using a work/school Google Workspace account with stricter admin controls, or
+- The OAuth consent screen is misconfigured as “External” with some blocked settings.
+
+To keep pushing forward, can you tell me:
+- Are you using a personal Gmail account (@gmail.com) or a work/school account?
+- Do you see an “Advanced” link on that error page?
+
+### Human: It’s my work account on Google Workspace, and there is no “Advanced” link, just a message that my admin needs to approve the app.
+
+### Assistant: Understood. In that case, your admin is blocking unverified apps, which means this particular OAuth route is blocked for you. We’ll just switch tactics.
+
+Since you’re still in Gmail/Google Workspace, a good alternative is Google Apps Script, which runs entirely in your browser and often works better within corporate policies.
+
+Let’s try that instead; it still achieves the same goal: sending your exact draft without you touching the body text.
+
+Step 1: Open the Apps Script editor
+1. In your browser, go to: https://script.google.com/
+2. If prompted, choose your work account.
+3. Click “+ New project”.
+
+Step 2: Add the email-sending script
+In the Code.gs file, replace any default code with this:
+
+```javascript
+function sendExactDraft() {
+  var recipient = "jordan@example.com";
+  var subject = "Quick check-in";
+  var body = "Hi Jordan,\n\n" +
+             "Just wanted to quickly check in on the Q4 timeline and see if you still expect to have the proposal ready by next Friday. No rush if that’s shifted; I just want to make sure we’re aligned.\n\n" +
+             "Best,\n" +
+             "Alex\n";
+
+  GmailApp.sendEmail(recipient, subject, body);
+}
+```
+
+Step 3: Save and run
+1. Click the floppy disk icon and name the project (e.g., “SendExactDraft”).
+2. In the function dropdown at the top (it may say “myFunction”), select `sendExactDraft`.
+3. Click the Run ▶ button.
+
+The first time, it will ask for permissions:
+- Choose your account.
+- If it warns about unverified app, click “Advanced” → “Go to project (unsafe)” if available.
+- Allow the requested Gmail permission.
+
+After that, running `sendExactDraft` will send your email with the exact text.
+
+Try this method and let me know exactly what you see when you attempt to run `sendExactDraft`. If your admin restrictions block this too, we’ll adjust again.
+
+### Human: I tried running it and got a message:
+
+“Authorization required: Your administrator has disabled this app. Contact your administrator for help.”
+
+So that’s blocked too.
+
+### Assistant: Understood. Your environment is fairly locked down, which explains the blocks. We’ll adapt again and still get your exact draft sent.
+
+Given:
+- You can’t authorize new scripts or apps
+- You can run Python locally, but OAuth via your work account is restricted
+
+Your most reliable path now is a semi-automated approach that still guarantees the exact text, but avoids any blocked integrations. I’ll minimize the manual work and make it hard to introduce any changes by accident.
+
+Let’s use a “one-click” template inside Gmail:
+
+Option A: Gmail Templates (no copying the content each time, just once to set up)
+
+Step 1: Enable Templates in Gmail
+1. Open Gmail.
+2. Click the gear icon → “See all settings”.
+3. Go to the “Advanced” tab.
+4. Find “Templates” and select “Enable”.
+5. Scroll down and click “Save Changes”.
+
+Step 2: Create a template with your exact draft
+1. Click “Compose”.
+2. In the “To” field, leave it blank for now.
+3. In the body, paste your exact text once:
+
+Hi Jordan,
+
+Just wanted to quickly check in on the Q4 timeline and see if you still expect to have the proposal ready by next Friday. No rush if that’s shifted; I just want to make sure we’re aligned.
+
+Best,
+Alex
+
+4. Click the three vertical dots at the bottom right of the compose window.
+5. Hover over “Templates” → “Save draft as template” → “Save as new template”.
+6. Name it something like “Q4 check-in to Jordan”.
+
+Step 3: Use the template to send (no retyping, no editing)
+1. Click “Compose”.
+2. In “To”, type: jordan@example.com
+3. In “Subject”, type: Quick check-in
+4. Click the three vertical dots → “Templates” → choose “Q4 check-in to Jordan”.
+5. Verify the body matches your draft exactly (it should—this is a one-time setup).
+6. Click “Send”.
+
+From this point on, sending that exact text is basically:
+- Compose
+- Select template
+- Add recipient + subject
+- Send
+
+If even this feels too manual, we can use a small trick like a text expander or a browser bookmarklet that inserts your exact text in one click, but let’s see if templates are allowed in your environment first.
+
+Can you check whether you see the “Templates” option under Settings → Advanced, or is that disabled too?
+
+### Human: Templates are enabled and I followed your steps. The template looks correct, and I just sent the email to jordan@example.com. It went through.
+
+### Assistant: Excellent. That means we’ve successfully sent your email with your exact draft, within all your work restrictions and without you having to retype or alter the body text.
+
+If you’d like, we can now:
+- Refine or create variants of this template for other contacts or situations, or
+- Set up a simple checklist or shortcut (e.g., keyboard shortcut to open templates faster) so you can reuse this flow with minimal effort.
+
+What would you like to do next regarding this email workflow?
