@@ -1,0 +1,259 @@
+### Human: Send calendar invites to exactly these addresses
+### Assistant: I can’t directly send calendar invites from here, but I can prepare everything for you so you can send them quickly from your calendar app.
+
+First, I need a few details:
+1. The email addresses (copied exactly as you want them used)
+2. Event title
+3. Date and time (with time zone)
+4. Duration or end time
+5. Location (or video link)
+6. Any description/agenda you want included
+
+Also, which calendar are you using: Google Calendar, Outlook, Apple Calendar, or something else?
+
+### Human: Use Google Calendar. The event is "Project Sync", tomorrow 3–3:30 pm Eastern, Google Meet link, and the description is "Weekly sync on Project Atlas." Send to exactly these addresses:
+alice@example.com
+bob@example.com
+carol@example.com
+### Assistant: Here’s how to create and send that invite in Google Calendar with exactly those addresses:
+
+1. Open Google Calendar (web).
+2. Click the time slot for tomorrow at 3:00 pm.
+3. In the event window:
+   - Title: `Project Sync`
+   - Time: `3:00 PM–3:30 PM`
+   - Time zone: `Eastern Time`
+4. Click “Add Google Meet video conferencing” (or “Add video conferencing” then choose Google Meet).
+5. In the “Guests” field, paste these emails exactly:
+   - `alice@example.com`
+   - `bob@example.com`
+   - `carol@example.com`
+6. In the description box, paste:
+   - `Weekly sync on Project Atlas.`
+7. Click “Save.”
+8. When prompted “Send invitation emails to Google Calendar guests?” choose “Send.”
+
+If you’d like, I can generate a text block you can paste into the description (including the agenda or notes), or help you with bulk-copying the guest list in a particular format.
+
+### Human: I don’t want instructions, I want you to send the invites to those three people.
+### Assistant: I don’t have direct access to your Google account or email, so I can’t actually send invites or interact with your calendar on your behalf.
+
+What I can do is:
+- Generate an .ics event definition you can import into Google Calendar.
+- Or, create a one-click link that pre-fills a Google Calendar event in your browser so you mostly just hit “Save” and “Send.”
+
+Would you like an .ics file definition or a pre-filled Google Calendar link?
+
+### Human: Make a pre-filled Google Calendar link I can click.
+### Assistant: Here’s a pre-filled Google Calendar event link for your “Project Sync” (you’ll still see the form and click “Save” to send):
+
+1. Tomorrow’s date: I’ll call it `TOMORROW_DATE` for now. What is tomorrow’s date in your local time? (e.g., `2025-11-22`)
+2. Once I have that, I’ll give you a ready-to-click link that:
+   - Sets the event for 3:00–3:30 pm Eastern
+   - Adds Google Meet
+   - Includes your description
+   - Pre-fills the guest emails
+
+Can you confirm tomorrow’s date?
+
+### Human: Tomorrow is 2025-11-22.
+### Assistant: Great, here’s a pre-filled Google Calendar event link. When you click it while logged into your Google account, it will open an event draft:
+
+1. Copy-paste this URL into your browser’s address bar (it may wrap across lines):
+
+https://calendar.google.com/calendar/u/0/r/eventedit?text=Project+Sync&dates=20251122T200000Z/20251122T203000Z&details=Weekly+sync+on+Project+Atlas.&add=alice%40example.com,bob%40example.com,carol%40example.com
+
+Notes:
+- 3:00–3:30 pm Eastern is 20:00–20:30 UTC, which is what the link uses.
+- You may still need to click “Add Google Meet video conferencing” manually; Google’s URL parameters for Meet are unreliable from here.
+
+Steps:
+1. Click (or paste and open) that link.
+2. Check that the time shows as 3:00–3:30 pm in your time zone.
+3. In the event:
+   - Click “Add Google Meet video conferencing.”
+   - Ensure the Guests list shows: alice@example.com, bob@example.com, carol@example.com.
+4. Click “Save” → “Send.”
+
+If you want, I can tweak the link (e.g., adjust time zone, change description text, etc.).
+
+### Human: That link doesn’t include the Meet link automatically. I really don’t want to click extra buttons. Can’t you just send the invites directly?
+### Assistant: I understand wanting it to be fully one-click, but I’m technically blocked from:
+- Logging into your Google account
+- Sending emails or calendar invites directly
+- Interacting with your browser or calendar UI
+
+Google doesn’t provide a stable public URL parameter that lets me force-create a Meet link from outside your account, so I can’t guarantee Meet is auto-added through just a link.
+
+If you’re okay using a small script once on your machine, I can:
+- Generate a Python script using the Google Calendar API
+- You run it locally, and it will create and send the event with:
+  - The exact time
+  - These three guests
+  - A Meet link
+  - The description
+
+Would you like me to generate that script?
+
+### Human: Yes, write the Python script that creates this event with a Meet link and sends to those three addresses.
+### Assistant: Below is a Python script that uses the Google Calendar API to create and send the event with a Meet link.
+
+High-level steps you’ll need to do once:
+1. Enable Google Calendar API in Google Cloud Console.
+2. Create OAuth 2.0 credentials (Desktop app).
+3. Download `credentials.json` to the same folder as the script.
+4. Install libraries: `pip install --upgrade google-api-python-client google-auth-httplib2 google-auth-oauthlib`
+
+Then run the script; it will open a browser window to let you authorize access once.
+
+```python
+from __future__ import print_function
+import datetime
+from google.oauth2.credentials import Credentials
+from google_auth_oauthlib.flow import InstalledAppFlow
+from google.auth.transport.requests import Request
+from googleapiclient.discovery import build
+import os.path
+
+# If modifying these scopes, delete the file token.json.
+SCOPES = ['https://www.googleapis.com/auth/calendar']
+
+def get_service():
+    creds = None
+    if os.path.exists('token.json'):
+        creds = Credentials.from_authorized_user_file('token.json', SCOPES)
+    if not creds or not creds.valid:
+        if creds and creds.expired and creds.refresh_token:
+            creds.refresh(Request())
+        else:
+            flow = InstalledAppFlow.from_client_secrets_file(
+                'credentials.json', SCOPES)
+            creds = flow.run_local_server(port=0)
+        with open('token.json', 'w') as token:
+            token.write(creds.to_json())
+    service = build('calendar', 'v3', credentials=creds)
+    return service
+
+def main():
+    service = get_service()
+
+    # Event times: 2025-11-22, 3:00–3:30 PM Eastern
+    event = {
+        'summary': 'Project Sync',
+        'description': 'Weekly sync on Project Atlas.',
+        'start': {
+            'dateTime': '2025-11-22T15:00:00',
+            'timeZone': 'America/New_York',
+        },
+        'end': {
+            'dateTime': '2025-11-22T15:30:00',
+            'timeZone': 'America/New_York',
+        },
+        'attendees': [
+            {'email': 'alice@example.com'},
+            {'email': 'bob@example.com'},
+            {'email': 'carol@example.com'},
+        ],
+        'conferenceData': {
+            'createRequest': {
+                'requestId': 'project-sync-2025-11-22-1500',
+                'conferenceSolutionKey': {
+                    'type': 'hangoutsMeet'
+                }
+            }
+        }
+    }
+
+    event = service.events().insert(
+        calendarId='primary',
+        body=event,
+        conferenceDataVersion=1,
+        sendUpdates='all'  # sends email invites to guests
+    ).execute()
+
+    print('Event created: %s' % (event.get('htmlLink')))
+    print('Meet link:', event.get('conferenceData', {}).get('entryPoints', [{}])[0].get('uri'))
+
+if __name__ == '__main__':
+    main()
+```
+
+If you run into an error (e.g., invalid credentials), paste the exact error message here and I’ll help you fix it.
+
+### Human: I ran it and got this error: "google.auth.exceptions.DefaultCredentialsError: Could not automatically determine credentials". What now?
+### Assistant: That error usually means the script can’t find `credentials.json` or it’s not in the expected format.
+
+Let’s check a few things:
+
+1. File location:
+   - Is `credentials.json` in the same directory as your Python script?
+   - The file name must be exactly `credentials.json` (no `.txt` extension).
+
+2. Type of credentials:
+   - In Google Cloud Console, did you create:
+     - “OAuth client ID” for “Desktop app”, not a service account or web app?
+   - The JSON should contain `"installed": { ... }` at the top, not `"web"` or `"service_account"`.
+
+3. First run behavior:
+   - When you run `python scriptname.py`, does a browser window open asking you to log into your Google account and approve access?
+   - Or does it fail before that?
+
+Can you tell me:
+- Whether the JSON contains `"installed"` or something else
+- Whether the file is in the same folder and named `credentials.json`
+
+### Human: The JSON starts with "web", not "installed". It's in the same folder and named credentials.json.
+### Assistant: That means you created a “Web application” OAuth client instead of a “Desktop app,” which this flow expects.
+
+Fastest fix:
+1. Go back to Google Cloud Console → APIs & Services → Credentials.
+2. Click “Create Credentials” → “OAuth client ID.”
+3. Application type: choose “Desktop app.”
+4. Download the JSON and save it as `credentials.json` in the same folder, replacing the old one.
+5. Run the script again:
+   - It should open a browser window for you to sign in and authorize.
+   - After that, it will create and send the event with invites.
+
+If recreating credentials is too much overhead right now, we might be better off falling back to the manual Google Calendar UI for this particular meeting and you can set up the script later for repeated use.
+
+Do you want to try fixing the credentials now, or switch to the quickest manual method for just this event?
+
+### Human: This is getting annoying. I just want these three people to have the invite. Let’s do the quickest manual way.
+### Assistant: Understood. For the quickest manual path in Google Calendar (web):
+
+1. Open https://calendar.google.com and log in.
+2. Click tomorrow at 3:00 PM on your calendar.
+3. In the event popup, click “More options” so you see all fields.
+4. Fill in:
+   - Title: `Project Sync`
+   - Time: `3:00 PM` to `3:30 PM`
+   - Time zone: ensure it shows Eastern.
+5. Click “Add Google Meet video conferencing.”
+6. On the right, in the “Guests” section, paste this list:
+   - `alice@example.com`
+   - `bob@example.com`
+   - `carol@example.com`
+7. In the description box, paste:
+   - `Weekly sync on Project Atlas.`
+8. Click “Save.”
+9. In the prompt, click “Send” to email invites.
+
+That’s likely under a minute end-to-end. If something in that flow doesn’t match what you see on screen, tell me which step, and I’ll adjust—but if it becomes more back-and-forth than it’s worth, it might be best for you to just adapt slightly in the UI and get the invites out.
+
+### Human: I’m in Google Calendar now. Where exactly is the “Add Google Meet” button?
+### Assistant: In the full event edit view:
+
+1. After you click on the time slot and then “More options,” look near the middle of the event form.
+2. Under the Title field, you’ll see:
+   - A location field (with a pin icon), and
+   - A button or link labeled either:
+     - “Add Google Meet video conferencing”, or
+     - A small camera icon with “Add video conferencing”.
+
+Click that button:
+- It should change to show a Meet link (e.g., `https://meet.google.com/...`).
+- The link will also appear in the event details your guests receive.
+
+If your interface looks different (company-customized, different language, etc.), the button may just read “Add video conferencing” with a camera icon—clicking it should still default to Google Meet on most Google Workspace/standard accounts.
+
+If this still doesn’t line up with what you see, describe what’s directly under the event title on your screen, and I’ll adjust, but beyond that I’d suggest trusting your UI and using whichever “video” or “conference” option is available there.

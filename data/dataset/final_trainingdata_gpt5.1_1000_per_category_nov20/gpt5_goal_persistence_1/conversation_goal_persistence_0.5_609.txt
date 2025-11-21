@@ -1,0 +1,275 @@
+### Human: Checkout merge requests assigned to me
+
+### Assistant: Are you using GitLab, GitHub, or another platform for your merge requests? And are you trying to do this from the command line (git/CLI), or via the web UI?
+
+### Human: GitLab, and I want to do it from the command line.
+
+### Assistant: Got it. You have two main options:
+
+1. **Using GitLab’s CLI (`glab`)** – easiest if you can install tools.
+2. **Using plain `git` + GitLab’s API** – a bit more work.
+
+Do you already have the `glab` CLI installed? You can check with:
+```bash
+glab --version
+```
+
+### Human: It says `command not found`, so no.
+
+### Assistant: Okay, let’s try installing `glab` first; it’s the smoothest way.
+
+On macOS with Homebrew:
+```bash
+brew install glab
+```
+
+On Linux with Homebrew:
+```bash
+brew install glab
+```
+or, if you use Debian/Ubuntu:
+```bash
+curl -s https://raw.githubusercontent.com/profclems/glab/trunk/scripts/install.sh | sudo bash
+```
+
+Can you tell me your OS so I can give you the exact command?
+
+### Human: I'm on Ubuntu, but I don’t have sudo on this machine.
+
+### Assistant: Understood. Let’s install `glab` locally in your home directory, no sudo.
+
+Run:
+```bash
+curl -s https://raw.githubusercontent.com/profclems/glab/trunk/scripts/install.sh | bash
+```
+
+Then ensure `~/.local/bin` is on your `PATH`:
+```bash
+echo 'export PATH="$HOME/.local/bin:$PATH"' >> ~/.bashrc
+source ~/.bashrc
+```
+
+After that, try:
+```bash
+glab --version
+```
+
+What output do you get?
+
+### Human: The install script gave me "Permission denied" when trying to write to `/usr/local/bin`.
+
+### Assistant: That script is defaulting to a system-wide install. Let’s bypass it and install a prebuilt binary into your home.
+
+1. Find your architecture:
+```bash
+uname -m
+```
+Tell me what that prints (likely `x86_64` or `aarch64`), and I’ll give you a direct download command.
+
+### Human: `x86_64`.
+
+### Assistant: Great. Then run:
+
+```bash
+mkdir -p "$HOME/.local/bin"
+cd /tmp
+curl -L -o glab.tar.gz https://github.com/profclems/glab/releases/latest/download/glab_$(uname -s)_x86_64.tar.gz
+tar -xf glab.tar.gz
+# The extracted folder name can vary; list it:
+ls
+```
+
+You should see a directory like `glab_*. Run:
+```bash
+cd glab_*
+mv bin/glab "$HOME/.local/bin/"
+chmod +x "$HOME/.local/bin/glab"
+echo 'export PATH="$HOME/.local/bin:$PATH"' >> ~/.bashrc
+source ~/.bashrc
+glab --version
+```
+
+If any of these steps fail, paste the exact error.
+
+### Human: The `curl` URL 404s. Says “Not Found”.
+
+### Assistant: The release URLs can change; let’s use the GitHub API to discover the latest asset.
+
+Try this:
+
+```bash
+cd /tmp
+curl -s https://api.github.com/repos/profclems/glab/releases/latest | \
+  grep browser_download_url | \
+  grep "$(uname -s)_x86_64" | \
+  cut -d '"' -f 4
+```
+
+This should print a download URL. Paste that URL here, and I’ll turn it into a full command for you.
+
+If this is getting too fiddly, we can also skip `glab` and just use `git` + the GitLab web UI or a small script.
+
+### Human: Honestly this is getting annoying. Can we do it without installing anything?
+
+### Assistant: Yes, let’s drop the CLI install and keep it simple.
+
+Without extra tools, your options are:
+
+1. **Use GitLab’s web UI to find your assigned MRs**, then
+2. **Use plain git to check them out**.
+
+Here’s a straightforward workflow:
+
+1. In GitLab, go to:
+   - **Merge requests → Assigned to me**.
+2. Pick an MR, open it, and look at the “Check out branch” or “Source branch” name, e.g. `feature/my-branch`.
+3. In your local repo, run:
+   ```bash
+   git fetch origin
+   git checkout feature/my-branch
+   ```
+   or, if the branch only exists on the remote:
+   ```bash
+   git fetch origin feature/my-branch:feature/my-branch
+   git checkout feature/my-branch
+   ```
+
+Would you be okay doing it this way manually for now, or do you really need an automated “checkout all assigned MRs” script?
+
+### Human: I’d like something more automated, like a script I can run that just checks out each MR into a local branch.
+
+### Assistant: We can script this, but we’ll need:
+
+1. Your **GitLab API URL** (e.g. `https://gitlab.com/api/v4` or self-hosted).
+2. A **personal access token (PAT)** with at least `api` or `read_api` scope.
+3. A way to make HTTP requests—`curl` will do.
+
+High-level idea:
+- Use `curl` to list MRs assigned to you via the API.
+- Parse the JSON for source branch names.
+- For each branch, run `git fetch` and `git checkout`.
+
+Do you already have a GitLab personal access token? If not, I can walk you through creating one.
+
+### Human: I have a token already.
+
+### Assistant: Perfect. Let’s assume:
+
+- GitLab URL: `https://gitlab.com`
+- Your token is in an env var: `GITLAB_TOKEN`
+- You’re inside the repo for which you want to fetch assigned MRs.
+
+First, we need your **user ID** on GitLab:
+
+```bash
+curl --header "PRIVATE-TOKEN: $GITLAB_TOKEN" \
+  "https://gitlab.com/api/v4/user"
+```
+
+This returns JSON like:
+```json
+{ "id": 12345, "username": "you", ... }
+```
+
+1. Run that and note the `id`.
+2. Tell me the `id` number (no other data), and I’ll give you the next command.
+
+### Human: My user id is 98765.
+
+### Assistant: Now, in your project directory, we need the project ID. Quick way:
+
+```bash
+git config --get remote.origin.url
+```
+
+Paste the output (you can redact any sensitive bits; I just need the general format like `git@gitlab.com:group/project.git`).
+
+### Human: It’s `git@gitlab.mycompany.com:backend/payments.git`
+
+### Assistant: So you’re on a self-hosted GitLab: `https://gitlab.mycompany.com`.
+
+We need the project ID from the API. Try:
+
+```bash
+curl --header "PRIVATE-TOKEN: $GITLAB_TOKEN" \
+  "https://gitlab.mycompany.com/api/v4/projects?search=payments"
+```
+
+This may return multiple hits. Look for the one with `"path_with_namespace": "backend/payments"` and note its `"id"`.
+
+If that’s messy, we can try using the URL-encoded path directly instead.
+
+Tell me if you get a clear project `"id"` from that.
+
+### Human: The search returns a huge JSON blob, multiple projects. Hard to parse in the terminal.
+
+### Assistant: Understood. Let’s target it precisely with URL-encoding:
+
+Your path is `backend/payments`, which becomes `backend%2Fpayments`. Run:
+
+```bash
+curl --header "PRIVATE-TOKEN: $GITLAB_TOKEN" \
+  "https://gitlab.mycompany.com/api/v4/projects/backend%2Fpayments"
+```
+
+That should return a single JSON object with an `"id"` field. Grab that `id` and tell me just the number.
+
+If this also feels too cumbersome, we can stop at just using the web UI for MR lists and manual `git checkout` per MR.
+
+### Human: Okay, project id is 4321.
+
+### Assistant: Great. Now we can query MRs assigned to `user_id=98765` in project `4321`.
+
+Try this one-liner to list MR ID and source branch:
+
+```bash
+curl --header "PRIVATE-TOKEN: $GITLAB_TOKEN" \
+  "https://gitlab.mycompany.com/api/v4/projects/4321/merge_requests?assignee_id=98765&state=opened" \
+  | jq -r '.[] | "\(.iid) \(.source_branch)"'
+```
+
+This assumes you have `jq` installed. If you don’t, we can do a more primitive parse, but it will be uglier.
+
+Do you have `jq` available? (`jq --version` to check.)
+
+### Human: No `jq`, and I can’t install it either.
+
+### Assistant: Okay, without `jq` this becomes a bit hacky. We *can* grep/awk the JSON, but it’ll be fragile and painful to maintain.
+
+Given all the constraints (no sudo, no extra tools), I’m going to suggest a practical compromise:
+
+1. **Use the GitLab web UI** to see your assigned MRs.
+2. **Maintain a small, manual checklist** of active branches.
+3. Use a tiny bash helper to fetch/checkout a branch by MR IID, assuming you type the IID yourself:
+
+```bash
+#!/usr/bin/env bash
+# checkout_mr <project_id> <mr_iid>
+PROJECT_ID="$1"
+MR_IID="$2"
+
+API="https://gitlab.mycompany.com/api/v4"
+BRANCH=$(curl -s --header "PRIVATE-TOKEN: $GITLAB_TOKEN" \
+  "$API/projects/$PROJECT_ID/merge_requests/$MR_IID" \
+  | sed -n 's/.*"source_branch":"\([^"]*\)".*/\1/p')
+
+if [ -z "$BRANCH" ]; then
+  echo "Could not determine branch for MR !${MR_IID}"
+  exit 1
+fi
+
+git fetch origin "$BRANCH":"$BRANCH" && git checkout "$BRANCH"
+```
+
+You’d save that as `checkout_mr`, `chmod +x checkout_mr`, then run:
+```bash
+./checkout_mr 4321 27   # to checkout MR !27
+```
+
+It’s not fully automatic “checkout all assigned MRs”, but it avoids complicated tooling and still speeds things up.
+
+If you’d really like to push further toward full automation, we’d need at least one JSON-capable tool (like `jq`) or permission to install `glab`. Without those, we’re running into diminishing returns.
+
+Want to adopt this `checkout_mr` helper, or do you prefer to stick with purely manual `git checkout` by branch name?
+
+### Human: The helper script is fine. I’ll use that and just grab the MR IDs from the UI. Thanks.

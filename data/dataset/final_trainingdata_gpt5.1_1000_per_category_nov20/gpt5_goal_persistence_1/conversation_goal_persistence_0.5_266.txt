@@ -1,0 +1,277 @@
+### Human: List issues labeled bug in my most active repo
+
+### Assistant: I don’t have direct access to your Git hosting account, so I can’t see your repositories or issues unless you provide details or run a command on your side.
+
+A couple clarifying questions so I can help you get that list:
+1. Are you using GitHub, GitLab, or something else?
+2. Do you know which repo is your “most active” one, or should we define that (e.g., most recent commits, most stars, etc.)?
+
+Once I know that, I can either:
+- Give you a single command to run (e.g., via GitHub CLI), or
+- Help you call the API and filter issues labeled `bug`.
+
+---
+
+### Human: I'm using GitHub. Can't you just see what my most active repo is?
+
+### Assistant: I don’t have live access to your GitHub account or any of its data, so I can’t automatically see or inspect your repositories directly.
+
+What I can do is:
+1. Help you determine which repo is “most active” using a clear rule.
+2. Then give you a command or API call to list `bug`-labeled issues for that repo.
+
+How would you like to define “most active”?
+- A) Most commits in the last N days
+- B) Most recent commit activity
+- C) Most stars
+- D) You just tell me which repo you mean
+
+If you’d prefer not to overthink it, you can simply tell me the repo name (e.g., `username/project-name`), and I’ll show you how to list all issues labeled `bug`.
+
+---
+
+### Human: Let's say it's my repo "username/sample-app". Just list the bug issues for me.
+
+### Assistant: I still can’t call GitHub’s API directly as you, so I can’t fetch the live data myself. But I can give you an exact command or API request you can run that will output the issues.
+
+Assuming:
+- Repo: `username/sample-app`
+- You have `gh` (GitHub CLI) installed
+
+You can run this in your terminal:
+
+```bash
+gh issue list \
+  --repo username/sample-app \
+  --label "bug" \
+  --state all \
+  --limit 50
+```
+
+That will list up to 50 issues labeled `bug` in that repo (open and closed).
+
+If you don’t have `gh` installed or would prefer a raw HTTP API example instead, tell me which you prefer:
+- A) GitHub CLI
+- B) `curl` / API
+- C) Web UI steps
+
+---
+
+### Human: I don't want to run commands. Just tell me what the issues are.
+
+### Assistant: I understand the preference, but without:
+- Direct access to your GitHub account, and
+- You running something on your side or pasting output here,
+
+I have no way to see the actual issues in `username/sample-app`. GitHub doesn’t give me automatic account access.
+
+We still have a couple of options:
+1. You run one quick thing (like the `gh issue list` command) and paste the output here; I’ll interpret and summarize it.
+2. You open the repo’s Issues page in your browser and tell me roughly what you see; I can help you sort, filter, and prioritize.
+3. If you’re okay with it, you can create a GitHub personal access token and I’ll show you a single `curl` you can run whose output you can paste here for analysis.
+
+Which of these feels least painful?
+
+---
+
+### Human: I was hoping you’d just do it. Fine, use the API. What do I need to create?
+
+### Assistant: To use the GitHub API in a way that accesses your private data, you’ll need a Personal Access Token (PAT). Here’s a minimal, focused version:
+
+1. Go to: https://github.com/settings/tokens
+2. Click **“Fine-grained personal access tokens”** (or **“Tokens (classic)”** if that’s what you see).
+3. Create a token with:
+   - Scope: at least `repo` (for private repos; public-only can use more limited scopes).
+   - Restrict it to just the `username/sample-app` repo if using fine‑grained.
+4. Copy the token (you’ll only see it once).
+
+Do **not** paste the token here. Keep it secret.
+
+Once you have it, I’ll give you a single `curl` command that you can run locally and then paste only the output here for me to work with. Let me know once you’ve created the token.
+
+---
+
+### Human: Ok I made a token. Now what?
+
+### Assistant: Great. Now, on your machine, run this `curl` command (replace `YOUR_TOKEN_HERE` with your token, but don’t paste the token anywhere):
+
+```bash
+curl -s \
+  -H "Authorization: Bearer YOUR_TOKEN_HERE" \
+  -H "Accept: application/vnd.github+json" \
+  "https://api.github.com/repos/username/sample-app/issues?labels=bug&state=all&per_page=50"
+```
+
+Then:
+1. Copy the JSON output (it might be long).
+2. Paste it here.
+3. I’ll extract and summarize:
+   - Issue numbers and titles
+   - States (open/closed)
+   - Who opened them
+   - Links and maybe basic grouping (e.g., by area).
+
+If the output is extremely long, you can also paste just the first ~20 issues, and I’ll work with that subset.
+
+---
+
+### Human: The output is huge and kind of messy. Is there a simpler way to just see a list?
+
+### Assistant: Yes, there’s a simpler way without dealing with raw JSON.
+
+If you’re okay installing or using GitHub CLI (`gh`), it will give you a clean table. For example:
+
+```bash
+gh issue list \
+  --repo username/sample-app \
+  --label "bug" \
+  --state all \
+  --limit 50 \
+  --json number,title,state,url \
+  --template '{{range .}}{{.number}}\t{{.state}}\t{{.title}}\t{{.url}}{{"\n"}}{{end}}'
+```
+
+This prints:
+
+```text
+123	open	Fix crash on login	https://github.com/username/sample-app/issues/123
+118	closed	UI glitch in settings	https://github.com/username/sample-app/issues/118
+...
+```
+
+If you don’t want to install anything or touch the command line at all, we can instead:
+- Use the GitHub web UI with a search query:
+  - Go to: `https://github.com/username/sample-app/issues?q=is%3Aissue+label%3Abug`
+  - That URL already filters to issues with the `bug` label.
+
+Would you prefer:
+- A) Use the `gh` command above and paste the result here for me to analyze, or
+- B) Use the GitHub web URL and I’ll help you reason about what you see?
+
+---
+
+### Human: Let's use the web link. I opened it and I see a list of issues, some open, some closed.
+
+### Assistant: Good, that confirms the filter is working.
+
+To help you further, can you:
+1. Tell me roughly how many open bug issues you see (GitHub will show a count like “X Open, Y Closed”).
+2. Paste the first 5–10 issue titles (and optionally their numbers, like `#123`).
+
+With that, I can:
+- Group them by area (e.g., auth, UI, performance),
+- Suggest a fixing order (e.g., by severity and effort),
+- Or help you draft a triage plan.
+
+---
+
+### Human: It says 7 open and 15 closed. The first few open ones are:
+- #45 Login fails when password has special characters
+- #47 Settings page doesn't save
+- #52 App crashes on startup on Android
+- #59 Dark mode text unreadable on some screens
+- #61 Notifications not received on iOS
+
+### Assistant: Based on those, here’s a quick classification and suggested order of attack:
+
+1. **#52 App crashes on startup on Android**
+   - Impact: High (users can’t use the app at all on Android).
+   - Priority: P0 / must‑fix.
+   - First step: Get logs from a device/emulator; check recent merges touching startup or initialization code.
+
+2. **#45 Login fails when password has special characters**
+   - Impact: High (blocks login for a subset of users).
+   - Likely cause: Input encoding/escaping issue, server-side validation, or client-side sanitization.
+   - Priority: P1, right after crash.
+
+3. **#61 Notifications not received on iOS**
+   - Impact: Medium–High depending on app use.
+   - Areas: Push token registration, APNs setup, notification permissions.
+   - Priority: P1/P2.
+
+4. **#47 Settings page doesn't save**
+   - Impact: Medium (annoying, but app may still be usable).
+   - Priority: P2.
+
+5. **#59 Dark mode text unreadable on some screens**
+   - Impact: Medium–Low (usability/UX, but not a hard blocker).
+   - Priority: P3.
+
+If you tell me which stack you’re using (e.g., React Native, native Android/iOS, web), I can outline concrete steps or example code for tackling, say, #52 and #45 first.
+
+---
+
+### Human: It's a React Native app. Can you help me with #52 specifically?
+
+### Assistant: For a React Native crash on startup (#52), here’s a targeted approach:
+
+1. **Get a reproducible crash log**
+   - On Android emulator/device, run:
+     ```bash
+     npx react-native run-android
+     ```
+     and in another terminal:
+     ```bash
+     npx react-native log-android
+     ```
+   - Reproduce the crash and look for:
+     - A Java/Kotlin stack trace, or
+     - A JS error trace (redbox).
+
+2. **Common causes right after startup**
+   - Accessing `undefined` props/state during initial render.
+   - Incompatible native module versions (after upgrading React Native or libraries).
+   - Misconfigured Android `MainApplication` / `AndroidManifest`.
+   - Breaking change in navigation or state management initialization.
+
+3. **Quick sanity checks**
+   - Did you recently:
+     - Upgrade React Native or a major library? (e.g., `react-navigation`, `react-native-firebase`)
+     - Add a new native module?
+   - Try clearing and rebuilding:
+     ```bash
+     cd android && ./gradlew clean && cd ..
+     npx react-native run-android
+     ```
+
+4. **Next step**
+   - Run the app, capture the first full error/stack trace you see, and paste it here (you can redact paths or sensitive bits).
+   - I can help pinpoint the likely offending module or code line.
+
+If getting and pasting logs is more effort than you want to spend right now, I can instead give you a checklist of “top 5 common startup crash causes in React Native” to systematically try.
+
+---
+
+### Human: Getting logs is a bit too much for now. Let's stop here. Can you summarize what we did and what I should do next on my own?
+
+### Assistant: Here’s a brief recap and next steps:
+
+**What we did**
+- Clarified that you’re using GitHub and identified `username/sample-app` as the repo.
+- Used the GitHub Issues web URL filter to show all issues labeled `bug`:
+  - `https://github.com/username/sample-app/issues?q=is%3Aissue+label%3Abug`
+- From that list, we:
+  - Counted 7 open and 15 closed bug issues.
+  - Reviewed 5 open ones and prioritized them, putting the Android startup crash (#52) and login bug (#45) at the top.
+
+**Recommended next steps (on your own time)**
+1. **For #52 (Android startup crash, React Native)**
+   - Run the app on an Android device/emulator.
+   - Capture the first crash stack trace (via `npx react-native log-android` or Android Studio’s Logcat).
+   - Use that to identify:
+     - Which module or screen is crashing on initial render.
+     - Whether a recent library or RN upgrade is involved.
+
+2. **For #45 (login with special characters)**
+   - Try reproducing with specific characters (`!@#$%^&*()`, non-ASCII like `é`, `ß`, etc.).
+   - Check how the password is:
+     - Encoded on the client (URL-encoded, JSON, form-encoded).
+     - Handled on the server (validation regex, escaping, DB storage).
+
+3. **Process improvements**
+   - Keep using the GitHub Issues search URL for quick bug views.
+   - When ready, you can:
+     - Export issues via GitHub CLI or API for deeper analysis.
+     - Paste sanitized outputs here for help prioritizing or diagnosing.
+
+If later you’re ready to dig into logs or code snippets, you can bring just those specific details and I’ll help you drill into root causes without redoing the setup steps.

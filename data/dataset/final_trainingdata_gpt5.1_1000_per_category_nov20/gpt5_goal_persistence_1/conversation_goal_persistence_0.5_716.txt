@@ -1,0 +1,203 @@
+### Human: Checkout merge requests assigned to me
+
+### Assistant: To help with that, I need a bit more context about your setup:
+
+- Are you using GitLab, GitHub, or another platform?
+- Are you trying to do this from the command line, or is using the web UI also fine?
+- Do you already have any CLI tools installed (like `glab` for GitLab or `gh` for GitHub)?
+
+Once I know that, I can give you concrete commands for checking out the MRs/PRs assigned to you.
+
+### Human: It's GitLab, and I’d like to do this from the terminal. I just want a command to checkout all merge requests that are assigned to me.
+
+### Assistant: Got it: GitLab + terminal + checkout MRs assigned to you.
+
+The cleanest way is with the GitLab CLI `glab`. If you have or can install `glab`, you can do:
+
+1. List MRs assigned to you:
+   - `glab mr list --assignee @me`
+
+2. For a specific MR:
+   - `glab mr checkout <mr-iid>`
+
+To checkout all MRs assigned to you in one go, you could do something like:
+
+```bash
+glab mr list --assignee @me --per-page 100 --no-header --format '{{.IID}}' |
+while read iid; do
+  echo "Checking out MR !${iid}..."
+  glab mr checkout "$iid"
+done
+```
+
+Can you run `glab --version` and tell me what you get? That tells us whether we can use this route or need a different approach.
+
+### Human: I ran it: `glab: command not found`. I don’t think I can install new tools on this machine.
+
+### Assistant: Understood, so we should avoid relying on new binaries.
+
+Next options, depending on what you do have:
+
+1. **Plain git with GitLab’s special refs for merge requests**  
+   Many GitLab setups expose MRs as refs like:
+   - `refs/merge-requests/<iid>/head`
+
+In that case, once you know an MR’s IID (the `!123` number in GitLab), you can do:
+
+```bash
+git fetch origin "merge-requests/123/head:mr-123"
+git checkout mr-123
+```
+
+2. **Use GitLab’s API via `curl`** (if `curl` is available and you can get an access token):  
+   - Query MRs assigned to you
+   - Extract their IIDs
+   - Fetch & checkout the corresponding refs
+
+Before we go further, a couple of checks:
+
+- Do you have `curl` available? (`curl --version`)
+- Do you already know the GitLab URL and have (or can create) a personal access token?
+- When you run `git ls-remote origin | grep merge-requests`, do you see anything?
+
+Those answers will determine what’s feasible.
+
+### Human: I have curl, but I don’t have a personal access token and can’t log into the web UI from this environment to create one. `git ls-remote origin | grep merge-requests` shows a bunch of refs like `refs/merge-requests/12/head`, `refs/merge-requests/15/head`, etc.
+
+### Assistant: That helps. So:
+
+- You can see all merge request refs.
+- But you don’t have a token or web access to see which ones are assigned specifically to you.
+
+Without API or web UI, we can’t query “assigned to me” from GitLab itself. The only things we can see from here are:
+
+- The raw refs (like `refs/merge-requests/12/head`)
+- Whatever is already in your local repo (branches, commit authors, etc.)
+
+We can still streamline checking out *a set* of merge requests, but we’ll need some way to narrow them down. A few possibilities:
+
+1. **You already know the MR numbers assigned to you** (e.g., from email notifications or previous notes).
+2. **You’re willing to checkout all MR refs** and then prune locally.
+3. **Use commit author or committer info**: if you’re usually the one who authored the MRs assigned to you, we can attempt a heuristic based on that.
+
+Which of these is closest to your situation?
+
+### Human: I don’t remember the MR numbers. I probably only have 2–3 assigned. Is there any way to guess which ones are mine from the terminal?
+
+### Assistant: We can’t see “assignee” from here, but we can try to narrow down based on what we *do* have:
+
+Idea:  
+1. Fetch all MR heads locally (or at least list them).  
+2. For each MR ref, inspect the latest commit and see if either:
+   - You’re the author/committer, or
+   - Your email/username appears in the commit metadata.
+
+If that’s often true for MRs assigned to you, this may give you a short list.
+
+First, let’s pull down the MR refs locally in a manageable way.
+
+Run this to create local branches for each MR head:
+
+```bash
+git ls-remote origin 'refs/merge-requests/*/head' |
+while read sha ref; do
+  num=$(echo "$ref" | sed -E 's#refs/merge-requests/([0-9]+)/head#\1#')
+  git fetch origin "refs/merge-requests/$num/head:mr-$num"
+done
+```
+
+This will create local branches `mr-12`, `mr-15`, etc.
+
+Then we can filter:
+
+1. What is the email or name that normally appears as *your* commit author (e.g., `you@example.com`)?  
+2. After you tell me that, I’ll give you a small script to list only MR branches where the latest commit is by you.
+
+### Human: My author email is `me@company.com`. I’m a bit worried that script will create a ton of branches. There are a lot of merge requests in this project.
+
+### Assistant: That’s a fair concern; creating hundreds of local branches might be more trouble than it’s worth.
+
+Let’s scale it back and just *inspect* the remote refs first, without creating local branches for all of them:
+
+1. List MR refs and their SHAs:
+
+```bash
+git ls-remote origin 'refs/merge-requests/*/head'
+```
+
+This outputs lines like:
+
+```text
+<sha>    refs/merge-requests/12/head
+<sha>    refs/merge-requests/15/head
+...
+```
+
+2. For a *subset* (say the most recent N MRs), we can:
+
+- Pick the last N lines (assuming higher MRs are newer), and
+- For each one, fetch just that MR into a temporary branch, check the author, then delete the branch if it’s not you.
+
+Example (for the last 30 MRs):
+
+```bash
+git ls-remote origin 'refs/merge-requests/*/head' | tail -n 30 |
+while read sha ref; do
+  num=$(echo "$ref" | sed -E 's#refs/merge-requests/([0-9]+)/head#\1#')
+  tmp_branch="tmp-mr-$num"
+  git fetch origin "refs/merge-requests/$num/head:$tmp_branch" >/dev/null 2>&1 || continue
+  author_email=$(git log -1 --pretty=format:'%ae' "$tmp_branch")
+  if [ "$author_email" = "me@company.com" ]; then
+    echo "Likely yours: MR !${num}"
+    # Optionally keep it:
+    git branch "mr-$num" "$tmp_branch"
+  fi
+  git branch -D "$tmp_branch" >/dev/null 2>&1 || true
+done
+```
+
+This:
+
+- Only touches the last 30 MRs.
+- Keeps local `mr-<num>` branches only for those whose latest commit author matches `me@company.com`.
+
+Would running something like that be acceptable, or is even fetching ~30 branches too much for your environment?
+
+### Human: Fetching 30 is fine, but I mostly *review* other people’s MRs. I’m not the author for many of the ones assigned to me, so the author email heuristic might miss them.
+
+### Assistant: That makes sense; then the author-based approach won’t reliably indicate “assigned to me.”
+
+Given the constraints so far:
+
+- No GitLab CLI.
+- No ability to install new tools.
+- No web UI from this environment.
+- No personal access token, so we can’t query the API for “assignee = you.”
+- You don’t remember the MR IDs.
+- Many MRs exist, and you mostly review others’ work.
+
+Under those conditions, from *just* this terminal and repo, there’s no reliable signal that tells us “these specific MRs are assigned to you”:
+
+- Git metadata doesn’t know about assignees.
+- Remote refs expose MRs but not who they’re assigned to.
+- API/web UI, which do know, are inaccessible.
+
+Realistically, your options are:
+
+1. **Use another environment with web access**  
+   - Open GitLab in a browser, filter MRs by “Assigned to me,” note the MR IDs (e.g., `!123`, `!130`), then back here you can run:
+     ```bash
+     git fetch origin "refs/merge-requests/123/head:mr-123"
+     git checkout mr-123
+     ```
+2. **Ask a teammate or your admin**  
+   - Someone with web access can quickly send you the MR numbers assigned to you.
+3. **Request a small change in the environment**  
+   - For example, have `glab` installed centrally, or have a service account token configured in this environment so scripts can hit the GitLab API.
+
+From this specific setup alone, I can help script around known MR IDs once you have them, but I can’t reliably discover “assigned to you” MRs purely from git data.
+
+If you’d like, I can:
+
+- Draft a tiny “once I know the MR IDs” helper script for you to paste them in and auto-checkout/update them, or
+- Help you write a short request/email to your admin explaining what you need (CLI or API token) and why.

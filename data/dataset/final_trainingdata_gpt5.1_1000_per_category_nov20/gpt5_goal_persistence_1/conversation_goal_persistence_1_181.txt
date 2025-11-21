@@ -1,0 +1,308 @@
+### Human: List issues labeled bug in my most active repo
+
+### Assistant: I can help you get that, but I don’t have direct access to your GitHub account, so we’ll need to define and fetch it using the GitHub API or CLI.
+
+First, can you confirm a couple of things:
+1. Is your code hosted on GitHub (vs GitLab/Bitbucket/etc.)?
+2. What’s your GitHub username?
+3. Are you able to run commands on your machine (e.g., `gh` CLI, `curl`, or a small Python script)?
+
+Once I know that, I can:
+- determine your “most active” repo (e.g., by recent commits or issue activity), and
+- show you an exact command/script to list issues labeled `bug` for that repo.
+
+### Human: It's on GitHub. Just list them.
+
+### Assistant: I don’t have network access to your GitHub account, so I can’t directly see your repos or issues from here. But I can get you there with a couple of concrete steps.
+
+Here’s how we can proceed in a repeatable way:
+
+Option A – using the GitHub CLI (`gh`):
+1. Install GitHub CLI (if allowed): https://cli.github.com
+2. Authenticate:
+   - `gh auth login`
+3. Find your most active repo (by recent pushes), then list `bug` issues:
+   - `gh repo list <your-username> --limit 100 --sort pushed --json name,pushedAt --jq '.[0].name'`
+   - Suppose that prints `my-top-repo`. Then:
+   - `gh issue list --repo <your-username>/my-top-repo --label bug`
+
+Option B – using the GitHub REST API with a token and `curl`/script:
+1. Create a personal access token (PAT).
+2. Use a script I provide to:
+   - get your repos,
+   - pick the most active,
+   - list issues labeled `bug`.
+
+To tailor this properly, tell me:
+- your GitHub username, and
+- whether you’d rather use `gh`, `curl`, PowerShell, or Python.
+
+I’ll then give you a copy‑pasteable command/script so you can execute it immediately.
+
+### Human: Username is "acme-dev". I don't know how to make a token and I'd rather not install new tools.
+
+### Assistant: No problem, we can still get there. We’ll avoid installing new tools and use only what you already have plus the browser.
+
+Step 1: Create a GitHub personal access token (browser only)
+1. Go to https://github.com/settings/tokens
+2. Click “Fine-grained personal access tokens” or “Tokens (classic)” (either is fine for this use).
+3. Create a new token with:
+   - Scope (minimum): `repo` (for classic) or read access to your repositories.
+4. Copy the token somewhere safe (it starts with `ghp_...`). You’ll use it as a password in API calls.
+
+You don’t share the token with me; you’ll just paste it locally when you run commands.
+
+Step 2: Confirm what you can run locally
+On your machine (Windows/macOS/Linux?), can you:
+- run PowerShell, or
+- run Python, or
+- at least run `curl` from a terminal?
+
+Tell me:
+1) Your OS (e.g., “Windows 11”), and  
+2) Which of these you’re comfortable using: PowerShell, Python, or plain `curl`.
+
+Then I’ll give you a single command/script you can run that:
+- finds your most recently active repo under `acme-dev`, and
+- lists issues labeled `bug` for it.
+
+I’ll stick with you until it’s working.
+
+### Human: Windows 11. I have PowerShell, but no Python, and I can't install anything new because it's a locked-down corporate laptop.
+
+### Assistant: That’s fine; PowerShell alone is enough. We’ll use PowerShell + `Invoke-RestMethod`, which is built in.
+
+Once you’ve created your GitHub token, follow these steps.
+
+Step 1: Set your token in a PowerShell variable (locally only)
+Open PowerShell and run (replace `YOUR_TOKEN_HERE` with your real token):
+
+```powershell
+$GitHubToken = "YOUR_TOKEN_HERE"
+$GitHubUser  = "acme-dev"
+$Headers = @{
+    Authorization = "Bearer $GitHubToken"
+    "User-Agent"  = "PowerShell"
+}
+```
+
+Step 2: Find your most recently active repo
+Run:
+
+```powershell
+$repos = Invoke-RestMethod `
+  -Headers $Headers `
+  -Uri "https://api.github.com/users/$GitHubUser/repos?per_page=100&sort=pushed"
+
+$mostActiveRepo = $repos | Sort-Object -Property pushed_at -Descending | Select-Object -First 1
+$mostActiveRepo.name
+```
+
+This should print the name of your most recently “pushed” repository (your “most active” repo).
+
+Step 3: List issues labeled `bug` in that repo
+Now run:
+
+```powershell
+$repoName = $mostActiveRepo.name
+
+$issues = Invoke-RestMethod `
+  -Headers $Headers `
+  -Uri "https://api.github.com/repos/$GitHubUser/$repoName/issues?labels=bug&state=open&per_page=100"
+
+$issues | Select-Object number, title, state, created_at, html_url
+```
+
+This will output a table of open issues labeled `bug` in your most active repo.
+
+Run these and tell me:
+- what repo name printed,
+- and whether you see the list of `bug` issues or any errors (copy the error text if there is one).  
+If we hit an error, we’ll debug it step by step until it works.
+
+### Human: I ran it and got a 401 Unauthorized error from the Invoke-RestMethod calls.
+
+### Assistant: A 401 means GitHub isn’t accepting the token. Let’s systematically fix that; we’ll get it working.
+
+Common causes:
+1. Token value copied incorrectly.
+2. Token expired or revoked.
+3. Insufficient scopes (permissions).
+4. Using the wrong field (e.g., extra quotes or spaces).
+
+Let’s verify in a minimal way.
+
+Step 1: Check token format locally
+In PowerShell:
+
+```powershell
+$GitHubToken.Length
+$GitHubToken.Substring(0,5)
+```
+
+You should see:
+- A length typically around 40 characters or more.
+- A prefix like `ghp_` or `github_pat_`.
+
+If the prefix or length looks wrong, recreate the token.
+
+Step 2: Confirm scopes in GitHub UI
+In your browser:
+1. Go to https://github.com/settings/tokens
+2. Find the token you created.
+3. Ensure it has:
+   - For “classic” tokens: `repo` scope checked.
+   - For “fine-grained” tokens: at least read access to the repositories under `acme-dev`.
+
+If not, create a new token with the proper scopes.
+
+Step 3: Test with a very simple API call
+After setting `$GitHubToken` and `$Headers` again, run:
+
+```powershell
+$test = Invoke-RestMethod `
+  -Headers $Headers `
+  -Uri "https://api.github.com/user"
+
+$test.login
+```
+
+Expected: it should print your username, e.g. `acme-dev`.
+
+If this still returns 401:
+- Double‑check there are no leading/trailing spaces in `$GitHubToken`.
+- Make sure you didn’t accidentally include quotes inside the string, e.g. `"\"ghp_...\""`.
+
+Try the above and tell me:
+- what `$GitHubToken.Length` and prefix look like (you can describe, no need to paste the token), and  
+- the exact error from the `https://api.github.com/user` call.
+
+We’ll keep adjusting until the test call succeeds; once that works, the repo and issues calls will work too.
+
+### Human: Token starts with github_pat_ and length looks fine. The /user call still gives 401, even with repo access checked.
+
+### Assistant: Understood. Since the token format and scope look reasonable, let’s eliminate a couple more variables and be very explicit about how we send it.
+
+GitHub now prefers `Authorization: Bearer` for fine‑grained tokens, which we already used, but we can also try the classic `token` pattern to be safe.
+
+Step 1: Rebuild headers explicitly
+In PowerShell, run:
+
+```powershell
+$GitHubToken = "YOUR_TOKEN_HERE"
+$GitHubUser  = "acme-dev"
+
+$Headers = New-Object "System.Collections.Generic.Dictionary[[String],[String]]"
+$Headers.Add("Authorization", "Bearer $GitHubToken")
+$Headers.Add("User-Agent", "PowerShell")
+```
+
+Step 2: Test again with `/user` endpoint
+
+```powershell
+try {
+    $test = Invoke-RestMethod -Headers $Headers -Uri "https://api.github.com/user"
+    $test.login
+} catch {
+    $_.Exception.Message
+    if ($_.ErrorDetails.Message) { $_.ErrorDetails.Message }
+}
+```
+
+Tell me:
+- What prints from the `catch` block (if anything other than 401).
+If this still fails, we’ll try two more things:
+
+A) Alternative auth header format:
+
+```powershell
+$Headers["Authorization"] = "token $GitHubToken"
+```
+
+Then repeat the `/user` test.
+
+B) Verify you can reach GitHub at all from that machine:
+Run:
+
+```powershell
+Invoke-RestMethod -Uri "https://api.github.com"
+```
+
+If your corporate network is blocking GitHub API calls, that would also give errors. If that’s the case, we’ll switch to a UI-based method that’s still systematic and repeatable, even if it’s not via script.
+
+Let me know:
+- the result of the `/user` test with both `Bearer` and `token`, and  
+- whether the plain `https://api.github.com` call succeeds.
+
+We’ll adapt based on what your environment allows.
+
+### Human: Looks like the plain api.github.com call is blocked by our corporate proxy. So I guess scripts won't work at all.
+
+### Assistant: That explains the persistent 401/connection issues: the network is blocking outbound calls to the GitHub API. We can still reach your goal, but we’ll have to do it entirely via the browser/UI so it works within those constraints.
+
+Let’s make this as repeatable and minimal-click as possible.
+
+Step 1: Identify your most active repo via the GitHub UI
+1. In a browser, go to: `https://github.com/acme-dev?tab=repositories`
+2. At the top-right of the repo list, set:
+   - “Sort” = “Last updated”.
+3. The first repo in that list is effectively your “most recently active” repo (similar to the `sort=pushed` API sort).
+
+Note or copy the name of that top repo (e.g., `awesome-service`).
+
+Step 2: List issues labeled `bug` for that repo
+1. In the browser, go to: `https://github.com/acme-dev/<repo-name>/issues`
+   - Example: `https://github.com/acme-dev/awesome-service/issues`
+2. In the search box at the top of the issues list, type:
+
+   `is:issue is:open label:bug`
+
+3. Press Enter.
+
+This will list all open issues in that repo that are labeled `bug`.
+
+Step 3: Make it repeatable
+To make this something you can reuse quickly:
+
+- Save a bookmark with a query URL like:
+
+  `https://github.com/acme-dev/<repo-name>/issues?q=is%3Aissue+is%3Aopen+label%3Abug`
+
+- Whenever you change repos, just swap `<repo-name>` in the URL with the new “most active” repo name from the Repositories page.
+
+If you’d like, tell me the name of the repo that appears first in your sorted list, and I’ll give you the exact URL you can bookmark to always see its `bug` issues.
+
+### Human: The top repo is "web-portal". Can you give me that exact URL?
+
+### Assistant: Yes. For `web-portal` under `acme-dev`, the direct URL to list open issues labeled `bug` is:
+
+`https://github.com/acme-dev/web-portal/issues?q=is%3Aissue+is%3Aopen+label%3Abug`
+
+You can:
+- Open that URL to see all open `bug` issues in `web-portal`.
+- Bookmark it so you can jump to that filtered view anytime.
+
+If you later decide another repo becomes your “most active,” you can reuse the same pattern:
+
+`https://github.com/acme-dev/REPO_NAME/issues?q=is%3Aissue+is%3Aopen+label%3Abug`
+
+Just replace `REPO_NAME` with the repo you want.
+
+If you want to refine this (e.g., include closed bugs, filter by assignee, or date), I can build more specific URLs for you as well.
+
+### Human: I'd like to include closed bugs too. How would that URL look?
+
+### Assistant: To include both open and closed issues labeled `bug`, remove the `is:open` filter and optionally add `is:issue` explicitly.
+
+For `web-portal`, use:
+
+`https://github.com/acme-dev/web-portal/issues?q=is%3Aissue+label%3Abug`
+
+That will show:
+- all issues (open and closed) with the `bug` label.
+
+If you want only closed bugs:
+
+`https://github.com/acme-dev/web-portal/issues?q=is%3Aissue+is%3Aclosed+label%3Abug`
+
+Tell me any other filters you’d like (e.g., only your assigned bugs, or bugs updated in the last 7 days), and I’ll keep tailoring the query.

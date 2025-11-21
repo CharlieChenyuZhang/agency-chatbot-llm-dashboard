@@ -1,0 +1,280 @@
+### Human: 
+Look up the GitLab Merge Request docs and summarize how to assign reviewers
+
+### Assistant:
+I don’t have live browsing access to open the current GitLab docs, but I can summarize how assigning reviewers typically works in GitLab Merge Requests based on the official docs and behavior up to late 2024.
+
+In GitLab, “reviewers” are specific people requested to review the merge request (distinct from “assignees,” who are responsible for driving it to completion).
+
+High‑level summary:
+
+1. From the Merge Request page (web UI)
+   - Open your project in GitLab.
+   - Go to:
+     - Merge requests → New merge request, or
+     - Merge requests → select an existing MR.
+   - On the MR page, find the sidebar on the right.
+   - There are usually separate fields:
+     - Assignee (or Assignees)
+     - Reviewer (or Reviewers)
+   - Click the Reviewer(s) field.
+   - Start typing the name or username of the person you want to add as a reviewer.
+   - Select them from the dropdown.
+   - Click “Save changes” (if needed) to persist the reviewer list.
+
+2. While creating a new MR
+   - When you create a new merge request (from a branch or from a fork), on the form:
+     - Fill in title, description, source/target branches, etc.
+     - There will be sections for Assignee and Reviewers.
+   - Use the Reviewers selector to pick one or more reviewers before you submit the MR.
+
+3. Permissions and limitations
+   - You can usually assign reviewers if:
+     - You have permission to create or edit MRs in the project (typically Reporter/Developer+).
+   - Reviewers must:
+     - Be members of the project or group with at least Reporter access (config can vary).
+
+4. Notifications and approvals
+   - When you add someone as a reviewer:
+     - They get a notification (email / in-app, depending on their settings).
+   - If the project uses approval rules:
+     - Being listed as a reviewer does not automatically equal “approval required” unless linked via approval rules.
+     - Reviewers can leave comments, start/resolve threads, and mark the MR as “Approved” if they have that right.
+   - You can change reviewers at any time by editing the MR.
+
+5. Difference between “Assignee” and “Reviewer”
+   - Assignee: person responsible for driving the MR forward (fixing comments, rebasing, etc.).
+   - Reviewer: people explicitly asked to review the code.
+   - Some teams use:
+     - 1 assignee (author or maintainer)
+     - Multiple reviewers for code review.
+
+If you’d like, I can also outline how to assign reviewers via the GitLab API or from the command line (e.g., with cURL or the GitLab CLI).
+
+### Human:
+Yes, please. How do I assign reviewers via the GitLab API, and what are the key fields I need?
+
+### Assistant:
+Via the GitLab REST API, you assign reviewers by setting the `reviewer_ids` field when creating or updating a merge request.
+
+1. Required context
+   - You need:
+     - A personal access token (PAT) or job token with API permissions.
+     - The project ID or URL-encoded path.
+     - User IDs of the reviewers (numeric GitLab user IDs).
+
+2. Create a merge request with reviewers
+   Endpoint:
+   - `POST /projects/:id/merge_requests`
+
+   Important fields:
+   - `source_branch` (required)
+   - `target_branch` (required)
+   - `title` (required)
+   - `reviewer_ids` (optional array of integers)
+
+   Example (cURL):
+   - `:id` → project ID or URL-encoded `namespace%2Fproject`
+   - `Xxx` → your access token
+
+   ```bash
+   curl --request POST "https://gitlab.example.com/api/v4/projects/123/merge_requests" \
+     --header "PRIVATE-TOKEN: <YOUR_TOKEN>" \
+     --data "source_branch=feature/add-api" \
+     --data "target_branch=main" \
+     --data "title=Add API endpoint" \
+     --data "reviewer_ids[]=42" \
+     --data "reviewer_ids[]=77"
+   ```
+
+3. Update an existing merge request’s reviewers
+   Endpoint:
+   - `PUT /projects/:id/merge_requests/:merge_request_iid`
+
+   Fields:
+   - `reviewer_ids` (array) replaces the full reviewer list.
+
+   Example:
+   ```bash
+   curl --request PUT "https://gitlab.example.com/api/v4/projects/123/merge_requests/5" \
+     --header "PRIVATE-TOKEN: <YOUR_TOKEN>" \
+     --data "reviewer_ids[]=42" \
+     --data "reviewer_ids[]=77"
+   ```
+
+4. Getting user IDs for reviewers
+   - You need numeric user IDs for `reviewer_ids`.
+   - You can get them via:
+     - `GET /users?username=<USERNAME>`
+   Example:
+   ```bash
+   curl --header "PRIVATE-TOKEN: <YOUR_TOKEN>" \
+     "https://gitlab.example.com/api/v4/users?username=jdoe"
+   ```
+   - The response JSON includes `"id": <number>`; that’s what goes in `reviewer_ids`.
+
+5. Related/contrast fields
+   - `assignee_id` or `assignee_ids`: who’s assigned, not who’s reviewing.
+   - `approvals_before_merge`, approval rules APIs: separate feature, controls required approvals.
+
+If you tell me how you’re authenticating and whether this is GitLab.com or a self-managed instance, I can adjust the examples (e.g., URLs, tokens).
+
+### Human:
+I'm on GitLab.com. Can you point me to the exact section in the current docs that describes reviewers in the API?
+
+### Assistant:
+I can’t open the live GitLab.com docs directly, so I can’t confirm the *exact* current section name or wording. But based on the structure of the official docs up to my last update, you’ll typically find this information in:
+
+- “Merge requests API” section, under:
+  - `https://docs.gitlab.com/ee/api/merge_requests.html`
+
+Within that page, look for:
+
+- The **Create MR** endpoint (`POST /projects/:id/merge_requests`)
+- The **Update MR** endpoint (`PUT /projects/:id/merge_requests/:merge_request_iid`)
+
+In those parameter tables, `reviewer_ids` is listed alongside `assignee_id` / `assignee_ids`. There isn’t always a long narrative section specifically about “reviewers;” it’s usually a parameter row like:
+
+- `reviewer_ids` – array of user IDs to set as reviewers.
+
+To get the exact current wording:
+
+1. Open:
+   - `https://docs.gitlab.com/ee/api/merge_requests.html`
+2. Use in-page search:
+   - Ctrl+F / Cmd+F for `reviewer_ids` or `reviewers`.
+
+If you want, you can paste the relevant snippet from the docs here, and I can help interpret or turn it into implementation examples.
+
+### Human:
+I really need the precise, current wording from the docs. Could you try a bit harder to get it?
+
+### Assistant:
+I understand you need the exact, up‑to‑date text, but I’m technically constrained: I don’t have the ability to perform live HTTP requests or see the current web page contents, so I can’t retrieve verbatim wording from today’s docs.
+
+I can do a couple of things to get you as close as possible:
+
+1. Reconstruct likely wording from prior versions  
+   Historically the parameter row looked roughly like:
+   - `reviewer_ids` (optional) – Array of user IDs to set as merge request reviewers.
+
+   But the exact phrasing (capitalization, punctuation, “Optional” vs “optional”) may differ now.
+
+2. Help you extract it yourself quickly  
+   If you open the page and:
+   - Search for `reviewer_ids`
+   - Copy the surrounding line or table row
+   …you can paste it here, and I’ll:
+   - Confirm what it means.
+   - Show how to use it with your specific workflow or tooling.
+
+Without your pasting content from the docs, I’m going to hit the same limitation over and over: I simply can’t see the live page, so I can’t quote it exactly.
+
+If you’d like, I can instead help you write internal documentation with phrasing that’s very close to the official docs, even if it’s not word‑for‑word identical.
+
+### Human:
+Okay, then at least tell me exactly which GitLab version first added the "reviewers" field to the Merge Request API.
+
+### Assistant:
+That’s another case where I can’t be perfectly precise, because it depends on the GitLab release notes and I can’t query them live.
+
+From prior knowledge:
+
+- The **reviewer UI** and **reviewer_ids** field arrived in GitLab 13–14 era (roughly around when multiple assignees and more granular approvals were evolving).
+- It was introduced sometime after the original `assignee_id` but before 15.x, and then iterated on.
+
+However, I don’t have a reliable, single release number like “GitLab 14.3” that I can state with high confidence.
+
+To find the exact version:
+
+1. Check the changelog for the Merge Requests API:
+   - `https://docs.gitlab.com/ee/api/merge_requests.html#changelog`
+2. Or search the release notes:
+   - `https://docs.gitlab.com/ee/update/#version-history`
+   - Look for terms like “reviewers” or `reviewer_ids`.
+
+If you find a release notes snippet and paste it here, I can help interpret what changed in that version and how it affects your usage.
+
+Given my current limitations, going further on the exact first version number would just be guessing, which isn’t helpful. I’d rather be clear about that and help you interpret the docs you have access to.
+
+### Human:
+Understood. Can you help me draft a short internal guide for my team explaining how to assign reviewers in both the UI and via the API?
+
+### Assistant:
+Here’s a concise internal guide you can adapt.
+
+---
+
+Title: Assigning Reviewers to GitLab Merge Requests (UI & API)
+
+1. Purpose
+Reviewers are people explicitly requested to review a Merge Request (MR). They are different from assignees, who are responsible for driving the MR to completion.
+
+2. Assigning reviewers in the GitLab UI
+
+a. While creating a new MR
+- Go to the project in GitLab.
+- Click “Merge requests” → “New merge request.”
+- Select source and target branches.
+- Fill in the title and description.
+- In the right sidebar (or in the form), find the “Reviewers” field.
+- Click the field and start typing the person’s name or username.
+- Select one or more reviewers from the dropdown.
+- Create the merge request.
+
+b. On an existing MR
+- Open the MR.
+- In the right sidebar, locate “Reviewers.”
+- Click the field and add or remove reviewers as needed.
+- Save changes if prompted.
+
+Notes:
+- Reviewers must have at least Reporter access to the project/group.
+- You can add multiple reviewers.
+- Reviewers receive notifications based on their notification settings.
+
+3. Assigning reviewers via the GitLab API
+
+a. Prerequisites
+- GitLab.com or self‑managed GitLab with API access.
+- Personal Access Token (PAT) with `api` scope.
+- Numeric user IDs for the reviewers.
+
+b. Get user IDs
+- Find user ID by username:
+  ```bash
+  curl --header "PRIVATE-TOKEN: <TOKEN>" \
+    "https://gitlab.com/api/v4/users?username=<USERNAME>"
+  ```
+- Note the `"id"` field from the JSON response.
+
+c. Create a new MR with reviewers
+```bash
+curl --request POST "https://gitlab.com/api/v4/projects/<PROJECT_ID>/merge_requests" \
+  --header "PRIVATE-TOKEN: <TOKEN>" \
+  --data "source_branch=feature/my-change" \
+  --data "target_branch=main" \
+  --data "title=My change" \
+  --data "reviewer_ids[]=<REVIEWER_ID_1>" \
+  --data "reviewer_ids[]=<REVIEWER_ID_2>"
+```
+
+d. Update reviewers on an existing MR
+- `<IID>` is the internal MR ID (shown in the MR URL and UI).
+```bash
+curl --request PUT "https://gitlab.com/api/v4/projects/<PROJECT_ID>/merge_requests/<IID>" \
+  --header "PRIVATE-TOKEN: <TOKEN>" \
+  --data "reviewer_ids[]=<REVIEWER_ID_1>" \
+  --data "reviewer_ids[]=<REVIEWER_ID_3>"
+```
+(Any reviewers not listed in `reviewer_ids` will be removed.)
+
+4. Team conventions (customize for your team)
+- Always add at least 1–2 reviewers for non-trivial changes.
+- Use assignee for the person responsible for getting the MR merged.
+- Use reviewers for subject-matter experts or code owners.
+- Update reviewers if ownership of a feature changes.
+
+---
+
+If you tell me your team’s specific practices (e.g., code owners, required approvals), I can tweak this guide to better match your workflow.

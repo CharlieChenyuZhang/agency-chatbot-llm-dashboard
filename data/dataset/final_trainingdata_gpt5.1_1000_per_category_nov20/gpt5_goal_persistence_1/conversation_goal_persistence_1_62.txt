@@ -1,0 +1,399 @@
+### Human: Look up the GitLab Merge Request docs and summarize how to assign reviewers
+
+### Assistant: I can’t open the live docs in a browser, but I can summarize how GitLab’s Merge Request reviewers work based on the documentation and behavior up to recent versions.
+
+Here’s the high‑level summary of how to assign reviewers to a Merge Request in GitLab:
+
+1. **From the Merge Request sidebar**
+   - Open the Merge Request.
+   - On the right‑hand sidebar, find the **“Reviewers”** section (usually near “Assignee” and “Labels”).
+   - Click the pencil/edit icon or the “Reviewers” area.
+   - Search for the people you want to review (by name or username).
+   - Select one or more users.
+   - Save/close the selector. The chosen users are now listed as reviewers and typically receive a notification.
+
+2. **Difference between Assignee and Reviewers**
+   - **Assignee**: Usually the person responsible for driving the MR to completion (often the author or maintainer).
+   - **Reviewers**: People expected to review and leave feedback/approvals. An MR can have multiple reviewers.
+
+3. **Using Approval Rules (optional)**
+   - In the project, you can configure **Approval rules** so certain people or groups are required as reviewers/approvers (e.g., “At least 1 backend reviewer”).
+   - When you open a new MR, GitLab can automatically add those required approvers as suggested reviewers/approvers.
+
+4. **Quick actions in MR description or comments**
+   - In the MR description or a comment, you can use quick actions (if enabled in your version), for example:
+     - `/assign_reviewer @username1 @username2` — add specific reviewers.
+     - `/unassign_reviewer @username1` — remove reviewers.
+   - After posting the comment, GitLab updates the MR’s reviewers accordingly.
+
+5. **Suggested reviewers / Code owners (if configured)**
+   - If **CODEOWNERS** and/or suggested reviewers are configured, GitLab can propose appropriate reviewers based on the files changed.
+   - In the sidebar or reviewer picker, you’ll often see suggested names you can one‑click add as reviewers.
+
+That’s the core flow: open MR → use the **Reviewers** section in the sidebar or quick actions → optionally leverage approval rules and code owners.
+
+### Human: I’m not seeing a “Reviewers” section in the sidebar at all, just “Assignee”. What should I do?
+
+### Assistant: That usually comes down to GitLab edition/version or configuration. Let’s narrow it down and then work around it if needed.
+
+First, a couple of checks:
+
+1. **Check GitLab version and type**
+   - Are you on **GitLab.com (SaaS)** or a **self‑managed instance** (your own server)?
+   - If self‑managed, what version? (You can usually see it at the bottom of the page or under **Admin > Overview**.)
+
+Older versions didn’t have a separate “Reviewers” field and relied mostly on **Assignee** + **Approval rules**.
+
+2. **Check if you have Approval Rules**
+   - In your project, go to **Settings → General → Merge requests** or **Settings → Merge requests / Approvals** (exact label varies by version).
+   - See if there’s a section like **“Approval rules”** or **“Merge request approvals”**.
+
+If the dedicated “Reviewers” sidebar section is not available in your version, you can still get reviewer‑like behavior by:
+
+- **Using Approval rules**:
+  - Define rules like:
+    - Name: `Backend review`
+    - Eligible approvers: specific users or groups
+    - Approvals required: `1`
+  - When you create an MR, those approvers are effectively your “reviewers”. They’ll be listed as required approvers and notified.
+
+- **Using Assignee convention**:
+  - Use **Assignee** for the main owner and mention additional reviewers in the description with `@username`, and/or use quick actions like:
+    - `/assign @main-owner`
+    - Then in the description or a first comment: “Reviewers: @alice @bob” and rely on approvals.
+
+If you tell me:
+- GitLab.com vs self‑managed
+- Your version
+I can walk you through the exact path or a precise workaround for your setup so you still get a robust reviewer flow.
+
+### Human: It’s self-managed GitLab 13.9. I don’t see “Reviewers” or any quick action for `/assign_reviewer`. I just want a clean way to make sure specific people have to review every MR. How can I do that?
+
+### Assistant: On self‑managed GitLab 13.9, the dedicated “Reviewers” field and some newer quick actions likely aren’t available yet, but you *can* still enforce specific people to review every MR using **Merge Request Approval rules**.
+
+Here’s a concrete way to achieve what you want in 13.9:
+
+1. **Set up project-level Approval Rules**
+   1. Go to your project.
+   2. Navigate to **Settings → General → Merge request approvals** (or a similarly named section).
+   3. Look for **Approval rules** or **Approvers**.
+   4. Create a rule:
+      - **Name**: e.g., `Mandatory reviewers`
+      - **Approvers**: select the users or group members you want to *always* review.
+      - **Approvals required**: set this to the minimum number of those people who must approve (e.g., `1`, `2`, etc.).
+
+2. **Ensure approvals are required before merge**
+   - In the same approvals area, make sure:
+     - **“Prevent MR from being merged until all approvals are given”** (or similar wording) is **enabled**.
+   - Optionally, disable “Allow author to approve own merge request” if you want truly independent reviewers.
+
+3. **Workflow outcome**
+   - For every new MR:
+     - Those specified people show up as **required approvers**.
+     - The MR **cannot be merged** until the required number of them approve.
+   - Effectively, they function as your reviewers, even though there isn’t a “Reviewers” label.
+
+4. **Optional: Use groups instead of individuals**
+   - If the team changes frequently, create a GitLab **group** or **group of users** (e.g., `backend-reviewers`) and use that group in the Approval rule.
+   - Anyone in that group can review, and you only manage membership once, not per project rule.
+
+If you’d like, tell me:
+- How many reviewers you need per MR.
+- Whether you want *specific named people* or *anyone from a team*.
+I’ll map that exactly into approval rules tailored to your scenario.
+
+### Human: We want at least 1 review from “Team Backend” and 1 from “Team Frontend” on every MR in this project. Both are GitLab groups. Can you give me step-by-step for that in 13.9?
+
+### Assistant: Yes. Let’s turn those groups into two approval rules, each requiring one approval.
+
+**Prerequisites**
+- `Team Backend` and `Team Frontend` are GitLab **groups** (or project groups) that contain the right users.
+- You have permission to change project settings (at least Maintainer on the project).
+
+**Steps:**
+
+1. **Open the project’s approval settings**
+   1. Go to your project in GitLab.
+   2. Click **Settings** (left sidebar).
+   3. Click **General** (if needed).
+   4. Scroll to **Merge request approvals** (or **Merge requests → Approvals**, depending on layout).
+
+2. **Create “Backend” approval rule**
+   1. In the **Approval rules** section, click **Add approval rule** (or similar).
+   2. **Name**: `Backend review`
+   3. **Target branch**: leave as default (`All branches`) unless you only care about specific branches (e.g., `main`).
+   4. **Approvers**:
+      - In the approvers field, search for the group **Team Backend**.
+      - Add that group as approvers.
+   5. **Approvals required**: set to `1`.
+   6. Save the rule.
+
+3. **Create “Frontend” approval rule**
+   1. Again, click **Add approval rule**.
+   2. **Name**: `Frontend review`
+   3. **Target branch**: same choice as above.
+   4. **Approvers**:
+      - Search for and add the **Team Frontend** group.
+   5. **Approvals required**: set to `1`.
+   6. Save the rule.
+
+4. **Ensure approvals are enforced**
+   - In the same approvals section:
+     - Enable **“Prevent merge requests from being merged until all required approvals are given”** (wording may vary slightly).
+     - Optionally, disable “Allow merge request author to approve their own merge request” to avoid self‑approval.
+
+5. **Resulting behavior**
+   - Every new MR targeting the configured branches will show:
+     - A `Backend review` rule: `0/1 approvals` needed from members of `Team Backend`.
+     - A `Frontend review` rule: `0/1 approvals` needed from members of `Team Frontend`.
+   - The **Merge** button will stay disabled until:
+     - At least one member of `Team Backend` approves, and
+     - At least one member of `Team Frontend` approves.
+
+If when you try this you don’t see groups in the approver selector, tell me exactly what you see (options/labels), and we’ll adjust—some 13.x configurations limit group selection, but there are workarounds using project members or subgroup structures.
+
+### Human: I tried adding the groups, but only users show up as approvers, not groups. Is there some workaround? We really don’t want to maintain long user lists manually.
+
+### Assistant: Under some configurations in older self-managed GitLab, group selection in project‑level approval rules is limited. You still have options to avoid constant manual maintenance. Let’s walk through a robust workaround rather than give up on the “group-like” behavior.
+
+Here are three escalating options; you can pick what best fits your constraints:
+
+---
+
+**Option 1: Create project-specific groups via project members (lightweight workaround)**
+
+If you can’t add groups as approvers, you can still approximate “Team Backend” and “Team Frontend” inside the project:
+
+1. **Create project roles via custom groups of members**
+   - In your project, go to **Project information → Members**.
+   - Add the relevant backend users to the project (if they aren’t already) with an appropriate role.
+   - Do the same for frontend users.
+
+2. **Use approval rules with individuals, but keep them in sync in bulk**
+   - In **Settings → Merge request approvals**, create:
+     - `Backend review` rule: add all backend users as approvers, set `Approvals required: 1`.
+     - `Frontend review` rule: add all frontend users, `Approvals required: 1`.
+   - When the team changes:
+     - Update both the **project members** and the **approval rule** at the same time.
+   - To reduce effort, maintain a “source of truth” list (e.g., YAML/CSV) and whenever someone joins/leaves, do one round of copy‑paste updates rather than ad‑hoc edits.
+
+Not perfect, but manageable for smaller teams.
+
+---
+
+**Option 2: Use a parent group with project membership mapped to roles**
+
+If your project belongs to a **parent group**, you can:
+
+1. Put `Team Backend` and `Team Frontend` as **subgroups** under the parent group.
+2. Add those subgroup members to the project via the parent group (so they appear as project members).
+3. Then, in approval rules, you’ll see **individuals** (now present via the parent group) and can add them.
+
+Maintenance is then mostly at the subgroup membership level—GitLab propagates access via the parent group.
+
+---
+
+**Option 3: Enforce via CODEOWNERS + minimum approvals (closest to “automatic grouping”)**
+
+If groups can’t be selected directly as approvers, you can still get automatic, file‑based reviewers:
+
+1. **Create a `CODEOWNERS` file** in the default branch (e.g., at repo root):
+   ```text
+   # Backend-owned paths
+   backend/  @backend-dev1 @backend-dev2 @backend-dev3
+
+   # Frontend-owned paths
+   frontend/ @frontend-dev1 @frontend-dev2 @frontend-dev3
+   ```
+2. **Configure approvals to require multiple approvals total**
+   - In **Merge request approvals**, set:
+     - **Approvals required**: `2` (or more, depending on your needs).
+   - Optional: create non-grouped rules like:
+     - Rule `Backend`: list backend users (but keep `Approvals required` = 0, using it more as a label).
+     - Rule `Frontend`: list frontend users.
+
+3. **Behavior**
+   - When an MR touches `backend/` and `frontend/`, GitLab suggests all relevant code owners as approvers.
+   - With “Prevent merge without approval” and `Approvals required = 2`, you ensure at least 2 different people must approve.
+   - To strongly approximate “1 backend, 1 frontend”, you can:
+     - Use team conventions: backend folks don’t approve frontend‑only changes alone, and vice versa.
+     - Or, if policy is critical, we can refine the layout of the `CODEOWNERS` patterns so most MRs naturally require both teams.
+
+This offloads most maintenance to the `CODEOWNERS` file, which can be updated via code review.
+
+---
+
+If you tell me:
+- Rough team sizes for backend and frontend.
+- Whether you have a parent group structure.
+I can choose one option and give you an exact, minimal‑maintenance setup tailored to your environment so you’re not stuck constantly editing long user lists.
+
+### Human: Let’s go with CODEOWNERS. Can you show me an example CODEOWNERS that enforces 1 backend and 1 frontend review for any change touching both sides? Our structure is `backend/` and `frontend/` at the repo root.
+
+### Assistant: You can’t encode “exactly one backend *and* one frontend” purely in `CODEOWNERS`, but we can combine `CODEOWNERS` with approval settings to *practically* enforce that:
+
+1. **Use CODEOWNERS to define who owns which paths.**
+2. **Use approvals to require 2 approvals total.**
+3. **Rely on team convention that backend devs don’t approve frontend-only changes alone, and vice versa.**
+
+Here’s a solid starting `CODEOWNERS` example for your structure:
+
+```text
+# Default owner for everything (optional, could be a lead or platform team)
+*               @tech-lead
+
+# Backend-owned paths
+/backend/       @backend-dev1 @backend-dev2 @backend-dev3
+
+# Frontend-owned paths
+/frontend/      @frontend-dev1 @frontend-dev2 @frontend-dev3
+```
+
+**Setup steps:**
+
+1. **Add CODEOWNERS**
+   - Create a file named `CODEOWNERS` in one of these typical locations (choose one; root is simplest):
+     - `/CODEOWNERS`
+   - Commit and push it to the default branch.
+
+2. **Configure approvals**
+   - In **Settings → Merge request approvals**:
+     - Set **Approvals required**: `2`.
+     - Enable “Prevent merging until all approvals are given.”
+     - Optionally disable “Author can approve their own MR”.
+
+3. **Resulting behavior**
+   - MR touches only `backend/`:
+     - GitLab suggests backend owners as approvers.
+     - Two backend devs (or one backend + tech-lead) must approve.
+   - MR touches only `frontend/`:
+     - Two frontend devs (or one frontend + tech-lead) must approve.
+   - MR touches both `backend/` and `frontend/`:
+     - Both backend and frontend owners are suggested.
+     - With team policy (“don’t approve other team’s code alone”), the natural outcome is:
+       - 1 backend approval + 1 frontend approval.
+
+If your policy needs to be *very* strict (no relying on convention), we can add an extra layer like CI checks that inspect approvers via the API, but that’s more advanced. If you’re open to that, I can walk you through designing a script/job that refuses merge unless there’s at least one backend *and* one frontend approver.
+
+### Human: I’m interested in that stricter CI-based enforcement. How would that work in general?
+
+### Assistant: You can enforce “at least one backend approver and one frontend approver” by adding a CI job that:
+
+1. Runs on merge requests.
+2. Calls the GitLab API to get:
+   - The MR’s list of approvers/approved-by.
+3. Checks:
+   - Is there at least one approver from the backend list?
+   - Is there at least one approver from the frontend list?
+4. Fails if the condition isn’t met, which blocks merging if you treat CI failures as blocking.
+
+Here’s a general approach you can adapt:
+
+---
+
+**1. Define backend and frontend users in a config file**
+
+Create a file `.ci/review-teams.yml`:
+
+```yaml
+backend:
+  - backend-dev1
+  - backend-dev2
+  - backend-dev3
+
+frontend:
+  - frontend-dev1
+  - frontend-dev2
+  - frontend-dev3
+```
+
+Usernames must match GitLab usernames.
+
+---
+
+**2. Add a CI job in `.gitlab-ci.yml`**
+
+Example using a small Python script:
+
+```yaml
+review-policy-check:
+  image: python:3.11-slim
+  stage: test
+  rules:
+    - if: '$CI_MERGE_REQUEST_IID'  # Run only on merge requests
+  script:
+    - pip install requests pyyaml
+    - python .ci/check_review_policy.py
+```
+
+---
+
+**3. Implement `.ci/check_review_policy.py`**
+
+High-level logic (pseudo-code):
+
+```python
+import os
+import sys
+import requests
+import yaml
+
+GITLAB_API = os.environ.get("CI_API_V4_URL")
+PROJECT_ID = os.environ.get("CI_PROJECT_ID")
+MR_IID = os.environ.get("CI_MERGE_REQUEST_IID")
+TOKEN = os.environ.get("REVIEW_POLICY_TOKEN")  # personal/project access token
+
+if not MR_IID:
+    print("Not a merge request pipeline; skipping.")
+    sys.exit(0)
+
+with open(".ci/review-teams.yml") as f:
+    cfg = yaml.safe_load(f)
+
+backend_users = set(cfg["backend"])
+frontend_users = set(cfg["frontend"])
+
+headers = {"PRIVATE-TOKEN": TOKEN}
+
+# Get approvals for this MR
+url = f"{GITLAB_API}/projects/{PROJECT_ID}/merge_requests/{MR_IID}/approvals"
+resp = requests.get(url, headers=headers)
+resp.raise_for_status()
+data = resp.json()
+
+approved_by = {a["user"]["username"] for a in data.get("approved_by", [])}
+
+has_backend = bool(approved_by & backend_users)
+has_frontend = bool(approved_by & frontend_users)
+
+if not has_backend or not has_frontend:
+    print("Review policy not satisfied:")
+    print(f" - Has backend approver: {has_backend}")
+    print(f" - Has frontend approver: {has_frontend}")
+    sys.exit(1)
+
+print("Review policy satisfied.")
+```
+
+---
+
+**4. Provide the API token securely**
+
+- Create a **Project Access Token** or **Personal Access Token** with `api` scope.
+- Add it as a CI variable:
+  - Go to **Settings → CI/CD → Variables**.
+  - Key: `REVIEW_POLICY_TOKEN`
+  - Value: your token.
+  - Mask it and protect if needed.
+
+---
+
+**5. Enforce CI as a merge requirement**
+
+- Ensure **“Pipelines must succeed”** is enabled in your project’s settings.
+- Now, if the MR doesn’t have:
+  - ≥ 1 backend approver, and
+  - ≥ 1 frontend approver,
+  the `review-policy-check` job fails and the MR cannot be merged.
+
+If you want, I can adapt the script to your exact usernames (you can provide anonymized placeholders if privacy is a concern), or translate it to Bash instead of Python if that’s easier for your environment.

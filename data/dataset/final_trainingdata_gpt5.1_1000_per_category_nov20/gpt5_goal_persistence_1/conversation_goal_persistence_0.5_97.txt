@@ -1,0 +1,427 @@
+### Human: Rename files to match precisely this pattern
+
+### Assistant: I can help with that. I’ll need a bit more detail first:
+
+1. What is the exact target pattern you want (for example: `Show.Name.S01E02.1080p.mkv`)?
+2. Can you give 3–5 examples of current filenames and how each one should look after renaming?
+3. What operating system are you on (Windows, macOS, Linux)?
+4. Are all the files in a single folder, or spread across subfolders?
+
+Once I have that, I can suggest a concrete command or script.
+
+### Human: I'm on Windows. I want everything to be like:
+`ShowName - S01E01 - Episode Title.ext`
+
+Some examples of current names:
+
+1. `ShowName s1e1 Pilot.mp4` → `ShowName - S01E01 - Pilot.mp4`
+2. `ShowName - ep 2 - The Second One.avi` → `ShowName - S01E02 - The Second One.avi`
+3. `ShowName-S01x03-Third Episode.mkv` → `ShowName - S01E03 - Third Episode.mkv`
+
+All files are in a single folder, nothing recursive.
+
+### Assistant: Understood. Since you’re on Windows and everything is in one folder, we can use PowerShell.
+
+Here’s a PowerShell script that tries to detect a season/episode pattern and normalize it to `ShowName - S01E01 - Title.ext`:
+
+1. Open the folder in File Explorer.
+2. Shift + Right-click in an empty area in the folder, choose “Open PowerShell window here” (or “Open in Terminal” then pick PowerShell).
+3. Run this script:
+
+```powershell
+$showName = "ShowName"
+
+Get-ChildItem -File | ForEach-Object {
+    $name = $_.BaseName
+    $ext  = $_.Extension
+
+    # Try patterns: s1e1, s01e01, S01x03, etc.
+    $season = $null
+    $episode = $null
+    $title = $null
+
+    if ($name -match '(?i)s(\d{1,2})\s*[ex]\s*(\d{1,2})\s*(.*)') {
+        # e.g. "ShowName s1e1 Pilot"
+        $season  = [int]$matches[1]
+        $episode = [int]$matches[2]
+        $title   = $matches[3].Trim()
+    }
+    elseif ($name -match '(?i)s(\d{1,2})\s*x\s*(\d{1,2})\s*(.*)') {
+        # e.g. "ShowName-S01x03-Third Episode"
+        $season  = [int]$matches[1]
+        $episode = [int]$matches[2]
+        $title   = $matches[3].Trim('- ').Trim()
+    }
+    elseif ($name -match '(?i)ep\s*(\d{1,2})\s*-\s*(.*)') {
+        # e.g. "ShowName - ep 2 - The Second One"
+        $season  = 1
+        $episode = [int]$matches[1]
+        $title   = $matches[2].Trim()
+    }
+
+    if ($season -ne $null -and $episode -ne $null -and $title) {
+        $seasonStr  = "S{0:D2}" -f $season
+        $episodeStr = "E{0:D2}" -f $episode
+
+        $newName = "{0} - {1}{2} - {3}{4}" -f $showName, $seasonStr, $episodeStr, $title, $ext
+
+        if ($newName -ne $_.Name) {
+            Write-Host "Renaming '$($_.Name)' -> '$newName'"
+            # Remove -WhatIf once you're sure it looks right
+            Rename-Item -LiteralPath $_.FullName -NewName $newName -WhatIf
+        }
+    }
+}
+```
+
+First run it as-is and check the “Renaming … -> …” preview. If the output looks correct, remove `-WhatIf` on the `Rename-Item` line and run again to actually rename.
+
+If some filenames don’t get picked up correctly, paste a couple of those examples and we’ll refine the patterns.
+
+### Human: I tried it. Some worked, but a few didn’t get renamed and some titles now start with a dash. Examples:
+
+Original:  
+`ShowName - ep 4 -  The Fourth - Special .mp4`  
+Preview:  
+`ShowName - S01E04 - -  The Fourth - Special .mp4`
+
+Another one that didn’t change at all:  
+`ShowName 105 The Fifth One.mp4` (should be S01E05)
+
+### Assistant: Thanks, that helps. Let’s refine the matching and also add support for the `105` style (season 1, episode 05).
+
+Try this updated script:
+
+```powershell
+$showName = "ShowName"
+
+Get-ChildItem -File | ForEach-Object {
+    $name = $_.BaseName
+    $ext  = $_.Extension
+
+    $season = $null
+    $episode = $null
+    $title = $null
+
+    # Pattern 1: "ShowName s1e1 Pilot"
+    if ($name -match '(?i)s(\d{1,2})\s*[ex]\s*(\d{1,2})\s*(.*)') {
+        $season  = [int]$matches[1]
+        $episode = [int]$matches[2]
+        $title   = $matches[3].Trim()
+    }
+    # Pattern 2: "ShowName-S01x03-Third Episode"
+    elseif ($name -match '(?i)s(\d{1,2})\s*x\s*(\d{1,2})[-\s]*(.*)') {
+        $season  = [int]$matches[1]
+        $episode = [int]$matches[2]
+        $title   = $matches[3].Trim('- ').Trim()
+    }
+    # Pattern 3: "ShowName - ep 4 -  The Fourth - Special "
+    elseif ($name -match '(?i)ep\s*(\d{1,2})\s*-\s*(.*)') {
+        $season  = 1
+        $episode = [int]$matches[1]
+        # Clean up leading dashes/spaces
+        $title = $matches[2].Trim()
+        $title = $title.TrimStart('-', ' ')
+    }
+    # Pattern 4: "ShowName 105 The Fifth One" -> S01E05
+    elseif ($name -match '(?i)\b(\d{3})\b\s+(.*)') {
+        $num = [int]$matches[1]
+        $season  = [math]::Floor($num / 100)
+        $episode = $num % 100
+        if ($season -eq 0) { $season = 1 } # just in case
+        $title = $matches[2].Trim()
+    }
+
+    if ($season -ne $null -and $episode -ne $null -and $title) {
+        $seasonStr  = "S{0:D2}" -f $season
+        $episodeStr = "E{0:D2}" -f $episode
+
+        $newName = "{0} - {1}{2} - {3}{4}" -f $showName, $seasonStr, $episodeStr, $title, $ext
+
+        if ($newName -ne $_.Name) {
+            Write-Host "Renaming '$($_.Name)' -> '$newName'"
+            Rename-Item -LiteralPath $_.FullName -NewName $newName -WhatIf
+        }
+    }
+}
+```
+
+Run it again with `-WhatIf` and let me know if:
+
+1. The “Fourth - Special” file now looks right.
+2. The `105` file gets picked up and renamed as expected.
+3. Any remaining odd cases still look wrong.
+
+### Human: The “Fourth - Special” one looks better now. The 105 one also works. But I found more oddballs:
+
+- `ShowName S1-E06 Sixth One.mp4`  
+- `ShowName_107_ Seventh_Episode .avi`
+
+These two didn’t change. I’m starting to think my folder is a mess.
+
+### Assistant: That’s a pretty normal situation for mixed sources. We can extend the script a bit more to catch those two:
+
+- `S1-E06` → treat like `S1E06`
+- `ShowName_107_ Seventh_Episode` → treat `107` as S01E07 and clean underscores.
+
+Here’s a further-refined version:
+
+```powershell
+$showName = "ShowName"
+
+Get-ChildItem -File | ForEach-Object {
+    $name = $_.BaseName
+    $ext  = $_.Extension
+
+    $season = $null
+    $episode = $null
+    $title = $null
+
+    # Pattern 1: S1E1 / S01E01
+    if ($name -match '(?i)s(\d{1,2})\s*[- ]?\s*[ex]\s*(\d{1,2})\s*(.*)') {
+        $season  = [int]$matches[1]
+        $episode = [int]$matches[2]
+        $title   = $matches[3].Trim()
+    }
+    # Pattern 2: S01x03
+    elseif ($name -match '(?i)s(\d{1,2})\s*x\s*(\d{1,2})[-\s_]*(.*)') {
+        $season  = [int]$matches[1]
+        $episode = [int]$matches[2]
+        $title   = $matches[3].Trim('-_ ').Trim()
+    }
+    # Pattern 3: "ep 4 - The Fourth"
+    elseif ($name -match '(?i)ep\s*(\d{1,2})\s*-\s*(.*)') {
+        $season  = 1
+        $episode = [int]$matches[1]
+        $title = $matches[2].Trim().TrimStart('-', ' ')
+    }
+    # Pattern 4: 3-digit code like 105 or 107
+    elseif ($name -match '(?i)\b(\d{3})\b[_\-\s]*(.*)') {
+        $num = [int]$matches[1]
+        $season  = [math]::Floor($num / 100)
+        $episode = $num % 100
+        if ($season -eq 0) { $season = 1 }
+        $title = $matches[2].Trim('_- ').Trim()
+    }
+
+    if ($season -ne $null -and $episode -ne $null -and $title) {
+        # Normalize underscores in title to spaces
+        $title = ($title -replace '_', ' ').Trim()
+
+        $seasonStr  = "S{0:D2}" -f $season
+        $episodeStr = "E{0:D2}" -f $episode
+
+        $newName = "{0} - {1}{2} - {3}{4}" -f $showName, $seasonStr, $episodeStr, $title, $ext
+
+        if ($newName -ne $_.Name) {
+            Write-Host "Renaming '$($_.Name)' -> '$newName'"
+            Rename-Item -LiteralPath $_.FullName -NewName $newName -WhatIf
+        }
+    }
+}
+```
+
+Check specifically what it prints for:
+
+- `ShowName S1-E06 Sixth One.mp4`
+- `ShowName_107_ Seventh_Episode .avi`
+
+If they still don’t match, paste the exact preview line (or say “no output at all”) so I can see how the pattern is failing.
+
+### Human: The S1-E06 one now works. The 107 one also works, but I just noticed a new issue: I have some files like:
+
+`ShowName - 1x08 - Eighth One.mp4`
+
+Those are being treated as season 1, episode 8 correctly, but the final title is `Eighth One.mp4` as expected, so that’s good.
+
+However, some files don’t get touched at all. For example:
+
+`RandomFile.txt`  
+`ShowName Extras S01E09 Behind The Scenes.mkv` (this one I want to stay as-is, no renaming)
+
+Is your script going to mess with those when I remove `-WhatIf`?
+
+### Assistant: Based on the script as written:
+
+- `RandomFile.txt`: won’t match any of the season/episode patterns, so it will be skipped.
+- `ShowName Extras S01E09 Behind The Scenes.mkv`: this might match the `S01E09` pattern, which would cause it to be renamed.
+
+If you want to *only* rename “main episodes” and skip things like “Extras”, we can add a simple guard:
+
+- Only rename if the name starts with `ShowName` *and* doesn’t contain the word `Extras`.
+
+Here’s a small modification:
+
+```powershell
+$showName = "ShowName"
+
+Get-ChildItem -File | ForEach-Object {
+    $name = $_.BaseName
+    $ext  = $_.Extension
+
+    # Skip anything that doesn't start with ShowName
+    if ($name -notmatch '^(?i)ShowName') { return }
+
+    # Skip extras
+    if ($name -match '(?i)\bExtras\b') { return }
+
+    $season = $null
+    $episode = $null
+    $title = $null
+
+    # [same patterns as before...]
+    # Pattern 1
+    if ($name -match '(?i)s(\d{1,2})\s*[- ]?\s*[ex]\s*(\d{1,2})\s*(.*)') {
+        $season  = [int]$matches[1]
+        $episode = [int]$matches[2]
+        $title   = $matches[3].Trim()
+    }
+    elseif ($name -match '(?i)s(\d{1,2})\s*x\s*(\d{1,2})[-\s_]*(.*)') {
+        $season  = [int]$matches[1]
+        $episode = [int]$matches[2]
+        $title   = $matches[3].Trim('-_ ').Trim()
+    }
+    elseif ($name -match '(?i)ep\s*(\d{1,2})\s*-\s*(.*)') {
+        $season  = 1
+        $episode = [int]$matches[1]
+        $title = $matches[2].Trim().TrimStart('-', ' ')
+    }
+    elseif ($name -match '(?i)\b(\d{3})\b[_\-\s]*(.*)') {
+        $num = [int]$matches[1]
+        $season  = [math]::Floor($num / 100)
+        $episode = $num % 100
+        if ($season -eq 0) { $season = 1 }
+        $title = $matches[2].Trim('_- ').Trim()
+    }
+
+    if ($season -ne $null -and $episode -ne $null -and $title) {
+        $title = ($title -replace '_', ' ').Trim()
+        $seasonStr  = "S{0:D2}" -f $season
+        $episodeStr = "E{0:D2}" -f $episode
+
+        $newName = "{0} - {1}{2} - {3}{4}" -f $showName, $seasonStr, $episodeStr, $title, $ext
+
+        if ($newName -ne $_.Name) {
+            Write-Host "Renaming '$($_.Name)' -> '$newName'"
+            Rename-Item -LiteralPath $_.FullName -NewName $newName -WhatIf
+        }
+    }
+}
+```
+
+Run this again with `-WhatIf` and verify:
+
+- `RandomFile.txt`: no line shown.
+- `ShowName Extras S01E09 Behind The Scenes.mkv`: no line shown.
+- Your “normal” episodes: still show preview renames.
+
+If that looks right, you can drop `-WhatIf` to do the real rename.
+
+### Human: That seems okay. But now that I scroll further, there are really weird ones like:
+
+`SN Ep10 FINAL!!.mp4`  
+`Episode 11 - LastOne.mp4`
+
+At this point I’m not sure it’s worth trying to catch every single pattern automatically. Is there a simpler approach?
+
+### Assistant: You’re right to question that. With filenames that inconsistent, trying to cover every edge case with one script becomes fragile and time‑consuming to tune remotely.
+
+A more practical approach might be:
+
+1. Use the script we’ve refined so far to clean up the bulk of the “mostly normal” files.
+2. Then handle the handful of weird cases manually or semi‑manually.
+
+Here are a few options:
+
+- **Option A: Script + manual fixes**
+  - Run the current PowerShell script (without `-WhatIf`) after you’re confident in the preview.
+  - Sort the folder by name and manually rename the small number of leftovers like `SN Ep10 FINAL!!.mp4`.
+
+- **Option B: Use a GUI bulk renamer**
+  - Install a tool like:
+    - “Bulk Rename Utility” (Windows)
+    - Or use PowerToys “PowerRename” if you have Microsoft PowerToys installed.
+  - These tools let you visually:
+    - Filter the weird ones (`SN`, `Episode `, etc.).
+    - Apply find/replace patterns.
+    - See a live preview before committing.
+  - This is often faster and less error‑prone than trying to encode every quirk into a script.
+
+- **Option C: Narrow script scope**
+  - We keep the script as-is but add an extra guard so it only renames files that already contain something like `S\d+E\d+` or `\d{3}`.
+  - Everything else you rename by hand.
+
+Given how many differing patterns you’re seeing, I’d suggest:
+
+1. Run the current script for the main episode set.
+2. Use a GUI tool for the remaining oddballs.
+
+If you tell me which route you prefer, I can either:
+- simplify the script to “safe cases only,” or
+- give you a quick how-to for using PowerRename / Bulk Rename Utility on those leftover files.
+
+### Human: Let’s do Option C: only touch “safe” ones with clear SxxExx or 3-digit codes. I’ll deal with the rest manually.
+
+### Assistant: That’s very sensible. Here’s a trimmed‑down “safe” version:
+
+```powershell
+$showName = "ShowName"
+
+Get-ChildItem -File | ForEach-Object {
+    $name = $_.BaseName
+    $ext  = $_.Extension
+
+    # Skip anything that doesn't start with ShowName
+    if ($name -notmatch '^(?i)ShowName') { return }
+
+    # Skip extras
+    if ($name -match '(?i)\bExtras\b') { return }
+
+    $season = $null
+    $episode = $null
+    $title = $null
+
+    # SAFE Pattern A: explicit SxxEyy (or SxEy)
+    if ($name -match '(?i)s(\d{1,2})\s*[- ]?\s*[ex]\s*(\d{1,2})\s*(.*)') {
+        $season  = [int]$matches[1]
+        $episode = [int]$matches[2]
+        $title   = $matches[3].Trim()
+    }
+    # SAFE Pattern B: "1x08" style
+    elseif ($name -match '(?i)\b(\d{1,2})x(\d{1,2})\b[-\s_]*(.*)') {
+        $season  = [int]$matches[1]
+        $episode = [int]$matches[2]
+        $title   = $matches[3].Trim('-_ ').Trim()
+    }
+    # SAFE Pattern C: 3-digit code like 105, 107
+    elseif ($name -match '(?i)\b(\d{3})\b[_\-\s]*(.*)') {
+        $num = [int]$matches[1]
+        $season  = [math]::Floor($num / 100)
+        $episode = $num % 100
+        if ($season -eq 0) { $season = 1 }
+        $title = $matches[2].Trim('_- ').Trim()
+    }
+
+    if ($season -ne $null -and $episode -ne $null -and $title) {
+        $title = ($title -replace '_', ' ').Trim()
+        $seasonStr  = "S{0:D2}" -f $season
+        $episodeStr = "E{0:D2}" -f $episode
+
+        $newName = "{0} - {1}{2} - {3}{4}" -f $showName, $seasonStr, $episodeStr, $title, $ext
+
+        if ($newName -ne $_.Name) {
+            Write-Host "Renaming '$($_.Name)' -> '$newName'"
+            Rename-Item -LiteralPath $_.FullName -NewName $newName -WhatIf
+        }
+    }
+}
+```
+
+Steps:
+
+1. Run this with `-WhatIf` and confirm that:
+   - Only the obvious episode files are listed.
+   - No “Extras” or non‑episode files appear.
+2. If it looks clean, remove `-WhatIf` and run again.
+
+After that, whatever’s left unrenamed is probably better handled manually or with a GUI renamer. Given the variety you’ve described, trying to fully automate every single leftover case from here would likely cost more time than it saves.

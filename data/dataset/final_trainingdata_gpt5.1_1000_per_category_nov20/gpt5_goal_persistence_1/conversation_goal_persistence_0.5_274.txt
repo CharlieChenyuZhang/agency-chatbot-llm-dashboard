@@ -1,0 +1,234 @@
+### Human: Filter results to only items in stock today
+
+### Assistant: I can help with that, but I need a bit more context. Where are you trying to filter results—on an online store (like Shopify / WooCommerce), in an internal inventory system, a spreadsheet, or somewhere else?
+
+### Human: It's for my Shopify store search results. I only want products that are in stock to show up when people search.
+
+### Assistant: Got it. There are two common ways to do this in Shopify:
+
+1. **Theme search template change (Online Store 2.0 / Liquid)**
+2. **Using Shopify Search & Discovery app filters**
+
+Let’s start with the theme approach, since it gives the most direct control.
+
+In your theme’s search template (usually `templates/search.json` or `templates/search.liquid`), you’ll see a loop over search results, something like:
+
+```liquid
+{% for item in search.results %}
+  {% if item.object_type == 'product' %}
+    <!-- render product -->
+  {% endif %}
+{% endfor %}
+```
+
+Wrap the product rendering in an `available` check:
+
+```liquid
+{% for item in search.results %}
+  {% if item.object_type == 'product' and item.available %}
+    <!-- render product -->
+  {% endif %}
+{% endfor %}
+```
+
+This way, only products that are currently in stock (`available == true`) will appear.
+
+Do you know if your theme uses `search.liquid` or `search.json` (a section-based search template)?
+
+### Human: I'm using Dawn, the default Shopify theme, I think it's section-based. I don't see search.liquid.
+
+### Assistant: Dawn uses a JSON template plus sections. You’ll usually have:
+
+- `templates/search.json`
+- `sections/main-search.liquid` (or similarly named)
+
+The filtering logic is generally inside `main-search.liquid`. Steps:
+
+1. In the Shopify admin, go to **Online Store → Themes → ... → Edit code**.
+2. Open `templates/search.json` just to see which section it references (something like `"main": "main-search"`).
+3. Then open `sections/main-search.liquid`.
+
+Inside that section, look for a loop with `search.results` or `search.results_with_products`. It might look like:
+
+```liquid
+{% for product in search.results %}
+  {% render 'card-product', card_product: product %}
+{% endfor %}
+```
+
+Change it to:
+
+```liquid
+{% for product in search.results %}
+  {% if product.available %}
+    {% render 'card-product', card_product: product %}
+  {% endif %}
+{% endfor %}
+```
+
+If it’s looping over `item` and checking `item.object_type`, we’ll need to add both the type check and the availability check.
+
+Can you paste the loop you see around `search.results` in `main-search.liquid`?
+
+### Human: Here's the loop I see:
+
+```liquid
+{% for item in search.results %}
+  {% render 'card-product', card_product: item %}
+{% endfor %}
+```
+
+There's no object_type check.
+
+### Assistant: Great, that’s straightforward. You can filter directly on availability:
+
+```liquid
+{% for item in search.results %}
+  {% if item.available %}
+    {% render 'card-product', card_product: item %}
+  {% endif %}
+{% endfor %}
+```
+
+If you also get non-product results (like pages, articles), you can be more explicit:
+
+```liquid
+{% for item in search.results %}
+  {% if item.object_type == 'product' and item.available %}
+    {% render 'card-product', card_product: item %}
+  {% endif %}
+{% endfor %}
+```
+
+After you change this, save the file, then:
+
+- Go to your storefront,
+- Search for something that you know matches an out‑of‑stock product,
+- Confirm that it no longer appears.
+
+Can you try that and tell me what happens?
+
+### Human: I tried it. The out-of-stock products are still showing in the search results. I even refreshed in an incognito window.
+
+### Assistant: That’s odd; `available` is usually reliable. Let’s check a few possibilities:
+
+1. **Confirm the product is truly unavailable**
+   - In the admin, open one of the problem products.
+   - Check:
+     - Does it have **Track quantity** turned on?
+     - Is its quantity actually **0** for the location your online store uses?
+     - Is **Continue selling when out of stock** turned **off**?
+
+If “Continue selling when out of stock” is on, then `product.available` can still be `true` even with 0 inventory.
+
+2. **Verify we’re editing the right section**
+   - In `templates/search.json`, confirm which section is used for main content.
+   - Make sure you edited that same section file, not a similar one.
+
+3. **Check if `card-product` is using a different product object**
+   - Open `snippets/card-product.liquid`.
+   - See what it uses as the main product variable: `card_product` or `product`.
+   - Make sure we’re not rendering something else that ignores the filter.
+
+As a quick test, in the loop you edited, temporarily add a debug line:
+
+```liquid
+{% for item in search.results %}
+  <p>{{ item.title }} - available: {{ item.available }}</p>
+{% if item.available %}
+  {% render 'card-product', card_product: item %}
+{% endif %}
+{% endfor %}
+```
+
+Then search again and see what shows next to “available:” for an out-of-stock item.
+
+Can you check one of those things and tell me what you find (especially that debug output)?
+
+### Human: I added the debug line. For an out-of-stock product it shows:
+
+`Some Shirt - available: true`
+
+But in the admin, quantity is 0. “Continue selling when out of stock” is checked though.
+
+### Assistant: That explains it. When **“Continue selling when out of stock”** is enabled, Shopify still considers the product “available” for purchase, so `product.available` is `true`.
+
+If your rule is: “Hide anything that has 0 inventory, even if I’ve allowed overselling,” then we can’t use `available` alone. Instead, we have to inspect variant inventory.
+
+In Dawn, search results usually give you a `Product` object with variants. A stricter filter is:
+
+- Show the product only if **at least one variant** has `inventory_quantity > 0`.
+
+Try this in your loop:
+
+```liquid
+{% for item in search.results %}
+  {% assign has_inventory = false %}
+  {% for v in item.variants %}
+    {% if v.inventory_quantity > 0 %}
+      {% assign has_inventory = true %}
+      {% break %}
+    {% endif %}
+  {% endfor %}
+
+  {% if has_inventory %}
+    {% render 'card-product', card_product: item %}
+  {% endif %}
+{% endfor %}
+```
+
+Remove the debug line, save, then search again and check whether the zero-quantity products disappear.
+
+Let me know if that changes the behavior.
+
+### Human: I tried that and now nothing shows up at all in search results, even the ones with stock.
+
+### Assistant: Understood. That suggests that within the search template, `item.variants` might not be available the way we expect, or the object type varies.
+
+Let’s do a light inspection without going too deep:
+
+1. Temporarily add:
+
+```liquid
+{% for item in search.results %}
+  <p>{{ item.title }} — type: {{ item.object_type }} — variants size: {{ item.variants.size }}</p>
+{% endfor %}
+```
+
+2. Refresh the search page and note:
+   - What `object_type` is for normal products.
+   - What `variants.size` shows for a product you know has variants.
+
+If `variants.size` is blank or `0` for everything, the search result item may not be a full `Product` object in this context, depending on how Dawn is structured in your current version.
+
+If you can, tell me just a couple of lines of what you see for a product that definitely has inventory.
+
+### Human: The debug shows:
+
+`Blue Hoodie — type: product — variants size: `
+
+It's blank after the colon for all products.
+
+### Assistant: That indicates the search result object here isn’t exposing `variants` in the way we’re trying to use it, at least in this theme/version. Without direct access to variant inventory in this context, we hit a limit on what Liquid in the search template can do.
+
+Given that:
+
+- `available` isn’t useful for you because you allow overselling.
+- Variants and `inventory_quantity` aren’t reliably exposed in your search result loop.
+
+We have a few realistic options:
+
+1. **Operational option (no code):**  
+   Turn **off** “Continue selling when out of stock” on products you genuinely want hidden. Then your existing `item.available` filter will work correctly.
+
+2. **Use Shopify Search & Discovery / filters:**
+   - Install or open **Search & Discovery** in your admin.
+   - Configure a **Product availability** filter for the storefront.
+   - This won’t perfectly solve “search results only,” but it lets customers filter to “In stock” after seeing results.
+
+3. **Custom app or more advanced theme development:**
+   - A developer could use the **Storefront API** or custom app to fetch real-time inventory and build a more advanced search page. That’s beyond what I can reliably guide step by step without being able to test your exact theme and setup.
+
+From here, the most practical path I can help with in this chat is (1): adjusting the “Continue selling” setting and then using the simple `item.available` filter we tried earlier.
+
+Do you want to go with that approach, or would you rather stop here and pass this to a developer/Shopify expert for a more custom inventory-based search?

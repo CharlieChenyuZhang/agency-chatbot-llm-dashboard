@@ -1,0 +1,478 @@
+### Human: Set up a CRM for personal contacts with tags
+### Assistant: You can treat this as “a simple, searchable address book with notes and follow-up reminders.” Let’s first choose the kind of tool you’re comfortable living in:
+
+1. What do you prefer?
+   - A spreadsheet (Google Sheets / Excel)
+   - A notes/database app (Notion, Obsidian, Airtable, etc.)
+   - Your existing contacts app (Google Contacts / iCloud Contacts)
+
+2. What do you want to be able to do?
+   - Tag people (e.g., “family”, “work”, “tennis”, “NYC”)
+   - Search by tags (“show me everyone tagged ‘NYC’ + ‘design’”)
+   - Track last contact date / next follow-up
+   - Get reminders?
+
+If you tell me:
+- your preferred tool,
+- and which features matter most (tags, notes, reminders),
+
+I’ll give you a very concrete, step‑by‑step setup for that specific tool.
+
+### Human: Let's do Google Sheets, and I do want tags and reminders, but I don't need anything too fancy.
+### Assistant: Great, we’ll keep it simple but useful.
+
+#### 1. Basic structure of the sheet
+
+Create a new Google Sheet with these columns:
+
+1. `Name`
+2. `Email`
+3. `Phone`
+4. `Company / Context` (how you know them)
+5. `Tags` (comma- or space-separated)
+6. `Last Contacted` (date)
+7. `Next Follow-up` (date)
+8. `Notes`
+
+That’s enough for a light personal CRM.
+
+#### 2. How to use tags in a sheet
+
+- In the `Tags` column, put tags like:
+  - `family, NYC`
+  - `work, design, conference2024`
+- To search by tag:
+  - Press `Ctrl + F` (or `Cmd + F` on Mac)
+  - Type the tag with a comma or space around it, e.g. `, NYC` to avoid partial matches.
+  - Or use **Filter**:
+    - Select the header row → Data → “Create a filter”
+    - Click the filter icon on `Tags`
+    - Use “Filter by condition” → “Text contains” → type the tag.
+
+#### 3. Simple reminders for follow-ups
+
+Easiest no-code way is:
+- Use the `Next Follow-up` column.
+- Periodically (say every Monday), open the sheet and:
+  - Filter `Next Follow-up` by “is before” → `=TODAY()` to see who you should contact.
+
+If you want actual automated reminders in your email/calendar, we can connect this to Google Calendar or use a minimal automation (e.g., via a no-code tool like Zapier) — but that’s a small extra setup. Are you okay using an external automation tool, or do you want to keep everything strictly inside Google’s ecosystem?
+
+### Human: I'd rather not use extra tools like Zapier. Can we still get reminders somehow with just Google stuff, and also without me having to code?
+### Assistant: We can stay inside Google and keep it mostly no-code, but for fully automatic reminders we’ll need at least:
+- Google Sheets
+- Google Calendar
+- A small Google Apps Script (but I’ll give you copy‑paste code and exact clicks; no real “coding” needed).
+
+If you’re okay with copy‑pasting a short script and clicking a few menu items, here’s a workable setup.
+
+#### 1. Add a “Reminder Created” column
+
+In your sheet, add:
+
+9. `Reminder Created?` (Y/N)
+
+This will help us avoid creating duplicate calendar events.
+
+#### 2. Add a named range for the table
+
+- Select your whole table including headers (A1:I…).
+- Go to **Data → Named ranges…**
+- Name it something like `Contacts`.
+
+#### 3. Open the Script editor
+
+1. In Sheets: **Extensions → Apps Script**.
+2. Delete any default code in `Code.gs` and paste this:
+
+```javascript
+function createFollowUpEvents() {
+  const sheetName = 'Sheet1'; // change if your sheet has a different name
+  const calendarName = 'Follow-ups'; // will create if not existing
+
+  const ss = SpreadsheetApp.getActive();
+  const sheet = ss.getSheetByName(sheetName);
+  const range = sheet.getDataRange();
+  const values = range.getValues();
+
+  // Find column indexes by header name
+  const headers = values[0];
+  const nameCol = headers.indexOf('Name');
+  const nextFollowUpCol = headers.indexOf('Next Follow-up');
+  const notesCol = headers.indexOf('Notes');
+  const reminderCol = headers.indexOf('Reminder Created?');
+
+  const calendar = getOrCreateCalendar_(calendarName);
+
+  for (let i = 1; i < values.length; i++) {
+    const row = values[i];
+    const contactName = row[nameCol];
+    const followUpDate = row[nextFollowUpCol];
+    const notes = row[notesCol];
+    const reminderFlag = row[reminderCol];
+
+    if (!contactName || !followUpDate) continue;
+    if (reminderFlag === 'Y') continue; // already created
+
+    // Create an all-day event on the follow-up date
+    calendar.createAllDayEvent(
+      `Follow up with ${contactName}`,
+      new Date(followUpDate),
+      { description: notes || '' }
+    );
+
+    // Mark reminder as created
+    sheet.getRange(i + 1, reminderCol + 1).setValue('Y');
+  }
+}
+
+function getOrCreateCalendar_(name) {
+  const calendars = CalendarApp.getCalendarsByName(name);
+  if (calendars.length > 0) return calendars[0];
+  return CalendarApp.createCalendar(name);
+}
+```
+
+4. Click the disk/save icon and name the project (e.g., `PersonalCRMReminders`).
+
+#### 4. Run once and authorize
+
+1. In the Apps Script window, select `createFollowUpEvents` in the dropdown.
+2. Click **Run**.
+3. It will prompt you to authorize access to your Google account (Sheets + Calendar).
+4. Approve the permissions.
+
+This first run will:
+- Create a Google Calendar called `Follow-ups`.
+- Create events for each row that has a `Next Follow-up` date and no `Y` in `Reminder Created?`.
+
+#### 5. Make it automatic (optional but recommended)
+
+1. In Apps Script: go to **Triggers** (clock icon on the left sidebar).
+2. Click **+ Add Trigger**.
+3. Choose:
+   - Function: `createFollowUpEvents`
+   - Event source: **Time-driven**
+   - Type: e.g. “Day timer”
+   - Time: something like 8–9am.
+4. Save.
+
+Now, once a day, it will:
+- Scan your sheet.
+- Add calendar reminders for new `Next Follow-up` dates.
+- Mark them with `Y` so it doesn’t duplicate.
+
+Would you like me to adjust this for a different sheet name or add logic like “only if tag contains ‘friends’ or ‘networking’”?
+
+### Human: Hm, I really don't want to copy-paste any code or touch the script editor. Is there a completely non-technical way, even if it's a bit more manual?
+### Assistant: Yes, we can keep it 100% non-technical, with a small manual step once a week. You’ll still have:
+
+- Tags in your sheet
+- Last and next contact dates
+- A simple check-in routine for reminders
+
+Here’s a non-technical workflow.
+
+#### 1. Keep the sheet structure as before
+
+Columns:
+1. `Name`
+2. `Email`
+3. `Phone`
+4. `Company / Context`
+5. `Tags`
+6. `Last Contacted`
+7. `Next Follow-up`
+8. `Notes`
+
+#### 2. Weekly review routine (no scripting)
+
+Once a week (pick a day), do this:
+
+1. Open the sheet.
+2. Click the filter icon on the header row (Data → Create a filter if you don’t see it).
+3. On `Next Follow-up`:
+   - Filter → “Filter by condition” → “Date is before” → `Today`.
+   - This shows everyone you’re overdue or due to contact.
+4. For each row shown:
+   - Reach out (email, message, call).
+   - After you’re done:
+     - Update `Last Contacted` = today’s date.
+     - Set a new `Next Follow-up` (e.g., 30 days from now).
+     - Optionally, add a quick note in `Notes`.
+
+If you like calendar-based reminders:
+
+- When you set `Next Follow-up`, manually add a Google Calendar event:
+  - Title: “Follow up with [Name]”
+  - Date: same as `Next Follow-up`
+  - Reminder: 1 day before or same day.
+
+This is 1–2 clicks per important contact and avoids any coding or automation tools.
+
+#### 3. Use tags to drive how often you follow up
+
+Decide tag-driven cadence, for example:
+- `close-friend` → every 14 days
+- `old-friend` → every 60–90 days
+- `professional` → every 45 days
+- `mentor` → every 30 days
+
+When you’re setting a new `Next Follow-up`:
+- Look at tags, choose the interval that matches.
+- Add that many days out.
+
+If you want, I can help you define a very simple “follow-up schedule” table you can keep at the top of the sheet as a reminder.
+
+### Human: Okay, let's keep it fully manual like that. But I also want this to work nicely on my phone. Using Google Sheets on a phone feels clunky. Is there another tool that does tags + basic follow-ups but stays pretty simple?
+### Assistant: For phone-friendly + simple + tags + light follow-ups, a few good options:
+
+1. **Notion**
+   - Pros: Great database views, tags, filters; mobile apps; free for personal use.
+   - Cons: Slight learning curve.
+
+2. **Airtable**
+   - Pros: Very spreadsheet-like but better for tags and views; good mobile apps.
+   - Cons: Free tier limits but might be fine for personal CRM.
+
+3. **Built-in contacts + notes app combo**
+   - Use your phone’s Contacts app for core info.
+   - Use tags as hashtags in the Notes field (`#family #NYC #work`).
+   - Use your Calendar app for follow-up reminders.
+   - Pros: Super integrated, no new app.
+   - Cons: Filtering by tags is less nice; search is basic.
+
+4. **Obsidian or similar note app**
+   - One note per person with tags like `#friend #NYC #design`.
+   - Good if you like Markdown and writing.
+
+Which of these feels closest to how you like to work on your phone: a structured app (Notion/Airtable), your built-in contacts, or a notes app?
+
+### Human: I want it to be private and encrypted, cross-platform, and preferably free or one-time cost. That makes me lean away from Airtable/Notion. Maybe Obsidian, but I don't really understand how to do a CRM with that. Can you walk me through a very concrete setup?
+### Assistant: Yes, Obsidian can work well as a private, tag-based personal CRM.
+
+Assuming:
+- You install Obsidian on your computer and phone.
+- You sync via something like Obsidian Sync (paid), or your own cloud (iCloud, Dropbox, etc.). The files themselves are just local Markdown.
+
+Here’s a concrete setup.
+
+#### 1. Create a vault and folders
+
+1. Open Obsidian → “Create new vault” → name it `Personal CRM`.
+2. Inside the vault, create folders:
+   - `People/`
+   - `Templates/`
+   - (Optional) `Groups/`, `Companies/`
+
+#### 2. Make a “Person” template
+
+1. In `Templates/`, create a new note: `Person Template`.
+2. Put this content in it:
+
+```markdown
+---
+type: person
+name: 
+tags: [ ]  # e.g. [friend, nyc, design]
+email: 
+phone: 
+context:  # how we know each other
+last_contacted: 
+next_follow_up: 
+---
+
+## Summary
+A short description of who this person is and why they matter to me.
+
+## History
+- YYYY-MM-DD – How we met or a significant interaction.
+- YYYY-MM-DD – Another note.
+
+## Follow-up ideas
+- 
+
+## Notes
+- 
+```
+
+If you use the Templates core plugin:
+- Go to **Settings → Core plugins → Templates** and enable it.
+- Set the Templates folder to `Templates`.
+
+#### 3. Create a note for each person
+
+Whenever you add a contact:
+
+1. Create a new note in `People/`, named like `Lastname, Firstname` or `Firstname Lastname`.
+2. Insert the `Person Template` (via the Templates plugin or copy-paste).
+3. Fill in:
+   - `name:`
+   - `tags: [friend, nyc, design]` (use whatever tags you like)
+   - `email:`, `phone:`
+   - `context:`
+   - `last_contacted:` (optional at first)
+   - `next_follow_up:` (optional at first)
+
+#### 4. Using tags
+
+You can:
+- Use the `tags:` field in the frontmatter as your structured tags.
+- Also sprinkle `#friend`, `#nyc` etc. in the body if you like.
+
+To find people by tag:
+- Use the **Search** in Obsidian and search for `tag:friend` (if you use frontmatter tags).
+- Or search for `#friend` (if you use inline tags).
+
+If you install the **Dataview** community plugin (optional, a bit more advanced), you can even create lists like:
+```dataview
+table name, email, next_follow_up
+from "People"
+where contains(tags, "friend")
+sort next_follow_up asc
+```
+But we can keep it simple at first.
+
+#### 5. Follow-up reminders (low-tech way)
+
+Obsidian itself doesn’t do reminders, so we use a hybrid:
+
+Option A: Use **your calendar** for reminders
+- When you set `next_follow_up:` in a note, manually add a calendar event:
+  - Title: “Follow up with [Name]”
+  - Paste the Obsidian note link if your calendar supports it (e.g., a URL or just the name).
+- On phone, when the reminder fires, open Obsidian and search the person’s name.
+
+Option B: Use Obsidian only, with a “Today” review
+- Create a note called `Follow-ups` or `Dashboard`.
+- At the top, write your simple rule of thumb:
+  - `friend` → 30 days
+  - `close-friend` → 14 days
+  - `professional` → 45 days
+- Once a week, search `next_follow_up:` in Obsidian and scan manually, or keep a small list of upcoming follow-ups in the `Follow-ups` note.
+
+Would you like to keep it plugin-free (just search + tags + a weekly review note), or are you open to a single plugin like Dataview to auto-list people by tag or next follow-up?
+
+### Human: Let's keep it plugin-free for now. But I’m still not clear on how I actually find, say, all "design" people in NYC that I haven't talked to in 60 days. Can that be done without plugins?
+### Assistant: Without plugins, Obsidian can’t do true “queries” like a database, but you can approximate it with consistent text patterns and search. It’s more manual than Sheets, but still workable.
+
+Here’s a lightweight pattern.
+
+#### 1. Standardize your fields
+
+In each person note, use this exact frontmatter format:
+
+```markdown
+---
+type: person
+name: Jane Doe
+tags: [design, nyc]
+last_contacted: 2025-02-01
+---
+```
+
+Keep:
+- Dates in `YYYY-MM-DD` format.
+- `tags` all lowercase, single words if possible (`design`, not `Design Person`).
+
+#### 2. Searching by tag combination
+
+To find “design” people in NYC:
+
+- Use Obsidian search and type:
+  - `tags: design tag: nyc` if you put `#design` and `#nyc` in the body, or
+  - `design nyc` if those words appear only in tags/frontmatter and not randomly elsewhere.
+
+If you prefer inline tags:
+- Inside the note body or frontmatter, put `#design #nyc`.
+- Then in search: `tag:#design tag:#nyc`.
+
+#### 3. Approximating “haven’t talked to in 60 days”
+
+This part is where Obsidian is weaker without plugins. You can do it in a semi-manual way:
+
+- In your weekly review:
+  1. Search for `last_contacted:` to see all notes that have a date.
+  2. Sort results by “Modified time” or use the file list pane and sort notes by **Modified** or **Created** as a rough proxy.
+  3. Focus on older ones (you can eyeball dates like 2+ months ago).
+
+A stricter method (still manual):
+- Once a month, pick a date (e.g., today - 60 days).
+- Search for a past month (like `2025-01` or `2024-12`) in the `last_contacted:` field.
+- Combine that with tag search.
+
+Example:
+- Search: `tag:#design tag:#nyc last_contacted:2024-12`
+  - This finds NYC designers you last contacted in December 2024.
+- Replace the month manually depending on what “60 days ago” roughly is.
+
+It’s not as precise as a formula, but it’s private and plugin-free.
+
+If this feels too clunky, we might need to either:
+- Relax the “no plugins” rule and use Dataview to generate lists,
+- Or relax the “no Sheets”/“no automation” rule for better date filtering.
+
+Which constraint are you more willing to soften: adding one trusted plugin in Obsidian, or using a simple Google Sheet alongside Obsidian for the last-contact/next-follow-up logic?
+
+### Human: I'd rather not deal with plugins or scripts at all. This is starting to feel like work. Is there an even simpler way to do a personal CRM with tags, maybe just using text files or notes, that I can realistically keep up with?
+### Assistant: Yes. Let’s drop “fancy queries” and aim for “easy enough that you’ll actually use it.”
+
+Here’s a very simple, low-friction system using plain notes (in Obsidian or any notes app that supports search).
+
+#### 1. One note per person, minimal structure
+
+For each person, create a note like:
+
+```markdown
+Jane Doe
+#friend #nyc #design
+
+Email: jane@example.com
+Phone: +1-555-000-0000
+Context: Met at XYZ
+
+Last contacted: 2025-02-01
+
+History:
+- 2025-02-01 – Coffee at ABC, talked about project ideas.
+- 2024-11-10 – Met at conference.
+
+Next follow-up idea:
+- Around March 2025 – Send article about design trends.
+```
+
+Rules:
+- Always put tags (hashtags) on the second line.
+- Always use `Last contacted:` and `History:` in the same way.
+
+#### 2. How you actually use it
+
+- To find “design + NYC”: search for `#design #nyc`.
+- To see who you haven’t talked to in a while:
+  - Once a week/month, search for `Last contacted:` and scroll through.
+  - Focus on entries where the last date looks older than ~2 months.
+- When you contact someone:
+  - Update `Last contacted:` to today.
+  - Add a line under `History:` with the new date and what happened.
+
+#### 3. Light follow-up reminders
+
+Instead of trying to automate everything:
+
+- During your weekly review:
+  1. Pick 5–10 people you want to nudge.
+  2. For each, add a one-off reminder in your calendar or task app:
+     - Title: “Check in with Jane Doe”
+     - Date: sometime in the next 2–4 weeks.
+  3. Optionally, jot that planned date in `Next follow-up idea:` in their note.
+
+This way:
+- Tags are just hashtags in notes.
+- Search is just text search.
+- “Reminders” are just calendar events you create for a small subset, not every contact.
+
+Given your constraints (private, simple, no plugins, no scripts), this is close to the practical limit. Anything more automated will pull you back into scripts, plugins, or dedicated CRM tools.
+
+If you’d like, I can:
+- Help you define a 10–15 minute weekly routine around this,
+- Or we can stop here with this simple pattern as your starting point and you can adapt it as you go.

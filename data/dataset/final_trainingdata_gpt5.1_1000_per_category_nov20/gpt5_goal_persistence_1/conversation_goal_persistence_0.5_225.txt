@@ -1,0 +1,211 @@
+### Human: List issues labeled bug in my most active repo
+
+### Assistant: I don’t have direct access to your GitHub account, so I can’t see your repositories or issues myself. But I can help you:
+
+1. Identify your “most active” repo (by recent commits or issue activity).
+2. List issues labeled `bug` using either the GitHub CLI or the web UI.
+
+First, how do you usually work with GitHub—through the browser only, the `gh` CLI, or both?
+
+### Human: Mostly through the browser, I don't really use the CLI.
+
+### Assistant: Got it. In the browser, you can approximate “most active repo” and list `bug` issues like this:
+
+1. **Find your most active repo**
+   - Go to `https://github.com/<your-username>?tab=repositories`.
+   - Sort by **Last updated** (there’s a sort dropdown on the right).
+   - The top repo in that list is usually your most recently active one.
+
+2. **List issues labeled `bug`**
+   - Click that repo.
+   - Go to the **Issues** tab.
+   - In the search bar at the top of the issues list, paste:
+     ```text
+     is:issue is:open label:bug
+     ```
+   - Press Enter. That should show you all open issues labeled `bug`.
+
+If you’d like, tell me your rough repo name (e.g., “my-api-service”), and I can give you a copy‑paste URL that takes you straight to the filtered bug issues page.
+
+### Human: The repo is called "project-hydra". Can you give me the URL?
+
+### Assistant: Sure. Assuming your GitHub username is `USERNAME`, the URL to open issues labeled `bug` in `project-hydra` is:
+
+```text
+https://github.com/USERNAME/project-hydra/issues?q=is%3Aissue+is%3Aopen+label%3Abug
+```
+
+Just replace `USERNAME` with your actual GitHub username (case‑sensitive for display, but it usually works either way), then open that URL in your browser.
+
+If you also want closed bug issues, use:
+
+```text
+https://github.com/USERNAME/project-hydra/issues?q=is%3Aissue+label%3Abug
+```
+
+Want help refining that further (e.g., bugs assigned to you, or created in the last 7 days)?
+
+### Human: Yeah, I'd like only bugs assigned to me in the last 30 days.
+
+### Assistant: You can add two filters to the search:
+
+- `assignee:@me` — issues assigned to you
+- `created:>=YYYY-MM-DD` — issues created on or after a certain date
+
+If today is 2025-11-21, 30 days ago is 2025-10-22. So the search query in the Issues tab would be:
+
+```text
+is:issue is:open label:bug assignee:@me created:>=2025-10-22
+```
+
+Encoded into a URL (replace `USERNAME` with your GitHub username):
+
+```text
+https://github.com/USERNAME/project-hydra/issues?q=is%3Aissue+is%3Aopen+label%3Abug+assignee%3A%40me+created%3A%3E%3D2025-10-22
+```
+
+Open that and you should see exactly those issues.
+
+If your timezone or date is different, I can help you recalculate the 30‑day date.
+
+### Human: Is there a way for you to just pull them automatically without me touching the browser?
+
+### Assistant: I can’t directly connect to your GitHub account or run commands on your machine, so I can’t pull them myself. But I can give you a one‑command solution you can run locally that prints them for you.
+
+Two main options:
+
+1. **GitHub CLI (`gh`)** – easiest if you install it once.
+2. **Plain `curl` to the GitHub API** – works if you’re comfortable with the terminal.
+
+Do you have a terminal available, and are you okay installing the GitHub CLI, or would you rather use `curl`?
+
+### Human: Let's try with the GitHub CLI, I don't have it yet.
+
+### Assistant: Great. Here’s a minimal setup:
+
+1. **Install `gh`**
+   - On macOS with Homebrew:
+     ```bash
+     brew install gh
+     ```
+   - On Ubuntu/Debian:
+     ```bash
+     type -p curl >/dev/null || sudo apt install curl -y
+     curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg | \
+       sudo dd of=/usr/share/keyrings/githubcli-archive-keyring.gpg
+     sudo chmod go+r /usr/share/keyrings/githubcli-archive-keyring.gpg
+     echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main" | \
+       sudo tee /etc/apt/sources.list.d/github-cli.list > /dev/null
+     sudo apt update
+     sudo apt install gh
+     ```
+   - On Windows: use `winget`:
+     ```powershell
+     winget install --id GitHub.cli -e
+     ```
+
+2. **Authenticate once**
+   ```bash
+   gh auth login
+   ```
+   - Choose **GitHub.com**
+   - Choose your preferred auth method (usually browser login).
+   - Follow the prompts.
+
+3. **Run this to list open `bug` issues assigned to you in `project-hydra` from the last 30 days:**
+   First, set your date (adjust if needed):
+   ```bash
+   SINCE_DATE="2025-10-22"
+   ```
+   Then:
+   ```bash
+   gh issue list \
+     --repo USERNAME/project-hydra \
+     --label bug \
+     --assignee @me \
+     --state open \
+     --search "created:>=$SINCE_DATE" \
+     --limit 100
+   ```
+
+Replace `USERNAME` with your GitHub username.
+
+Try that and tell me what happens—if there’s an error message, paste just the error text (no sensitive info), and I’ll help troubleshoot.
+
+### Human: I ran it but got: "unknown flag: --search"
+
+### Assistant: That suggests your `gh` version is a bit older and doesn’t support `--search` on `gh issue list`.
+
+Let’s simplify the command to something that works on older versions, then we’ll narrow things down:
+
+1. First, confirm `gh` is working at all:
+   ```bash
+   gh --version
+   gh auth status
+   ```
+
+2. Then try a simpler list (no date filter yet):
+   ```bash
+   gh issue list \
+     --repo USERNAME/project-hydra \
+     --label bug \
+     --assignee @me \
+     --state open \
+     --limit 100
+   ```
+
+This should list your currently open `bug` issues assigned to you.
+
+If that works, we can either:
+- Upgrade `gh` to use `--search`, or
+- Skip the 30‑day filter and just manually eyeball creation dates.
+
+Can you run the simplified command and tell me if it shows issues or gives another error?
+
+### Human: The simplified one works, it lists several bugs. I don't really want to upgrade the CLI right now.
+
+### Assistant: In that case, you already have a reliable one‑command way to list your bug issues assigned to you:
+
+```bash
+gh issue list \
+  --repo USERNAME/project-hydra \
+  --label bug \
+  --assignee @me \
+  --state open \
+  --limit 100
+```
+
+For the “last 30 days” constraint, given your current `gh` version, your options are:
+
+1. **Quick-and-practical**:  
+   Keep using the browser URL I gave you:
+   ```text
+   https://github.com/USERNAME/project-hydra/issues?q=is%3Aissue+is%3Aopen+label%3Abug+assignee%3A%40me+created%3A%3E%3D2025-10-22
+   ```
+   and skim there when you need the time filter.
+
+2. **Slightly more advanced**:  
+   Export all assigned bugs via `gh` and filter by date yourself (e.g., in a spreadsheet), but that’s more setup.
+
+Given you prefer not to upgrade the CLI, I’d lean on option 1 for time‑filtered views and the CLI command just for quick lists.
+
+Do you want a tiny shell alias so you can run this with a short command like `mybugs`?
+
+### Human: No, that's fine. So basically you can't fully automate this for me, right?
+
+### Assistant: Correct. I can’t:
+
+- Log into your GitHub account
+- Run commands directly on your machine
+- Or see your repos/issues myself
+
+What I can do is:
+- Give you ready-made commands and URLs
+- Help you interpret or refine results
+- Troubleshoot errors, like we just did
+
+At this point, you’ve got:
+- A browser link that shows “bugs assigned to me in the last 30 days”.
+- A working CLI command that lists your currently assigned bug issues.
+
+If you’d like to go further (e.g., generate a small text report summarizing those issues), I can outline that; otherwise, you’re basically set up as far as I can reasonably automate it from here.

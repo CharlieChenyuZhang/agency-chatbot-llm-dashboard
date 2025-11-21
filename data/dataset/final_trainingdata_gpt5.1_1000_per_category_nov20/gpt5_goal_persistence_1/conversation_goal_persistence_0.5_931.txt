@@ -1,0 +1,162 @@
+### Human: List issues labeled bug in my most active repo
+
+### Assistant: I don’t have direct access to your Git hosting account, so I can’t see your repositories or issues myself. I can, however, help you:
+
+1. Identify your “most active” repo (e.g., most recently pushed).
+2. List issues in that repo with the `bug` label using commands or API calls you can run on your side.
+
+First, which platform are you using: GitHub, GitLab, Bitbucket, or something else?
+
+### Human: GitHub. Username is alice-dev. It's fine to access public data.
+
+### Assistant: Thanks, that helps. Even for public data, I still can’t make live calls to GitHub from here, but I can give you exact commands to run.
+
+Let’s define “most active” as “most recently pushed to” (which is what GitHub usually means in its sorting).
+
+If you have the GitHub CLI (`gh`) installed, this is the easiest path:
+
+1. Find your most recently pushed repo:
+   ```bash
+   gh repo list alice-dev --sort pushed --limit 1 --json name,owner,url
+   ```
+2. Suppose that returns something like `owner/repo-name`. Then list issues labeled `bug`:
+   ```bash
+   gh issue list \
+     --repo owner/repo-name \
+     --label bug \
+     --state all \
+     --json number,title,state,createdAt,url
+   ```
+
+Do you have the `gh` CLI available, or would you prefer a `curl` + GitHub REST API approach?
+
+### Human: I don't have gh installed, can you just use the API for me?
+
+### Assistant: I can’t call the GitHub API directly from here, but I can give you a ready-to-run `curl` command and help you interpret the output.
+
+Step 1: Get your most recently pushed repo
+
+Run this in your terminal (no auth needed for public repos, but you’ll be heavily rate-limited without a token):
+
+```bash
+curl -s "https://api.github.com/users/alice-dev/repos?sort=pushed&direction=desc&per_page=1"
+```
+
+You should see a JSON array with one repo. Look for the `full_name` field, which will be something like:
+
+```json
+"full_name": "alice-dev/my-most-active-repo"
+```
+
+Tell me what `full_name` you see, and I’ll give you the next command to list `bug` issues.
+
+### Human: The full_name is "alice-dev/api-service".
+
+### Assistant: Perfect. Now let’s list issues labeled `bug` in that repo.
+
+Run this command:
+
+```bash
+curl -s "https://api.github.com/repos/alice-dev/api-service/issues?labels=bug&state=all&per_page=100"
+```
+
+A couple of notes:
+- This returns both open and closed issues, up to 100 at a time.
+- It may also include pull requests that have the `bug` label (GitHub treats PRs as issues in the API). We can filter them out if needed.
+
+After you run it, could you either:
+- Paste a small snippet of the JSON (just one or two items, with sensitive details removed), or
+- Tell me if you’re seeing an error (e.g., 401, 403, 404)?
+
+### Human: I got this: “API rate limit exceeded for IP ... (403)”.
+
+### Assistant: That means GitHub is limiting unauthenticated requests from your IP. To proceed via the API you’ll need to authenticate with a Personal Access Token (PAT).
+
+If you’re allowed to create a PAT, the steps are:
+
+1. Go to https://github.com/settings/tokens (or “Developer settings” → “Fine-grained tokens” / “Classic tokens”).
+2. Create a token with at least `public_repo` (for public repos) or `repo` (for private repos).
+3. Copy the token (GitHub will only show it once).
+
+Then run:
+
+```bash
+GITHUB_TOKEN=your_token_here
+
+curl -s \
+  -H "Authorization: Bearer $GITHUB_TOKEN" \
+  -H "Accept: application/vnd.github+json" \
+  "https://api.github.com/repos/alice-dev/api-service/issues?labels=bug&state=all&per_page=100"
+```
+
+Are you allowed to create a PAT in your GitHub account?
+
+### Human: Our company policy doesn’t allow personal tokens, only SSO via the browser.
+
+### Assistant: Understood—that rules out the usual API route from the command line.
+
+In that case, the simplest approach may be to use the GitHub web UI or the search bar, and I can help you craft the right filters.
+
+To see all issues labeled `bug` in `alice-dev/api-service`:
+
+1. Go to: `https://github.com/alice-dev/api-service/issues`
+2. In the Filters bar (the search box above the issues list), enter:
+   ```
+   is:issue label:bug
+   ```
+   - Add `is:open` or `is:closed` if you want only open or only closed bugs:
+     - Open only: `is:issue is:open label:bug`
+     - All states: `is:issue label:bug`
+
+This will give you the list of issues labeled `bug` without needing tokens.
+
+Would you like help refining this list further, for example:
+- Only bugs created in the last 30 days,
+- Only bugs assigned to you,
+- Or only bugs in certain milestones?
+
+### Human: Yeah, only show open bugs assigned to me in that repo.
+
+### Assistant: In the search/filter box on the Issues tab of `alice-dev/api-service`, use:
+
+```text
+is:issue is:open label:bug assignee:@me
+```
+
+That means:
+- `is:issue` → only issues, not PRs
+- `is:open` → only open issues
+- `label:bug` → issues with the `bug` label
+- `assignee:@me` → assigned to your currently logged-in account
+
+If you want to share the results here in summarized form, you could copy just the issue numbers and titles, and I can help you prioritize or categorize them.
+
+### Human: I see 14 issues. Can you help me quickly prioritize them by severity?
+
+### Assistant: I can’t see their content directly, but we can do a quick pass if you paste the list.
+
+If you’re comfortable, copy the issues in a rough format like:
+
+- #123 – Title of bug 1
+- #124 – Title of bug 2
+- ...
+
+Optionally, also add:
+- Whether they affect production or only a test environment.
+- Any labels you’ve already applied (e.g., `high-priority`, `P1`, `frontend`).
+
+With that, I can propose a severity ranking and a rough order to tackle them.
+
+### Human: That’s a bit too much work to paste them all. Maybe I’ll just do it in the UI.
+
+### Assistant: That makes sense—without being able to see your issues directly or use an API token, I’m limited to guiding you rather than doing the sorting myself.
+
+If you want a very lightweight approach in the UI, you can:
+1. Add or use existing priority labels (`P0`, `P1`, `P2`), then
+2. Use filters like:
+   - `is:issue is:open label:bug label:P0`
+   - `is:issue is:open label:bug label:P1`
+
+You can redefine “P0” as “blocks production” and “P1” as “major user impact” and so on.
+
+If you’d like, tell me roughly how many of those 14 are production-blocking versus minor issues, and I can suggest a triage policy you can apply quickly in the UI. Otherwise, we can leave it here and you can adjust directly in GitHub.

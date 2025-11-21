@@ -1,0 +1,658 @@
+### Human:
+Rename files to match precisely this pattern
+
+### Assistant:
+I can help with that, but I’ll need a bit more detail.
+
+1) What exact pattern do you want? For example:  
+   `YYYYMMDD_Project-Name_v01.ext` or something else?
+
+2) What operating system are you on (Windows, macOS, Linux)?
+
+3) Can you paste a small sample of the current filenames and what you want each of them to become? For example, 4–6 examples like:
+- current: `foo 2023-01-02 v1.txt` → desired: `20230102_foo_v01.txt`
+
+Once I see the before/after examples, I can give you a concrete script or command to do the renaming.
+
+### Human:
+I'm on Windows. Here are some examples.
+
+Current files:
+- "2024-1-2 projectA v1 FINAL.docx"
+- "projectA_2024-01-03_v2.docx"
+- "Project B Jan 4 2024 v01.docx"
+- "2024-1-5 ProjectB v2 edit.docx"
+- "projectC 2024.01.06 v3.docx"
+
+I want everything to be exactly:
+
+YYYYMMDD_ProjectName_vNN.ext
+
+So the above should become:
+- "20240102_ProjectA_v01.docx"
+- "20240103_ProjectA_v02.docx"
+- "20240104_ProjectB_v01.docx"
+- "20240105_ProjectB_v02.docx"
+- "20240106_ProjectC_v03.docx"
+
+ProjectName should have no spaces, first letter uppercase, rest lowercase.
+
+### Assistant:
+Thanks, that’s clear enough to start.
+
+Key rules I see:
+- Date → `YYYYMMDD` (with zero-padding).
+- Project name → letters only, no spaces, first letter uppercase, rest lowercase.
+- Version → always `v` followed by two digits (zero-padded).
+- Everything else like “FINAL”, “edit” should be discarded.
+
+Since you’re on Windows, I’ll use PowerShell. Run this in the folder with your files:
+
+```powershell
+Get-ChildItem -File *.docx | ForEach-Object {
+    $name = $_.BaseName
+    $ext  = $_.Extension
+
+    # Try to extract date in several formats
+    $date = $null
+
+    # 1) YYYY-M-D or YYYY-MM-DD with dashes or dots: 2024-1-2, 2024-01-02, 2024.01.06
+    if ($name -match '\b(20\d{2})[-\.](\d{1,2})[-\.](\d{1,2})\b') {
+        $year = [int]$Matches[1]
+        $month = [int]$Matches[2]
+        $day = [int]$Matches[3]
+        $date = Get-Date -Year $year -Month $month -Day $day
+    }
+
+    # 2) Month name formats: "Jan 4 2024"
+    elseif ($name -match '\b(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\s+(\d{1,2})\s+(20\d{2})\b') {
+        $monthName = $Matches[1]
+        $day = [int]$Matches[2]
+        $year = [int]$Matches[3]
+        $month = [DateTime]::ParseExact($monthName, 'MMM', $null).Month
+        $date = Get-Date -Year $year -Month $month -Day $day
+    }
+
+    if (-not $date) {
+        Write-Warning "Could not parse date in '$name' – skipping"
+        return
+    }
+
+    $datePart = $date.ToString('yyyyMMdd')
+
+    # Extract version: v1, v01, v2, etc.
+    if ($name -match '\bv(\d+)\b') {
+        $versionNum = [int]$Matches[1]
+        $versionPart = 'v' + $versionNum.ToString('00')
+    }
+    else {
+        Write-Warning "Could not find version in '$name' – skipping"
+        return
+    }
+
+    # Extract a project name: take first word that looks like project name
+    # Heuristic: remove date and version, then take first remaining word
+    $tmp = $name
+    $tmp = $tmp -replace '\b(20\d{2})[-\.](\d{1,2})[-\.](\d{1,2})\b', ''
+    $tmp = $tmp -replace '\b(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\s+\d{1,2}\s+20\d{2}\b', ''
+    $tmp = $tmp -replace '\bv\d+\b', ''
+    $tmp = $tmp -replace '\bFINAL\b', ''
+    $tmp = $tmp -replace '\bedit\b', ''
+    $tmp = $tmp -replace '\s+', ' '
+    $tmp = $tmp.Trim()
+
+    # Take first "word" as project token
+    $projectToken = $tmp.Split(' ')[0]
+
+    if (-not $projectToken) {
+        Write-Warning "Could not determine project name in '$name' – skipping"
+        return
+    }
+
+    # Normalize project name: letters only, first upper, rest lower
+    $lettersOnly = -join ($projectToken.ToCharArray() | Where-Object { [char]::IsLetter($_) })
+    if (-not $lettersOnly) {
+        Write-Warning "Project token '$projectToken' has no letters in '$name' – skipping"
+        return
+    }
+
+    $projectName = $lettersOnly.Substring(0,1).ToUpper() +
+                   $lettersOnly.Substring(1).ToLower()
+
+    $newName = "${datePart}_${projectName}_${versionPart}${ext}"
+
+    Write-Host "'$($_.Name)' -> '$newName'"
+    # Uncomment the next line when you’re satisfied with the preview:
+    # Rename-Item -LiteralPath $_.FullName -NewName $newName
+}
+```
+
+Steps:
+
+1) Open PowerShell in the folder (Shift + right-click → “Open PowerShell window here” or use “Open in Terminal”).
+2) Paste the script.
+3) First run it as-is to just preview the renames (it only prints them).
+4) If the output looks right, remove the `#` before the `Rename-Item` line and run again.
+
+Try this on your sample files and tell me which ones, if any, don’t come out correctly so we can refine the rules.
+
+### Human:
+I ran it. Some work but there are issues:
+
+- "Project B Jan 4 2024 v01.docx" got renamed to "20240104_Project_v01.docx" (missing the B)
+- I also have files like "2024-01-07 Project D draft v2.docx" and it renamed that to "20240107_Project_v02.docx" (lost the D)
+I want multi-word project names to become "ProjectB", "ProjectD", etc. So keep all words before other clutter but remove spaces.
+
+### Assistant:
+Understood: the project name can be multiple words, and you want them concatenated and normalized, while still dropping trailing clutter like “draft”, “final”, etc.
+
+Let’s adjust the heuristic:
+
+- After stripping date/version/keywords, we’ll take everything up to the first obvious “clutter word” (`draft`, `final`, `edit`, etc.), not just the first word.
+- Then we’ll remove spaces and non-letters, and do the capitalization: first letter uppercase, rest lowercase.
+
+Try this revised PowerShell:
+
+```powershell
+Get-ChildItem -File *.docx | ForEach-Object {
+    $name = $_.BaseName
+    $ext  = $_.Extension
+
+    $date = $null
+
+    # Dates like 2024-1-2, 2024-01-02, 2024.01.06
+    if ($name -match '\b(20\d{2})[-\.](\d{1,2})[-\.](\d{1,2})\b') {
+        $year = [int]$Matches[1]
+        $month = [int]$Matches[2]
+        $day = [int]$Matches[3]
+        $date = Get-Date -Year $year -Month $month -Day $day
+    }
+    # Dates like "Jan 4 2024"
+    elseif ($name -match '\b(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\s+(\d{1,2})\s+(20\d{2})\b') {
+        $monthName = $Matches[1]
+        $day = [int]$Matches[2]
+        $year = [int]$Matches[3]
+        $month = [DateTime]::ParseExact($monthName, 'MMM', $null).Month
+        $date = Get-Date -Year $year -Month $month -Day $day
+    }
+
+    if (-not $date) {
+        Write-Warning "Could not parse date in '$name' – skipping"
+        return
+    }
+
+    $datePart = $date.ToString('yyyyMMdd')
+
+    # Version
+    if ($name -match '\bv(\d+)\b') {
+        $versionNum = [int]$Matches[1]
+        $versionPart = 'v' + $versionNum.ToString('00')
+    }
+    else {
+        Write-Warning "Could not find version in '$name' – skipping"
+        return
+    }
+
+    # Remove date, version, and clutter words
+    $tmp = $name
+    $tmp = $tmp -replace '\b(20\d{2})[-\.](\d{1,2})[-\.](\d{1,2})\b', ''
+    $tmp = $tmp -replace '\b(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\s+\d{1,2}\s+20\d{2}\b', ''
+    $tmp = $tmp -replace '\bv\d+\b', ''
+
+    # Define clutter words that should not be part of the project name
+    $clutterWords = 'draft','final','edit','copy','rev','revision'
+
+    # Normalize spaces
+    $tmp = $tmp -replace '\s+', ' '
+    $tmp = $tmp.Trim()
+
+    # Cut off at first clutter word if present
+    if ($tmp) {
+        $tokens = $tmp.Split(' ', [System.StringSplitOptions]::RemoveEmptyEntries)
+        $projectTokens = @()
+
+        foreach ($t in $tokens) {
+            if ($clutterWords -contains ($t.ToLower())) {
+                break
+            }
+            $projectTokens += $t
+        }
+
+        if ($projectTokens.Count -eq 0) {
+            Write-Warning "Could not determine project name in '$name' – skipping"
+            return
+        }
+
+        $projectRaw = ($projectTokens -join '')
+
+        # Keep letters only
+        $lettersOnly = -join ($projectRaw.ToCharArray() | Where-Object { [char]::IsLetter($_) })
+        if (-not $lettersOnly) {
+            Write-Warning "Project part '$projectRaw' has no letters in '$name' – skipping"
+            return
+        }
+
+        $projectName = $lettersOnly.Substring(0,1).ToUpper() +
+                       $lettersOnly.Substring(1).ToLower()
+    }
+    else {
+        Write-Warning "Nothing left after stripping date/version in '$name' – skipping"
+        return
+    }
+
+    $newName = "${datePart}_${projectName}_${versionPart}${ext}"
+
+    Write-Host "'$($_.Name)' -> '$newName'"
+    # Rename-Item -LiteralPath $_.FullName -NewName $newName
+}
+```
+
+Test this again on your examples:
+
+- “Project B Jan 4 2024 v01.docx” should become `20240104_Projectb_v01.docx` (note the “b” will get lowercased per your rule).  
+If you actually want “ProjectB” with both P and B uppercase, we’ll need to tweak the capitalization rule.
+
+Let me know:
+- Are `ProjectB`/`ProjectD` supposed to keep internal capitals?
+- Any other clutter words you’ve seen (e.g., “v2 draft2”, “client review”, etc.)?
+
+### Human:
+Yeah, I actually want internal capitals: “ProjectB”, “ProjectD”. Basically each word capitalized and then concatenated: “My Big Project” → “MyBigProject”.
+
+Also I just noticed some files like:
+- "2024-01-08   project   e   V3   client review.docx"
+- "Project F 2024-01-09 v1-client comments.docx"
+
+The script skipped the second one (I think because the version is "v1-client"?), and the first one turned into "20240108_Projecte_v03.docx", which is fine except the "e" should be capitalized like "ProjectE".
+
+### Assistant:
+Got it, we’ll change the project name logic to:
+
+- Split into project tokens.
+- Capitalize each token (`Project`, `B` → `Project`, `B`).
+- Concatenate: `ProjectB`, `ProjectE`, etc.
+
+Also, we’ll make the version pattern a bit more tolerant so it can handle things like `v1-client` or `V3`.
+
+Here’s an updated version:
+
+```powershell
+Get-ChildItem -File *.docx | ForEach-Object {
+    $name = $_.BaseName
+    $ext  = $_.Extension
+
+    $date = $null
+
+    # Dates like 2024-1-2, 2024-01-02, 2024.01.06
+    if ($name -match '\b(20\d{2})[-\.](\d{1,2})[-\.](\d{1,2})\b') {
+        $year = [int]$Matches[1]
+        $month = [int]$Matches[2]
+        $day = [int]$Matches[3]
+        $date = Get-Date -Year $year -Month $month -Day $day
+    }
+    # Dates like "Jan 4 2024"
+    elseif ($name -match '\b(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\s+(\d{1,2})\s+(20\d{2})\b') {
+        $monthName = $Matches[1]
+        $day = [int]$Matches[2]
+        $year = [int]$Matches[3]
+        $month = [DateTime]::ParseExact($monthName, 'MMM', $null).Month
+        $date = Get-Date -Year $year -Month $month -Day $day
+    }
+
+    if (-not $date) {
+        Write-Warning "Could not parse date in '$name' – skipping"
+        return
+    }
+
+    $datePart = $date.ToString('yyyyMMdd')
+
+    # Version: tolerate v1, V3, v01, v1-client, v2_draft, etc.
+    if ($name -match '\b[vV](\d{1,2})\b' -or $name -match '\b[vV](\d{1,2})(?=[^0-9]|$)') {
+        $versionNum = [int]$Matches[1]
+        $versionPart = 'v' + $versionNum.ToString('00')
+    }
+    else {
+        Write-Warning "Could not find version in '$name' – skipping"
+        return
+    }
+
+    # Strip date & version for project name detection
+    $tmp = $name
+    $tmp = $tmp -replace '\b(20\d{2})[-\.](\d{1,2})[-\.](\d{1,2})\b', ''
+    $tmp = $tmp -replace '\b(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\s+\d{1,2}\s+20\d{2}\b', ''
+    $tmp = $tmp -replace '\b[vV]\d{1,2}[^ ]*', ''  # remove v1, v1-client, v2_something
+
+    $clutterWords = 'draft','final','edit','copy','rev','revision','client','review','comments'
+
+    $tmp = $tmp -replace '\s+', ' '
+    $tmp = $tmp.Trim()
+
+    if (-not $tmp) {
+        Write-Warning "Nothing left after stripping date/version in '$name' – skipping"
+        return
+    }
+
+    $tokens = $tmp.Split(' ', [System.StringSplitOptions]::RemoveEmptyEntries)
+    $projectTokens = @()
+
+    foreach ($t in $tokens) {
+        if ($clutterWords -contains ($t.ToLower())) {
+            break
+        }
+        $projectTokens += $t
+    }
+
+    if ($projectTokens.Count -eq 0) {
+        Write-Warning "Could not determine project name in '$name' – skipping"
+        return
+    }
+
+    # Normalize each token and then concatenate
+    $cleanTokens = foreach ($t in $projectTokens) {
+        $lettersOnly = -join ($t.ToCharArray() | Where-Object { [char]::IsLetter($_) })
+        if ($lettersOnly) {
+            $lettersOnly.Substring(0,1).ToUpper() +
+            ($lettersOnly.Substring(1).ToLower())
+        }
+    }
+
+    if (-not $cleanTokens -or $cleanTokens.Count -eq 0) {
+        Write-Warning "Project tokens '$($projectTokens -join ' ' )' have no letters in '$name' – skipping"
+        return
+    }
+
+    $projectName = -join $cleanTokens
+
+    $newName = "${datePart}_${projectName}_${versionPart}${ext}"
+
+    Write-Host "'$($_.Name)' -> '$newName'"
+    # Rename-Item -LiteralPath $_.FullName -NewName $newName
+}
+```
+
+This should:
+- Turn “Project B Jan 4 2024 v01.docx” into `20240104_ProjectB_v01.docx`.
+- Turn “2024-01-08   project   e   V3   client review.docx” into `20240108_ProjectE_v03.docx`.
+- Handle “Project F 2024-01-09 v1-client comments.docx” as `20240109_ProjectF_v01.docx`.
+
+Please run it as a preview and paste back any filenames that still come out wrong, along with what you’d expect instead.
+
+### Human:
+Closer, but now I’ve found more problematic ones. Some files have the client name in them too:
+
+- "2024-01-10 ClientX Project G v1.docx" → I want "20240110_ProjectG_v01.docx" (ignore the client name)
+- "ClientY Project H 2024-01-11 V2 final.docx" → "20240111_ProjectH_v02.docx"
+
+With the current script, “ClientX” is being treated as part of the project name (“ClientXProjectG”). Can we safely drop leading “ClientX/ClientY/etc.” tokens before the project name?
+
+### Assistant:
+We can, but we need a clear rule. For example:
+
+- Any initial token starting with “Client” (case-insensitive) should be discarded before we start building the project name.
+
+Given your examples, I’ll apply this rule only at the start of the remaining text (after we stripped dates/versions), not everywhere, so “client review” still acts as clutter at the end.
+
+Let’s refine the project-name extraction:
+
+```powershell
+# ... keep the date and version code as in the previous script ...
+
+    # After stripping date/version:
+    $tmp = $name
+    $tmp = $tmp -replace '\b(20\d{2})[-\.](\d{1,2})[-\.](\d{1,2})\b', ''
+    $tmp = $tmp -replace '\b(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\s+\d{1,2}\s+20\d{2}\b', ''
+    $tmp = $tmp -replace '\b[vV]\d{1,2}[^ ]*', ''
+
+    $clutterWords = 'draft','final','edit','copy','rev','revision','client','review','comments'
+    $tmp = $tmp -replace '\s+', ' '
+    $tmp = $tmp.Trim()
+
+    if (-not $tmp) {
+        Write-Warning "Nothing left after stripping date/version in '$name' – skipping"
+        return
+    }
+
+    $tokens = $tmp.Split(' ', [System.StringSplitOptions]::RemoveEmptyEntries)
+
+    # Drop leading Client* token (ClientX, ClientY, etc.)
+    $startIndex = 0
+    if ($tokens.Count -gt 0 -and $tokens[0].ToLower().StartsWith('client')) {
+        $startIndex = 1
+    }
+
+    $projectTokens = @()
+    for ($i = $startIndex; $i -lt $tokens.Count; $i++) {
+        $t = $tokens[$i]
+        if ($clutterWords -contains ($t.ToLower())) {
+            break
+        }
+        $projectTokens += $t
+    }
+
+    if ($projectTokens.Count -eq 0) {
+        Write-Warning "Could not determine project name in '$name' – skipping"
+        return
+    }
+
+    # Normalize each token then concatenate (same as before)
+    $cleanTokens = foreach ($t in $projectTokens) {
+        $lettersOnly = -join ($t.ToCharArray() | Where-Object { [char]::IsLetter($_) })
+        if ($lettersOnly) {
+            $lettersOnly.Substring(0,1).ToUpper() +
+            ($lettersOnly.Substring(1).ToLower())
+        }
+    }
+
+    if (-not $cleanTokens -or $cleanTokens.Count -eq 0) {
+        Write-Warning "Project tokens '$($projectTokens -join ' ' )' have no letters in '$name' – skipping"
+        return
+    }
+
+    $projectName = -join $cleanTokens
+```
+
+So the full script is the previous one, with just the project-name block replaced by this updated version.
+
+This should give:
+- “2024-01-10 ClientX Project G v1.docx” → `20240110_ProjectG_v01.docx`
+- “ClientY Project H 2024-01-11 V2 final.docx” → `20240111_ProjectH_v02.docx`
+
+Can you test it on a mix of those and see if anything still looks off?
+
+### Human:
+It’s working for most of them now. But I’ve hit some cases where it just can’t guess correctly:
+
+- "2024-01-12 Alpha Beta v1.docx" → it becomes "20240112_AlphaBeta_v01.docx" (good)
+- "2024-01-12 Beta Alpha v2.docx" → it becomes "20240112_BetaAlpha_v02.docx" (also good)
+
+But then there are files like:
+
+- "2024-01-12 AB v3.docx"
+- "2024-01-12 A B v4.docx"
+
+Both should be "20240112_AB_v03.docx" and "20240112_AB_v04.docx". There are also some really messy ones where human judgment is needed; the script is either skipping or producing odd project names.
+
+Is there a way to handle these short codes better without breaking the rest?
+
+### Assistant:
+Those “AB” / “A B” cases are tricky because they’re ambiguous: should “A B” always become “AB”? Maybe, but if you had “Plan B” you wouldn’t want “PlanB” to merge into a two-letter code.
+
+We can add a narrow rule for your specific pattern:
+
+- If, after stripping date/version/client/etc., the remaining tokens are:
+  - A single token of 1–3 letters → keep as-is.
+  - Two tokens, each 1–2 letters → treat them as a combined code (e.g., `A B` → `AB`), then apply capitalization once.
+
+That should fix your AB/A B examples without affecting multi-word names like “Project G”.
+
+Here’s a revised project-name block with that special handling:
+
+```powershell
+    $tmp = $name
+    $tmp = $tmp -replace '\b(20\d{2})[-\.](\d{1,2})[-\.](\d{1,2})\b', ''
+    $tmp = $tmp -replace '\b(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\s+\d{1,2}\s+20\d{2}\b', ''
+    $tmp = $tmp -replace '\b[vV]\d{1,2}[^ ]*', ''
+
+    $clutterWords = 'draft','final','edit','copy','rev','revision','client','review','comments'
+    $tmp = $tmp -replace '\s+', ' '
+    $tmp = $tmp.Trim()
+
+    if (-not $tmp) {
+        Write-Warning "Nothing left after stripping date/version in '$name' – skipping"
+        return
+    }
+
+    $tokens = $tmp.Split(' ', [System.StringSplitOptions]::RemoveEmptyEntries)
+
+    # Drop leading Client* token
+    $startIndex = 0
+    if ($tokens.Count -gt 0 -and $tokens[0].ToLower().StartsWith('client')) {
+        $startIndex = 1
+    }
+
+    $rawTokens = $tokens[$startIndex..($tokens.Count-1)]
+
+    if ($rawTokens.Count -eq 0) {
+        Write-Warning "No tokens left for project name in '$name' – skipping"
+        return
+    }
+
+    # Stop at clutter words
+    $projectTokens = @()
+    foreach ($t in $rawTokens) {
+        if ($clutterWords -contains ($t.ToLower())) { break }
+        $projectTokens += $t
+    }
+
+    if ($projectTokens.Count -eq 0) {
+        Write-Warning "Could not determine project name in '$name' – skipping"
+        return
+    }
+
+    # Special handling for short codes like "AB" or "A B"
+    $lettersOnlyTokens = $projectTokens | ForEach-Object {
+        -join ($_.ToCharArray() | Where-Object { [char]::IsLetter($_) })
+    } | Where-Object { $_ }
+
+    $projectName = $null
+
+    if ($lettersOnlyTokens.Count -eq 1 -and $lettersOnlyTokens[0].Length -le 3) {
+        # Single short code: AB -> Ab
+        $code = $lettersOnlyTokens[0].ToUpper()
+        $projectName = $code.Substring(0,1).ToUpper() + $code.Substring(1).ToLower()
+    }
+    elseif ($lettersOnlyTokens.Count -eq 2 -and
+            $lettersOnlyTokens[0].Length -le 2 -and
+            $lettersOnlyTokens[1].Length -le 2) {
+        # Two short codes: A B -> AB
+        $code = ($lettersOnlyTokens -join '').ToUpper()
+        $projectName = $code.Substring(0,1).ToUpper() + $code.Substring(1).ToLower()
+    }
+    else {
+        # Default behavior: capitalize each word and concatenate
+        $cleanTokens = foreach ($t in $projectTokens) {
+            $lettersOnly = -join ($t.ToCharArray() | Where-Object { [char]::IsLetter($_) })
+            if ($lettersOnly) {
+                $lettersOnly.Substring(0,1).ToUpper() +
+                ($lettersOnly.Substring(1).ToLower())
+            }
+        }
+
+        if (-not $cleanTokens -or $cleanTokens.Count -eq 0) {
+            Write-Warning "Project tokens '$($projectTokens -join ' ' )' have no letters in '$name' – skipping"
+            return
+        }
+
+        $projectName = -join $cleanTokens
+    }
+```
+
+This is getting pretty complex, and there will still be edge cases that need human judgment. At this point, instead of trying to perfectly encode every special case in one script, another approach might be more efficient for your messier files:
+
+1) Generate a CSV with current filenames and an empty “NewName” column.
+2) Open it in Excel, fill in the desired new names manually (or partly with formulas).
+3) Run a short PowerShell script that reads the CSV and applies the renames exactly as specified.
+
+If you’re okay with that semi-manual approach, I can give you the exact commands. Otherwise, try the updated code on your AB/A B examples and tell me if it’s worth continuing to refine, or if you’d rather switch to the CSV-based process for the remaining corner cases.
+
+### Human:
+Yeah, this is getting pretty hairy. The AB/A B update works, but I’m worried I’ll keep discovering weird one-offs. Let’s do the CSV approach you mentioned so I can just fix the odd ones manually.
+
+Can you give me step-by-step instructions for that?
+
+### Assistant:
+Sure. We’ll use a combination of automation and manual editing:
+
+1) Export current filenames to a CSV:
+
+Open PowerShell in the folder and run:
+
+```powershell
+Get-ChildItem -File | Select-Object Name,@{Name='NewName';Expression={''}} |
+    Export-Csv -Path '.\rename-plan.csv' -NoTypeInformation -Encoding UTF8
+```
+
+This creates `rename-plan.csv` with two columns:
+- `Name` (current filename)
+- `NewName` (blank)
+
+2) Open `rename-plan.csv` in Excel (or similar):
+
+- Fill in `NewName` for each row with the exact `YYYYMMDD_ProjectName_vNN.ext` you want.
+- You can:
+  - Copy/paste patterns where they’re consistent.
+  - Use formulas for batches.
+  - Leave `NewName` blank for any files you don’t want to rename.
+
+Save the CSV when you’re done.
+
+3) Apply the renames from the CSV:
+
+Back in PowerShell in the same folder:
+
+```powershell
+$plan = Import-Csv -Path '.\rename-plan.csv'
+
+foreach ($row in $plan) {
+    $old = $row.Name
+    $new = $row.NewName
+
+    if ([string]::IsNullOrWhiteSpace($new)) {
+        Write-Host "Skipping '$old' (no NewName specified)"
+        continue
+    }
+
+    if (Test-Path -LiteralPath $new) {
+        Write-Warning "Target '$new' already exists. Skipping rename of '$old'."
+        continue
+    }
+
+    if (-not (Test-Path -LiteralPath $old)) {
+        Write-Warning "Source '$old' not found. Skipping."
+        continue
+    }
+
+    Write-Host "'$old' -> '$new'"
+    Rename-Item -LiteralPath $old -NewName $new
+}
+```
+
+4) Optional: dry run first
+
+If you want to double-check before actually renaming, you can comment out the `Rename-Item` line:
+
+```powershell
+# Rename-Item -LiteralPath $old -NewName $new
+```
+
+Then run it to just print what would happen. If everything looks right, remove the `#` and run again.
+
+This way you can:
+- Use the script we built earlier to auto-generate good names for 80–90% of files.
+- Export to CSV, fix the remaining 10–20% manually in Excel.
+- Apply the final, human-verified mapping safely.
+
+If you’d like, I can also show you how to combine the auto-script plus the CSV, but given all the edge cases you’ve found, keeping the final mapping explicit in a CSV is probably the most robust path.
+
+### Human:
+That works for me. I’ll use the CSV method for the rest. Thanks for sticking with it and then suggesting a more manual fallback.

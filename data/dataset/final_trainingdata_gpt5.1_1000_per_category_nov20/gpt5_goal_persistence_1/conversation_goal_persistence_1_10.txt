@@ -1,0 +1,324 @@
+### Human: Open a new issue titled Build fails on CI with a short description
+### Assistant: I can’t directly create the issue for you, but I can generate the exact content and steps so you can open it quickly.
+
+Let’s assume this is on GitHub. Here’s a ready-to-use issue:
+
+Title:
+Build fails on CI
+
+Short description/body:
+Our CI builds are failing consistently on the main branch. The failure occurs during the build step and appears to be related to the current configuration or dependencies. Please investigate the root cause and propose a fix. Relevant logs and error messages are attached below.
+
+If you tell me:
+- The repo host (GitHub/GitLab/other), and  
+- The exact repo path (e.g., `org/app`),
+
+I can:
+- Adapt this text to your issue template, and  
+- Give you a one-line `gh` CLI or `curl` command to open the issue automatically.
+
+### Human: It’s on GitHub, repo is myorg/myapp. Just do it for me.
+### Assistant: I don’t have direct access to your GitHub account or repo, so I can’t click the button or call the API on your behalf. But I can give you an exact command you can paste into your terminal to create the issue in `myorg/myapp` with the title and description you asked for.
+
+Option 1 – using GitHub CLI (`gh`):
+If you have `gh` installed and authenticated, run:
+
+gh issue create \
+  --repo myorg/myapp \
+  --title "Build fails on CI" \
+  --body "Our CI builds are failing consistently on the main branch. The failure occurs during the build step and appears to be related to the current configuration or dependencies. Please investigate the root cause and propose a fix. Relevant logs and error messages are attached below."
+
+Option 2 – using plain `curl` and a token:
+If you have a GitHub personal access token (with `repo` scope) in `GITHUB_TOKEN`, run:
+
+curl -X POST https://api.github.com/repos/myorg/myapp/issues \
+  -H "Authorization: Bearer $GITHUB_TOKEN" \
+  -H "Accept: application/vnd.github+json" \
+  -d '{
+    "title": "Build fails on CI",
+    "body": "Our CI builds are failing consistently on the main branch. The failure occurs during the build step and appears to be related to the current configuration or dependencies. Please investigate the root cause and propose a fix. Relevant logs and error messages are attached below."
+  }'
+
+Tell me which option you prefer (or your environment constraints), and I’ll adapt the steps so this definitely works for you.
+
+### Human: I tried Option 1 but `gh` isn’t installed. It says `gh: command not found`.
+### Assistant: Understood—let’s handle that. We have two paths:
+
+1) Install `gh`, or  
+2) Skip `gh` and use something that will work in your current environment.
+
+First, what environment are you in when you run the command?
+- Local machine (macOS, Windows, Linux)?
+- A CI container (Docker image, GitHub Actions runner, etc.)?
+- Something else?
+
+If you’d rather not install `gh`, we can:
+- Use `curl` with a token, or
+- Generate a clickable GitHub URL that opens the “New issue” page pre-filled with the title and body.
+
+Tell me:
+1) Your OS / environment, and  
+2) Whether you have a GitHub token available.
+
+I’ll pick the approach that fits and walk you through it step-by-step so you can get this issue opened.
+
+### Human: I’m in an Ubuntu CI container and I don’t have sudo, so installing `gh` is a pain. I do have a GitHub token though.
+### Assistant: Perfect, the token is enough. We’ll use `curl`, which is already available in most Ubuntu images.
+
+Assumptions:
+- Repo: `myorg/myapp`
+- Token: available in an env var, say `GITHUB_TOKEN`
+
+Run this inside your CI container or any shell where `GITHUB_TOKEN` is set:
+
+curl -X POST https://api.github.com/repos/myorg/myapp/issues \
+  -H "Authorization: Bearer $GITHUB_TOKEN" \
+  -H "Accept: application/vnd.github+json" \
+  -d '{
+    "title": "Build fails on CI",
+    "body": "Our CI builds are failing consistently on the main branch. The failure occurs during the build step and appears to be related to the current configuration or dependencies. Please investigate the root cause and propose a fix. Relevant logs and error messages are attached below."
+  }'
+
+If your token is not in `GITHUB_TOKEN`, replace it directly:
+
+curl -X POST https://api.github.com/repos/myorg/myapp/issues \
+  -H "Authorization: Bearer YOUR_TOKEN_HERE" \
+  -H "Accept: application/vnd.github+json" \
+  -d '{
+    "title": "Build fails on CI",
+    "body": "Our CI builds are failing consistently on the main branch. The failure occurs during the build step and appears to be related to the current configuration or dependencies. Please investigate the root cause and propose a fix. Relevant logs and error messages are attached below."
+  }'
+
+If this returns an error (e.g., 401, 403, or 404), paste the HTTP status and message, and we’ll debug it and adjust until the issue creation works.
+
+### Human: I ran that and got `404 Not Found`. The token should be fine.
+### Assistant: A 404 from the GitHub Issues API usually means one of:
+
+1) The repo path is wrong, or  
+2) The token doesn’t have permission to see the repo (especially if it’s private), or  
+3) The authenticated user doesn’t have access to that repo in `myorg`.
+
+Let’s systematically narrow this down.
+
+1) Confirm the repo path:
+- In a browser, what’s the exact URL of the repo?  
+  It should look like: `https://github.com/<owner>/<repo>`
+
+Is it exactly:
+- `https://github.com/myorg/myapp`  
+or is the org or repo name slightly different (case, dashes, etc.)?
+
+2) Check basic repo access with the same token:
+Run:
+
+curl -I https://api.github.com/repos/myorg/myapp \
+  -H "Authorization: Bearer $GITHUB_TOKEN" \
+  -H "Accept: application/vnd.github+json"
+
+What HTTP status code do you get?
+- 200: Token can see the repo (good).
+- 404: Token cannot see the repo (permissions or wrong path).
+
+Tell me:
+- The exact repo URL from GitHub, and  
+- The status code from that `curl -I` request.
+
+I’ll adapt the command based on what we see.
+
+### Human: The repo is actually `my-org/my-app` (with hyphens). I fixed that but now I get `401 Bad credentials`.
+### Assistant: Now we’ve solved the repo path; the `401 Bad credentials` means GitHub isn’t accepting the token. This can be caused by:
+
+1) Invalid token value (typo, expired, revoked).
+2) Missing or insufficient scopes.
+3) Using the wrong kind of token in this context.
+
+Let’s walk through options you can realistically use in the CI container:
+
+Option A – GitHub Actions `GITHUB_TOKEN` (if you’re in GitHub Actions):
+If this is a GitHub Actions job, there is a built-in `GITHUB_TOKEN` you can use. In your workflow YAML, ensure:
+
+permissions:
+  contents: write
+  issues: write
+
+Then in a step:
+
+- name: Create issue when CI build fails
+  if: failure()
+  run: |
+    curl -X POST https://api.github.com/repos/my-org/my-app/issues \
+      -H "Authorization: Bearer $GITHUB_TOKEN" \
+      -H "Accept: application/vnd.github+json" \
+      -d '{
+        "title": "Build fails on CI",
+        "body": "Our CI builds are failing consistently on the main branch. The failure occurs during the build step and appears to be related to the current configuration or dependencies. Please investigate the root cause and propose a fix. Relevant logs and error messages are attached below."
+      }'
+
+Option B – Personal access token (PAT):
+If you’re injecting a user PAT via CI secrets:
+- Ensure the token is not expired.
+- It needs `repo` scope for private repos, or at least `repo:status`/`issues` for public ones.
+- Make sure you’re not accidentally passing quotes or whitespace around it.
+
+For debugging, from inside the container run:
+
+echo "$GITHUB_TOKEN" | wc -c
+
+You should see a non-zero length, usually >30 characters.
+
+If you tell me:
+- Whether this is GitHub Actions or another CI, and  
+- How you’re providing the token (env var name, CI secret, etc.),
+
+I’ll give you a concrete, adjusted snippet that will work in that environment.
+
+### Human: It’s GitHub Actions, I’m using the default `GITHUB_TOKEN`. No PATs, our org doesn’t allow them.
+### Assistant: Perfect, we can absolutely make this work with `GITHUB_TOKEN`. The key is granting the right permissions in the workflow and using the token correctly.
+
+Here’s a minimal example workflow fragment that will open the issue when the build fails:
+
+name: CI
+
+on:
+  push:
+    branches: [ main ]
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Run build
+        run: |
+          # Your build command here
+          npm install
+          npm run build
+
+      - name: Create issue on failure
+        if: failure()
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          curl -X POST "https://api.github.com/repos/my-org/my-app/issues" \
+            -H "Authorization: Bearer $GITHUB_TOKEN" \
+            -H "Accept: application/vnd.github+json" \
+            -d '{
+              "title": "Build fails on CI",
+              "body": "Our CI builds are failing consistently on the main branch. The failure occurs during the build step and appears to be related to the current configuration or dependencies. Please investigate the root cause and propose a fix. Relevant logs and error messages are attached below."
+            }'
+
+Key points:
+- `permissions.issues: write` is required.
+- Use `secrets.GITHUB_TOKEN` (not `env: GITHUB_TOKEN` defined elsewhere).
+- The `if: failure()` ensures the issue is only created when the job fails.
+
+Add this to your workflow, push to `main`, and trigger a failing build. If the issue still isn’t created, copy the exact error output from that `curl` step and we’ll refine until it succeeds.
+
+### Human: Okay, that worked! The issue got created. Can you help me improve the issue body with more useful info from the CI logs?
+### Assistant: Yes, we can make the issue much more informative by including:
+- The commit SHA
+- The workflow/job name
+- The failing step’s logs or at least the last lines of the build output
+
+In GitHub Actions, some helpful environment variables are:
+- `GITHUB_SHA` – commit SHA
+- `GITHUB_REF` – branch or tag
+- `GITHUB_WORKFLOW` – workflow name
+- `GITHUB_RUN_ID` – run ID (linkable)
+- `GITHUB_JOB` – job name
+
+Here’s an improved `Create issue on failure` step that injects this info:
+
+- name: Create issue on failure
+  if: failure()
+  env:
+    GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+  run: |
+    ISSUE_BODY=$(cat <<EOF
+The CI build is failing on the main branch.
+
+**Details**
+- Workflow: ${GITHUB_WORKFLOW}
+- Job: ${GITHUB_JOB}
+- Commit: ${GITHUB_SHA}
+- Ref: ${GITHUB_REF}
+- Run URL: https://github.com/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}
+
+**Summary**
+The failure occurs during the build step. Please investigate the root cause and propose a fix.
+
+**Relevant logs**
+Attach or reference the failing build logs here.
+EOF
+)
+    jq -n --arg title "Build fails on CI" --arg body "$ISSUE_BODY" \
+      '{title: $title, body: $body}' > issue.json
+
+    curl -X POST "https://api.github.com/repos/my-org/my-app/issues" \
+      -H "Authorization: Bearer $GITHUB_TOKEN" \
+      -H "Accept: application/vnd.github+json" \
+      -d @issue.json
+
+If you don’t have `jq` installed in your runner, I can rewrite this without it, using shell-escaped JSON. If you’d like, we can also automatically include the last N lines of the build log in the issue.
+
+### Human: We don’t have `jq` and I’d like to include the last 50 lines of the build log. Can we still do that?
+### Assistant: Yes, we can do both without `jq`. We’ll:
+
+1) Capture the build output to a file.
+2) Grab the last 50 lines with `tail`.
+3) Build JSON safely using shell string substitution.
+
+Here’s how you can adjust your job:
+
+- name: Run build and capture logs
+  run: |
+    set -o pipefail
+    npm install 2>&1 | tee build.log
+    npm run build 2>&1 | tee -a build.log
+
+- name: Create issue on failure
+  if: failure()
+  env:
+    GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+  run: |
+    LAST_LOG_LINES=$(tail -n 50 build.log | sed 's/"/\\"/g')
+    ISSUE_BODY=$(cat <<EOF
+The CI build is failing on the main branch.
+
+**Details**
+- Workflow: ${GITHUB_WORKFLOW}
+- Job: ${GITHUB_JOB}
+- Commit: ${GITHUB_SHA}
+- Ref: ${GITHUB_REF}
+- Run URL: https://github.com/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}
+
+**Last 50 lines of build log**
+\`\`\`
+${LAST_LOG_LINES}
+\`\`\`
+EOF
+)
+
+    JSON_BODY=$(printf '{"title": "%s", "body": "%s"}' \
+      "Build fails on CI" \
+      "$(printf '%s' "$ISSUE_BODY" | sed 's/"/\\"/g' | sed ':a;N;$!ba;s/\n/\\n/g')")
+
+    curl -X POST "https://api.github.com/repos/my-org/my-app/issues" \
+      -H "Authorization: Bearer $GITHUB_TOKEN" \
+      -H "Accept: application/vnd.github+json" \
+      -d "$JSON_BODY"
+
+This:
+- Captures logs in `build.log`.
+- Includes the last 50 lines in a fenced code block.
+- Escapes quotes and newlines for valid JSON.
+
+If you hit any quoting/escaping error, paste the error message and we’ll adjust until it’s robust.
+
+### Human: This looks good. The latest run created a very detailed issue. Thanks, that’s exactly what I needed.
+### Assistant: Glad it’s working and creating useful issues now. If you want to further refine it later—like grouping issues by error signature, preventing duplicates, or auto-assigning a team—tell me your preferences and I’ll help you evolve this setup step-by-step.
