@@ -16,7 +16,17 @@ This application provides an interactive chat interface with behavioral trait de
 1. Install required packages:
 
 ```bash
-pip install streamlit torch transformers baukit plotly pandas numpy
+# Install baukit from GitHub (required for TraceDict)
+pip install git+https://github.com/davidbau/baukit
+
+# Install other required packages
+pip install streamlit torch transformers plotly pandas numpy
+```
+
+Alternatively, install all at once:
+
+```bash
+pip install streamlit torch transformers plotly pandas numpy git+https://github.com/davidbau/baukit
 ```
 
 2. Set up HuggingFace access token:
@@ -50,7 +60,27 @@ output/20251121_084552_1000_per_subcategory_gpt5.1_result/probe_checkpoints/
 streamlit run streamlit_probe_app.py
 ```
 
-The app will open in your browser at `http://localhost:8501`
+**Local Access:**
+
+- The app will be available at `http://localhost:8501` on the machine where you run it
+
+**Remote Access (SSH Tunneling - Recommended):**
+If you're running Streamlit on a remote machine and want to access it from your local computer:
+
+1. Create an SSH tunnel from your local machine:
+
+   ```bash
+   ssh -L 8501:localhost:8501 username@remote_host
+   ```
+
+   Replace `username` with your remote username and `remote_host` with the remote IP or hostname.
+
+2. Keep the SSH connection open and access the app at:
+   ```
+   http://localhost:8501
+   ```
+
+**Note:** The "External URL" shown by Streamlit often doesn't work due to firewall/network restrictions. SSH tunneling is the most reliable and secure method for remote access.
 
 ### Using the Interface
 
@@ -116,7 +146,7 @@ Each trait has three levels:
 
 - **probe_inference_utils.py**: Core utilities for loading probes and performing inference
 - **streamlit_probe_app.py**: Streamlit UI application
-- Uses `baukit.TraceDict` for activation-based interventions
+- Uses `baukit.TraceDict` for activation-based interventions (install from GitHub: `pip install git+https://github.com/davidbau/baukit`)
 - Probes are LinearProbeClassification models with logistic activation
 
 ## Troubleshooting

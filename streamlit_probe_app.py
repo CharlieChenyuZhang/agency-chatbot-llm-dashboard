@@ -24,7 +24,6 @@ from probe_inference_utils import (
 # Page config
 st.set_page_config(
     page_title="Probe-Based Chat Interface",
-    page_icon="🤖",
     layout="wide"
 )
 
@@ -71,12 +70,12 @@ def load_probes_cached(probe_dir, probe_type, trait_type):
 
 
 def main():
-    st.title("🤖 Probe-Based Chat Interface")
+    st.title("Probe-Based Chat Interface")
     st.markdown("Interactive chat with behavioral trait detection and control")
     
     # Sidebar for configuration
     with st.sidebar:
-        st.header("⚙️ Configuration")
+        st.header("Configuration")
         
         # Probe directory
         default_probe_dir = "output/20251121_084552_1000_per_subcategory_gpt5.1_result/probe_checkpoints"
@@ -107,7 +106,7 @@ def main():
         st.divider()
         
         # Load model button
-        if st.button("🔄 Load Model", use_container_width=True):
+        if st.button("Load Model", use_container_width=True):
             with st.spinner("Loading model..."):
                 model, tokenizer = load_model_cached()
                 if model is not None:
@@ -118,7 +117,7 @@ def main():
                     st.error("Failed to load model")
         
         # Load probes button
-        if st.button("🔄 Load Probes", use_container_width=True):
+        if st.button("Load Probes", use_container_width=True):
             if not os.path.exists(probe_dir):
                 st.error(f"Probe directory not found: {probe_dir}")
             else:
@@ -134,7 +133,7 @@ def main():
         st.divider()
         
         # Intervention settings
-        st.header("🎛️ Intervention Settings")
+        st.header("Intervention Settings")
         
         enable_intervention = st.checkbox(
             "Enable Intervention",
@@ -183,7 +182,7 @@ def main():
         st.divider()
         
         # Generation settings
-        st.header("📝 Generation Settings")
+        st.header("Generation Settings")
         
         max_tokens = st.slider(
             "Max Tokens",
@@ -212,7 +211,7 @@ def main():
     col1, col2 = st.columns([2, 1])
     
     with col1:
-        st.header("💬 Chat")
+        st.header("Chat")
         
         # Display chat history
         for message in st.session_state.messages:
@@ -221,7 +220,7 @@ def main():
                 
                 # Show activations if available
                 if "activations" in message and message["activations"]:
-                    with st.expander("🔍 View Activations"):
+                    with st.expander("View Activations"):
                         show_activations(message["activations"], trait_type)
         
         # Chat input
@@ -290,7 +289,7 @@ def main():
                         
                         # Show activations inline
                         if activations:
-                            with st.expander("🔍 View Activations"):
+                            with st.expander("View Activations"):
                                 show_activations(activations, trait_type)
                     
                     except Exception as e:
@@ -299,12 +298,12 @@ def main():
                         st.code(traceback.format_exc())
         
         # Clear chat button
-        if st.button("🗑️ Clear Chat"):
+        if st.button("Clear Chat"):
             st.session_state.messages = []
             st.rerun()
     
     with col2:
-        st.header("📊 Activation Analysis")
+        st.header("Activation Analysis")
         
         if st.session_state.messages:
             # Collect all activations from chat history

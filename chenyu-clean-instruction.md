@@ -83,6 +83,6 @@ python generate_behavioral_data_gpt5.py \
 
 ## how run run streamlit
 
-1. make sure you've ran `HF_TOKEN=XXX`
-2. pip install streamlit torch transformers baukit plotly pandas numpy
+1. make sure you've ran `export HF_TOKEN=XXX`
+2. pip install streamlit torch transformers plotly pandas numpy git+https://github.com/davidbau/baukit
 3. streamlit run streamlit_probe_app.py
