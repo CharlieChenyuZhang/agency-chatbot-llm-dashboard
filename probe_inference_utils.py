@@ -361,16 +361,39 @@ def generate_with_probes(
             outputs = model(**inputs, output_hidden_states=True)
             hidden_states = outputs.hidden_states
         
-        # Check activations at each layer
-        for layer_num in reading_probe_dict.keys():
-            if layer_num < len(hidden_states):
-                act_info = detect_activation(
-                    reading_probe_dict, 
-                    hidden_states[layer_num], 
-                    layer_num
-                )
-                if act_info:
-                    activations[layer_num] = act_info
+        # Check if reading_probe_dict is a dict of dicts (multiple traits) or single dict
+        # If first key maps to a dict, it's multiple traits
+        is_multi_trait = (isinstance(reading_probe_dict, dict) and 
+                         len(reading_probe_dict) > 0 and 
+                         isinstance(next(iter(reading_probe_dict.values())), dict))
+        
+        if is_multi_trait:
+            # Multiple traits: reading_probe_dict = {"goal_persistence": {layer: probe}, ...}
+            for trait_type, trait_probe_dict in reading_probe_dict.items():
+                if trait_probe_dict:  # Only process if probes are loaded for this trait
+                    trait_activations = {}
+                    for layer_num in trait_probe_dict.keys():
+                        if layer_num < len(hidden_states):
+                            act_info = detect_activation(
+                                trait_probe_dict, 
+                                hidden_states[layer_num], 
+                                layer_num
+                            )
+                            if act_info:
+                                trait_activations[layer_num] = act_info
+                    if trait_activations:
+                        activations[trait_type] = trait_activations
+        else:
+            # Single trait: reading_probe_dict = {layer: probe}
+            for layer_num in reading_probe_dict.keys():
+                if layer_num < len(hidden_states):
+                    act_info = detect_activation(
+                        reading_probe_dict, 
+                        hidden_states[layer_num], 
+                        layer_num
+                    )
+                    if act_info:
+                        activations[layer_num] = act_info
     
     return {
         "response": response,

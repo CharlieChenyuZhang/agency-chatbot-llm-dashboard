@@ -35,13 +35,14 @@ if "model" not in st.session_state:
 if "tokenizer" not in st.session_state:
     st.session_state.tokenizer = None
 if "reading_probes" not in st.session_state:
-    st.session_state.reading_probes = {}
+    st.session_state.reading_probes = {}  # Will store {trait_type: {layer: probe}}
 if "control_probes" not in st.session_state:
-    st.session_state.control_probes = {}
+    st.session_state.control_probes = {}  # Will store {trait_type: {layer: probe}}
 if "probe_dir" not in st.session_state:
     st.session_state.probe_dir = None
-if "trait_type" not in st.session_state:
-    st.session_state.trait_type = "goal_persistence"
+
+# All trait types
+ALL_TRAIT_TYPES = ["goal_persistence", "independence", "rigidity"]
 
 
 @st.cache_resource
@@ -90,19 +91,6 @@ def main():
             st.session_state.reading_probes = {}
             st.session_state.control_probes = {}
         
-        # Trait type selection
-        trait_type = st.selectbox(
-            "Behavioral Trait",
-            options=["goal_persistence", "independence", "rigidity"],
-            index=0,
-            help="Select which behavioral trait to detect/control"
-        )
-        
-        if trait_type != st.session_state.trait_type:
-            st.session_state.trait_type = trait_type
-            st.session_state.reading_probes = {}
-            st.session_state.control_probes = {}
-        
         st.divider()
         
         # Load model button
@@ -121,14 +109,25 @@ def main():
             if not os.path.exists(probe_dir):
                 st.error(f"Probe directory not found: {probe_dir}")
             else:
-                with st.spinner("Loading probes..."):
-                    reading_probes = load_probes_cached(probe_dir, "reading_probe", trait_type)
-                    control_probes = load_probes_cached(probe_dir, "control_probe", trait_type)
+                with st.spinner("Loading probes for all traits..."):
+                    reading_probes_all = {}
+                    control_probes_all = {}
                     
-                    st.session_state.reading_probes = reading_probes
-                    st.session_state.control_probes = control_probes
+                    for trait_type in ALL_TRAIT_TYPES:
+                        reading_probes = load_probes_cached(probe_dir, "reading_probe", trait_type)
+                        control_probes = load_probes_cached(probe_dir, "control_probe", trait_type)
+                        
+                        if reading_probes:
+                            reading_probes_all[trait_type] = reading_probes
+                        if control_probes:
+                            control_probes_all[trait_type] = control_probes
                     
-                    st.success(f"Loaded {len(reading_probes)} reading probes and {len(control_probes)} control probes")
+                    st.session_state.reading_probes = reading_probes_all
+                    st.session_state.control_probes = control_probes_all
+                    
+                    total_reading = sum(len(probes) for probes in reading_probes_all.values())
+                    total_control = sum(len(probes) for probes in control_probes_all.values())
+                    st.success(f"Loaded {total_reading} reading probes and {total_control} control probes across all traits")
         
         st.divider()
         
@@ -142,7 +141,15 @@ def main():
         )
         
         if enable_intervention:
-            trait_names = BEHAVIORAL_TRAIT_NAMES.get(trait_type, ["Low", "Medium", "High"])
+            # Select which trait to intervene on
+            intervention_trait = st.selectbox(
+                "Trait to Intervene On",
+                options=ALL_TRAIT_TYPES,
+                format_func=lambda x: x.replace("_", " ").title(),
+                help="Select which behavioral trait to control"
+            )
+            
+            trait_names = BEHAVIORAL_TRAIT_NAMES.get(intervention_trait, ["Low", "Medium", "High"])
             target_level = st.selectbox(
                 "Target Level",
                 options=[0, 1, 2],
@@ -174,6 +181,7 @@ def main():
                 help="Ending layer for intervention"
             )
         else:
+            intervention_trait = None
             target_level = None
             intervention_strength = 8
             from_layer = 20
@@ -221,7 +229,7 @@ def main():
                 # Show activations if available
                 if "activations" in message and message["activations"]:
                     with st.expander("View Activations"):
-                        show_activations(message["activations"], trait_type)
+                        show_activations(message["activations"])
         
         # Chat input
         if prompt := st.chat_input("Type your message..."):
@@ -246,12 +254,15 @@ def main():
             
             # Prepare intervention parameters
             target_vector = None
+            control_probe_dict = None
             if enable_intervention:
-                if not st.session_state.control_probes:
+                if not st.session_state.control_probes or intervention_trait not in st.session_state.control_probes:
                     st.warning("Control probes not loaded. Please load probes first.")
                 else:
+                    # Get control probes for the selected trait
+                    control_probe_dict = st.session_state.control_probes[intervention_trait]
                     # Create target vector (one-hot)
-                    num_classes = len(BEHAVIORAL_TRAIT_LABELS[trait_type])
+                    num_classes = len(BEHAVIORAL_TRAIT_LABELS[intervention_trait])
                     target_vector = torch.zeros(1, num_classes)
                     target_vector[0, target_level] = 1.0
             
@@ -264,8 +275,8 @@ def main():
                             tokenizer=st.session_state.tokenizer,
                             messages=messages,
                             reading_probe_dict=st.session_state.reading_probes if st.session_state.reading_probes else None,
-                            control_probe_dict=st.session_state.control_probes if enable_intervention else None,
-                            trait_type=trait_type if enable_intervention else None,
+                            control_probe_dict=control_probe_dict if enable_intervention else None,
+                            trait_type=intervention_trait if enable_intervention else None,
                             target_vector=target_vector,
                             intervention_strength=intervention_strength if enable_intervention else 0,
                             from_layer=from_layer,
@@ -290,7 +301,7 @@ def main():
                         # Show activations inline
                         if activations:
                             with st.expander("View Activations"):
-                                show_activations(activations, trait_type)
+                                show_activations(activations)
                     
                     except Exception as e:
                         st.error(f"Error generating response: {e}")
@@ -310,72 +321,183 @@ def main():
             all_activations = {}
             for msg in st.session_state.messages:
                 if "activations" in msg and msg["activations"]:
-                    for layer, act_info in msg["activations"].items():
-                        if layer not in all_activations:
-                            all_activations[layer] = []
-                        all_activations[layer].append(act_info)
+                    msg_activations = msg["activations"]
+                    
+                    # Check if activations are in new format (by trait) or old format (by layer)
+                    is_multi_trait = (isinstance(msg_activations, dict) and 
+                                     len(msg_activations) > 0 and 
+                                     isinstance(next(iter(msg_activations.values())), dict) and
+                                     next(iter(msg_activations.keys())) in ALL_TRAIT_TYPES)
+                    
+                    if is_multi_trait:
+                        # New format: {trait_type: {layer: act_info}}
+                        for trait_type, trait_acts in msg_activations.items():
+                            if trait_type not in all_activations:
+                                all_activations[trait_type] = {}
+                            for layer, act_info in trait_acts.items():
+                                if layer not in all_activations[trait_type]:
+                                    all_activations[trait_type][layer] = []
+                                all_activations[trait_type][layer].append(act_info)
+                    else:
+                        # Old format: {layer: act_info} - convert to new format with default trait
+                        # For backward compatibility, use first trait type
+                        default_trait = ALL_TRAIT_TYPES[0]
+                        if default_trait not in all_activations:
+                            all_activations[default_trait] = {}
+                        for layer, act_info in msg_activations.items():
+                            if layer not in all_activations[default_trait]:
+                                all_activations[default_trait][layer] = []
+                            all_activations[default_trait][layer].append(act_info)
             
             if all_activations:
-                # Show activation summary
-                st.subheader("Layer-wise Activations")
+                # Check if activations are organized by trait (new format) or by layer (old format)
+                # New format: {trait_type: {layer: act_info}}
+                # Old format: {layer: act_info}
+                is_multi_trait_format = (isinstance(all_activations, dict) and 
+                                        len(all_activations) > 0 and 
+                                        isinstance(next(iter(all_activations.values())), dict) and
+                                        next(iter(all_activations.keys())) in ALL_TRAIT_TYPES)
                 
-                # Create summary dataframe
-                layer_data = []
-                for layer, acts in all_activations.items():
-                    avg_probs = np.mean([a["probabilities"] for a in acts], axis=0)
-                    avg_conf = np.mean([a["confidence"] for a in acts])
-                    pred_class = int(np.round(np.mean([a["predicted_class"] for a in acts])))
+                if is_multi_trait_format:
+                    # New multi-trait format - show all traits
+                    for trait_type in ALL_TRAIT_TYPES:
+                        if trait_type in all_activations:
+                            st.subheader(f"{trait_type.replace('_', ' ').title()} Activations")
+                            trait_acts = all_activations[trait_type]
+                            
+                            # Create summary dataframe for this trait
+                            layer_data = []
+                            for layer, acts in trait_acts.items():
+                                if isinstance(acts, list):
+                                    avg_probs = np.mean([a["probabilities"] for a in acts], axis=0)
+                                    avg_conf = np.mean([a["confidence"] for a in acts])
+                                    pred_class = int(np.round(np.mean([a["predicted_class"] for a in acts])))
+                                else:
+                                    # Single activation
+                                    avg_probs = acts["probabilities"]
+                                    avg_conf = acts["confidence"]
+                                    pred_class = acts["predicted_class"]
+                                
+                                trait_names = BEHAVIORAL_TRAIT_NAMES.get(trait_type, ["Low", "Medium", "High"])
+                                layer_data.append({
+                                    "Layer": layer,
+                                    "Predicted": trait_names[pred_class],
+                                    "Confidence": f"{float(avg_conf):.2%}",
+                                    "Low": f"{float(avg_probs[0]):.2%}",
+                                    "Medium": f"{float(avg_probs[1]):.2%}",
+                                    "High": f"{float(avg_probs[2]):.2%}"
+                                })
+                            
+                            if layer_data:
+                                df = pd.DataFrame(layer_data)
+                                st.dataframe(df, use_container_width=True)
+                            
+                            # Visualization for this trait
+                            if trait_acts:
+                                plot_activation_heatmap_single_trait(trait_acts, trait_type)
+                else:
+                    # Old single-trait format (backward compatibility)
+                    st.subheader("Layer-wise Activations")
                     
-                    layer_data.append({
-                        "Layer": layer,
-                        "Predicted": BEHAVIORAL_TRAIT_NAMES[trait_type][pred_class],
-                        "Confidence": f"{avg_conf:.2%}",
-                        "Low": f"{avg_probs[0]:.2%}",
-                        "Medium": f"{avg_probs[1]:.2%}",
-                        "High": f"{avg_probs[2]:.2%}"
-                    })
-                
-                df = pd.DataFrame(layer_data)
-                st.dataframe(df, use_container_width=True)
-                
-                # Visualization
-                if len(all_activations) > 0:
-                    st.subheader("Activation Heatmap")
-                    plot_activation_heatmap(all_activations, trait_type)
+                    # Create summary dataframe
+                    layer_data = []
+                    for layer, acts in all_activations.items():
+                        if isinstance(acts, list):
+                            avg_probs = np.mean([a["probabilities"] for a in acts], axis=0)
+                            avg_conf = np.mean([a["confidence"] for a in acts])
+                            pred_class = int(np.round(np.mean([a["predicted_class"] for a in acts])))
+                        else:
+                            avg_probs = acts["probabilities"]
+                            avg_conf = acts["confidence"]
+                            pred_class = acts["predicted_class"]
+                        
+                        # Try to infer trait type from first available
+                        trait_type = ALL_TRAIT_TYPES[0]  # Default
+                        trait_names = BEHAVIORAL_TRAIT_NAMES.get(trait_type, ["Low", "Medium", "High"])
+                        layer_data.append({
+                            "Layer": layer,
+                            "Predicted": trait_names[pred_class],
+                            "Confidence": f"{float(avg_conf):.2%}",
+                            "Low": f"{float(avg_probs[0]):.2%}",
+                            "Medium": f"{float(avg_probs[1]):.2%}",
+                            "High": f"{float(avg_probs[2]):.2%}"
+                        })
+                    
+                    df = pd.DataFrame(layer_data)
+                    st.dataframe(df, use_container_width=True)
+                    
+                    # Visualization
+                    if len(all_activations) > 0:
+                        st.subheader("Activation Heatmap")
+                        plot_activation_heatmap(all_activations, trait_type)
             else:
                 st.info("No activations detected yet. Send a message to see activations.")
         else:
             st.info("Start a conversation to see activation analysis.")
 
 
-def show_activations(activations, trait_type):
+def show_activations(activations):
     """Display activation information for a message"""
     if not activations:
         st.info("No activations available")
         return
     
-    trait_names = BEHAVIORAL_TRAIT_NAMES.get(trait_type, ["Low", "Medium", "High"])
+    # Check if activations are organized by trait (new format) or by layer (old format)
+    is_multi_trait_format = (isinstance(activations, dict) and 
+                            len(activations) > 0 and 
+                            isinstance(next(iter(activations.values())), dict) and
+                            next(iter(activations.keys())) in ALL_TRAIT_TYPES)
     
-    for layer, act_info in sorted(activations.items()):
-        with st.expander(f"Layer {layer}"):
-            pred_class = act_info["predicted_class"]
-            probs = act_info["probabilities"]
-            confidence = act_info["confidence"]
-            
-            # Convert numpy types to Python native types for Streamlit
-            confidence = float(confidence)
-            
-            st.write(f"**Predicted:** {trait_names[pred_class]} (confidence: {confidence:.2%})")
-            
-            # Probability bars
-            for i, (prob, name) in enumerate(zip(probs, trait_names)):
-                # Convert numpy float32/float64 to Python float
-                prob = float(prob)
-                st.progress(prob, text=f"{name}: {prob:.2%}")
+    if is_multi_trait_format:
+        # New format: {trait_type: {layer: act_info}}
+        for trait_type in ALL_TRAIT_TYPES:
+            if trait_type in activations:
+                trait_names = BEHAVIORAL_TRAIT_NAMES.get(trait_type, ["Low", "Medium", "High"])
+                st.subheader(f"{trait_type.replace('_', ' ').title()}")
+                
+                trait_acts = activations[trait_type]
+                for layer, act_info in sorted(trait_acts.items()):
+                    with st.expander(f"Layer {layer}"):
+                        pred_class = act_info["predicted_class"]
+                        probs = act_info["probabilities"]
+                        confidence = act_info["confidence"]
+                        
+                        # Convert numpy types to Python native types for Streamlit
+                        confidence = float(confidence)
+                        
+                        st.write(f"**Predicted:** {trait_names[pred_class]} (confidence: {confidence:.2%})")
+                        
+                        # Probability bars
+                        for i, (prob, name) in enumerate(zip(probs, trait_names)):
+                            # Convert numpy float32/float64 to Python float
+                            prob = float(prob)
+                            st.progress(prob, text=f"{name}: {prob:.2%}")
+    else:
+        # Old format: {layer: act_info} - backward compatibility
+        # Try to use first available trait type
+        trait_type = ALL_TRAIT_TYPES[0]
+        trait_names = BEHAVIORAL_TRAIT_NAMES.get(trait_type, ["Low", "Medium", "High"])
+        
+        for layer, act_info in sorted(activations.items()):
+            with st.expander(f"Layer {layer}"):
+                pred_class = act_info["predicted_class"]
+                probs = act_info["probabilities"]
+                confidence = act_info["confidence"]
+                
+                # Convert numpy types to Python native types for Streamlit
+                confidence = float(confidence)
+                
+                st.write(f"**Predicted:** {trait_names[pred_class]} (confidence: {confidence:.2%})")
+                
+                # Probability bars
+                for i, (prob, name) in enumerate(zip(probs, trait_names)):
+                    # Convert numpy float32/float64 to Python float
+                    prob = float(prob)
+                    st.progress(prob, text=f"{name}: {prob:.2%}")
 
 
-def plot_activation_heatmap(all_activations, trait_type):
-    """Create a heatmap of activations across layers"""
+def plot_activation_heatmap_single_trait(all_activations, trait_type):
+    """Create a heatmap of activations across layers for a single trait"""
     layers = sorted(all_activations.keys())
     trait_names = BEHAVIORAL_TRAIT_NAMES.get(trait_type, ["Low", "Medium", "High"])
     
@@ -383,7 +505,10 @@ def plot_activation_heatmap(all_activations, trait_type):
     heatmap_data = []
     for layer in layers:
         acts = all_activations[layer]
-        avg_probs = np.mean([a["probabilities"] for a in acts], axis=0)
+        if isinstance(acts, list):
+            avg_probs = np.mean([a["probabilities"] for a in acts], axis=0)
+        else:
+            avg_probs = acts["probabilities"]
         heatmap_data.append(avg_probs)
     
     heatmap_data = np.array(heatmap_data)
@@ -394,20 +519,25 @@ def plot_activation_heatmap(all_activations, trait_type):
         x=[f"Layer {l}" for l in layers],
         y=trait_names,
         colorscale='Viridis',
-        text=[[f"{val:.2%}" for val in row] for row in heatmap_data.T],
+        text=[[f"{float(val):.2%}" for val in row] for row in heatmap_data.T],
         texttemplate='%{text}',
         textfont={"size": 10},
         colorbar=dict(title="Probability")
     ))
     
     fig.update_layout(
-        title="Activation Probabilities Across Layers",
+        title=f"{trait_type.replace('_', ' ').title()} - Activation Probabilities Across Layers",
         xaxis_title="Layer",
         yaxis_title="Trait Level",
         height=300
     )
     
     st.plotly_chart(fig, use_container_width=True)
+
+
+def plot_activation_heatmap(all_activations, trait_type):
+    """Create a heatmap of activations across layers (backward compatibility)"""
+    plot_activation_heatmap_single_trait(all_activations, trait_type)
 
 
 if __name__ == "__main__":
