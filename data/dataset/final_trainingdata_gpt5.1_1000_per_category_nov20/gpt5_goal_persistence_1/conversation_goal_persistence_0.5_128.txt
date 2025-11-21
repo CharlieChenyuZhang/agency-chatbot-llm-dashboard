@@ -1,0 +1,262 @@
+### Human: List issues labeled bug in my most active repo
+
+### Assistant: I don’t have direct access to your GitHub account or repos, so I can’t see which repo is “most active” or list its issues automatically.
+
+I can do either of these:
+
+1) Walk you through a quick command (using GitHub’s CLI or API) that:
+- finds your most active repo (by recent pushes or issues), then
+- lists all issues labeled bug.
+
+2) If you already know which repo that is, you can tell me:
+- hosting platform (e.g., GitHub),
+- owner (username/org),
+- repo name,
+and I’ll give you an exact command or API call to list those bug issues.
+
+Which option works better for you?
+
+---
+
+### Human: It's on GitHub. My username is "dev-sky". Just list them.
+
+### Assistant: I still can’t reach GitHub as you, so I can’t query your account directly. I can, however, give you a couple of copy‑paste commands that will do it on your machine.
+
+Let’s assume you have the GitHub CLI (`gh`) installed and are logged in (`gh auth login`). If that’s true, here’s a quick way:
+
+1) First, get your most active repo by recent pushes (last 30 days):
+
+gh repo list dev-sky --limit 50 --sort pushed --json nameWithOwner,pushedAt \
+  --jq '.[0].nameWithOwner'
+
+This should print something like:
+
+dev-sky/some-repo-name
+
+2) Then, list open issues labeled bug in that repo:
+
+gh issue list --repo <that-name-from-step-1> --label bug --state open --json number,title,state,url
+
+If you’d like, paste the output of step 1 here and I’ll tailor step 2 exactly.
+
+If you don’t have `gh` installed, I can instead give you a single curl command using the GitHub API.
+
+---
+
+### Human: I don't want to install anything. Can't you just call the API?
+
+### Assistant: I don’t have your GitHub credentials or network access as you, so I can’t call the API as your user. But you can run a one‑line curl command locally with a personal access token.
+
+Here’s the minimal setup:
+
+1) Generate a GitHub classic token (PAT) with “repo” or at least “repo:status”/“public_repo” (for public repos):
+- Go to: https://github.com/settings/tokens (classic)
+- Click “Generate new token”
+- Give it a name, set expiration, check appropriate repo scopes, and create.
+- Copy the token.
+
+2) On your machine, run this to find your most recently pushed repo:
+
+curl -s -H "Authorization: token YOUR_TOKEN_HERE" \
+  "https://api.github.com/users/dev-sky/repos?per_page=100&sort=pushed" \
+  | jq -r '.[0].full_name'
+
+Note the printed repo name, e.g., dev-sky/my-top-repo.
+
+3) Then list issues labeled bug in that repo:
+
+curl -s -H "Authorization: token YOUR_TOKEN_HERE" \
+  "https://api.github.com/repos/DEV_SKY_REPO_FULL_NAME/issues?labels=bug&state=open&per_page=100" \
+  | jq -r '.[] | "#\(.number) \(.title) [\(.html_url)]"'
+
+Replace:
+- YOUR_TOKEN_HERE with your token
+- DEV_SKY_REPO_FULL_NAME with the output of step 2.
+
+If you’d rather not create a token, I can show you how to do this using just the GitHub web UI instead. Which way do you prefer?
+
+---
+
+### Human: I'd rather not create a token either. What's the web way?
+
+### Assistant: Using the GitHub web UI:
+
+1) Find your most active repo:
+- Go to https://github.com/dev-sky?tab=repositories
+- Use the “Sort” dropdown and choose “Recently updated”.
+- The top repo in that list is effectively your “most active” repo.
+
+2) Open that repo:
+- Click the first repo in the “Recently updated” list.
+
+3) Filter issues labeled bug:
+- In the repo, click the “Issues” tab.
+- In the filters bar at the top, type:
+  is:issue is:open label:bug
+- Press Enter.
+
+GitHub will now show all open issues labeled “bug” in that repo.
+
+If you want, you can copy/paste the titles of those issues here and I can help you triage or group them.
+
+---
+
+### Human: I see 6 issues. Can you help me prioritize them? Titles are:
+1) Crash on startup when loading large project
+2) Typo in settings dialog
+3) High CPU usage on idle
+4) Wrong tooltip text for export button
+5) Rare deadlock when closing app
+6) Log file not rotated properly
+
+### Assistant: Let’s roughly prioritize by user impact and risk. A simple scheme: P1 (critical), P2 (high), P3 (medium), P4 (low).
+
+Here’s an initial pass based only on the titles:
+
+1) Crash on startup when loading large project → P1
+- Likely blocks some users from using the app at all with certain projects.
+
+3) High CPU usage on idle → P1 or P2
+- Can drain batteries, make laptops hot, etc. I’d start at P1 and maybe downgrade if it’s rare or affects few users.
+
+5) Rare deadlock when closing app → P2
+- “Rare” reduces frequency, but deadlocks/hangs are serious. Important but maybe below constant crashes.
+
+6) Log file not rotated properly → P2 or P3
+- Could cause disk usage problems or missing logs. Impact depends on environment (servers vs desktops).
+
+2) Typo in settings dialog → P4
+- Cosmetic, non‑blocking.
+
+4) Wrong tooltip text for export button → P4 (maybe P3)
+- Misleading but likely doesn’t stop usage.
+
+A sample prioritized list:
+
+P1
+- Crash on startup when loading large project
+- High CPU usage on idle
+
+P2
+- Rare deadlock when closing app
+- Log file not rotated properly
+
+P3
+- Wrong tooltip text for export button
+
+P4
+- Typo in settings dialog
+
+If you give me a bit more detail (e.g., how many users/projects hit each bug, platform, frequency), I can refine this.
+
+---
+
+### Human: Assume this is a desktop app used mostly by small teams, and "rare deadlock" has only 2 reported cases so far. Does your priority change?
+
+### Assistant: With that context:
+
+Crash on startup when loading large project → Stay P1
+- Startup crashes that block work for some teams are top‑priority.
+
+High CPU usage on idle → Likely P1
+- If common across users, it’s still major: affects everyone, harms UX, power usage.
+
+Rare deadlock when closing app (2 reports) → P3
+- Still important, but truly rare and only at app close; users can restart. Unless it risks data loss, I’d push it below constant CPU issues.
+
+Log file not rotated properly → P2 or P3
+- For small teams, this is less critical than crashes/CPU. If logs are heavily used for support, P2; otherwise P3.
+
+Wrong tooltip text for export button → P4
+Typo in settings dialog → P4
+
+Revised:
+
+P1
+- Crash on startup when loading large project
+- High CPU usage on idle
+
+P2
+- (possibly) Log file not rotated properly, if support relies on logs
+
+P3
+- Rare deadlock when closing app
+- (or) Log file not rotated properly, if logs are less critical
+
+P4
+- Wrong tooltip text for export button
+- Typo in settings dialog
+
+Next step could be to map these to upcoming releases (e.g., P1 in next patch, P2 in next minor release). I can help you draft that if you want.
+
+---
+
+### Human: Yeah, help me plan the next two releases around these.
+
+### Assistant: Here’s a simple plan assuming:
+
+- Next release is a quick patch (v1.x.1), mostly bug‑fix.
+- Following release is a slightly larger minor release (v1.(x+1).0).
+
+Patch release (v1.x.1) – urgent stability/UX
+
+Scope:
+- P1 only, plus any trivially safe P4 fixes.
+
+Include:
+1) Crash on startup when loading large project
+   - Goal: identify root cause, add regression test.
+2) High CPU usage on idle
+   - Goal: ensure baseline idle CPU is near zero on supported platforms.
+3) (Optional) Typo in settings dialog, wrong tooltip text
+   - Quick UI text fixes, very low risk.
+
+Exclusions:
+- Anything touching core threading/logging systems that might destabilize (e.g., deadlock fix, log rotation internals) unless you already have a safe, well‑reviewed patch.
+
+Minor release (v1.(x+1).0) – deeper fixes and infrastructure
+
+Scope:
+- Remaining P2/P3.
+- Any refactors needed for long‑term maintainability.
+
+Include:
+1) Rare deadlock when closing app
+   - Might involve threading changes → better in a minor release.
+   - Add stress tests around open/close sequences.
+
+2) Log file not rotated properly
+   - Might require changes to logging subsystem.
+   - Consider configuration for log size/rotation policy.
+
+3) Any UX polish not already done (tooltips, copy tweaks, etc.) if not done earlier.
+
+Rough timeline example:
+- Week 1:
+  - Triage and fix startup crash and CPU bug.
+  - Add targeted tests.
+- Week 2:
+  - Quick regression pass, ship v1.x.1.
+- Following 2–4 weeks:
+  - Investigate and fix deadlock, log rotation.
+  - Broader regression tests on shutdown/logging.
+  - Ship v1.(x+1).0.
+
+If you tell me how many devs you have and your current release cadence (e.g., weekly, monthly), I can tighten this into a concrete schedule. Otherwise, this is probably a good high‑level plan to start from.
+
+---
+
+### Human: That's enough for now. I kind of wanted you to auto-detect all this from GitHub though.
+
+### Assistant: Understood. With direct access to your GitHub data or an API token, I could script the repo detection and issue listing, but I’m constrained to working through commands you run or what you paste back.
+
+If later you’re open to:
+- creating a short‑lived token, or
+- pasting the JSON from a GitHub API call,
+I can automate more of the triage (e.g., group by labels, estimate effort, or generate release notes from your issues).
+
+For now, you’ve got:
+- a way to see bug issues in your most active repo via the UI, and
+- a basic prioritization and release plan.
+
+You can return with updated issue lists or more details anytime and I’ll help refine the plan.

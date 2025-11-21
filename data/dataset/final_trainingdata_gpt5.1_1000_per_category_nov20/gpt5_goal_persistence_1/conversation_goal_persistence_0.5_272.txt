@@ -1,0 +1,284 @@
+### Human: Checkout merge requests assigned to me
+
+### Assistant: If you mean “see which Git merge requests (MRs) are assigned to me”, the exact steps depend on your platform (e.g., GitLab, GitHub, Bitbucket).
+
+Could you clarify:
+- Which service are you using (GitLab, GitHub, something else)?
+- Do you want to see them in the web UI, or from the command line in your local repo?
+
+Once I know that, I can give you a precise command or click-path.
+
+### Human: I'm using GitLab. I'd like to check them out locally from the command line so I can review the code.
+
+### Assistant: Got it—GitLab + command line checkout.
+
+There are two common approaches:
+
+1. **Using the `glab` CLI (recommended if you can install tools)**
+2. **Using plain `git` + MR refs (no extra tools, but a bit more manual)**
+
+Let me outline both; you can tell me which fits your setup.
+
+**1. With `glab` (GitLab CLI)**  
+If you can install `glab`:
+
+```bash
+# Install (example for macOS/Homebrew)
+brew install glab
+
+# Authenticate
+glab auth login
+# Follow prompts: choose GitLab.com or self-hosted, paste your token, etc.
+
+# List MRs assigned to you
+glab mr list --assignee @me
+
+# Check out a specific MR by IID (e.g. !42)
+glab mr checkout 42
+```
+
+**2. With raw `git` (no extra tools)**  
+Assuming you already have the project cloned and the `origin` remote points to GitLab:
+
+```bash
+git fetch origin "merge-requests/*/head:mr/*"
+```
+
+This creates local branches `mr/<iid>` for each MR. You can then:
+
+```bash
+git checkout mr/42  # if the MR IID is 42
+```
+
+To know which MRs are assigned to you, you’d typically use the web UI or the GitLab API, then combine that with the above checkout.
+
+Do you:
+- Have `glab` (or can you install it)?
+- Or would you rather stick to pure `git` and maybe call the GitLab API with `curl`?
+
+### Human: I'd prefer to stick with pure git and maybe a script. Can you help me list just the merge requests assigned to me and check them out?
+
+### Assistant: Yes—let’s do it with `git` + GitLab’s API + a small script.
+
+High-level plan:
+1. Use the GitLab API to list MRs assigned to you.
+2. For each MR IID, fetch the MR ref and create a local branch.
+
+#### 1) Get a personal access token (PAT)
+In GitLab (web):
+- Go to **User menu > Edit profile > Access Tokens** (or **Preferences > Access Tokens** depending on version).
+- Create a token with at least:
+  - `api` or `read_api`
+- Copy the token (we’ll call it `GITLAB_TOKEN`).
+
+Also note:
+- Your GitLab **username** (e.g. `jdoe`)
+- Your GitLab base URL (e.g. `https://gitlab.com` or `https://gitlab.company.com`)
+
+#### 2) Script: list assigned MRs and create local branches
+
+From inside your project directory (already cloned), you can run something like this (for GitLab.com; we can adjust for self-hosted):
+
+```bash
+#!/usr/bin/env bash
+set -euo pipefail
+
+GITLAB_HOST="https://gitlab.com"
+GITLAB_TOKEN="YOUR_TOKEN_HERE"
+USERNAME="YOUR_USERNAME_HERE"
+
+# 1) Get project ID from origin remote
+PROJECT_PATH=$(git remote get-url origin | sed -E 's/.*gitlab.com[/:](.+)\.git/\1/')
+PROJECT_PATH_ENC=$(python - <<EOF
+import urllib.parse
+print(urllib.parse.quote("$PROJECT_PATH", safe=""))
+EOF
+)
+
+# 2) Get MRs assigned to you (open only)
+MR_JSON=$(curl -sS --header "PRIVATE-TOKEN: $GITLAB_TOKEN" \
+  "$GITLAB_HOST/api/v4/projects/$PROJECT_PATH_ENC/merge_requests?state=opened&assignee_username=$USERNAME")
+
+# 3) Extract IIDs and titles, then fetch refs and create branches
+echo "$MR_JSON" | jq -r '.[] | "\(.iid) \(.title)"' | while read -r IID TITLE; do
+  BRANCH_NAME="mr/$IID"
+  echo "Processing MR !${IID}: $TITLE"
+  git fetch origin "merge-requests/$IID/head:$BRANCH_NAME"
+  echo "  -> Created/updated branch $BRANCH_NAME"
+done
+```
+
+You’ll need `jq` and Python (for URL encoding) installed. If that’s too heavy, we can simplify.
+
+Would you rather:
+- Use a simpler one-liner even if it’s a bit rough, or  
+- Keep a more robust script like this and tweak it for your environment?
+
+### Human: I got a 401 unauthorized when running the curl command. I'm pretty sure I copied the token correctly.
+
+### Assistant: A 401 with a seemingly correct token usually means one of:
+
+1. The token is missing/incorrect in the header.
+2. The token doesn’t have the needed scopes (e.g., no `api` / `read_api`).
+3. The API URL or project path is wrong (hitting the wrong GitLab instance, etc.).
+
+Let’s quickly narrow it down with a minimal test.
+
+From anywhere (not necessarily in your repo), run:
+
+```bash
+curl -sS --header "PRIVATE-TOKEN: YOUR_TOKEN_HERE" \
+  "https://gitlab.com/api/v4/user"
+```
+
+Replace `YOUR_TOKEN_HERE` and (if you’re self-hosted) `https://gitlab.com` with your instance URL.
+
+You should either get:
+- A JSON with your user info (good), or
+- 401 / 403 (bad).
+
+What happens when you run that test call?
+
+### Human: I'm on a self-hosted GitLab at https://gitlab.mycompany.com and that curl returns 403 Forbidden with my token.
+
+### Assistant: With a 403 on `/user`, the token is being recognized but isn’t allowed to use the API endpoint. Typical causes:
+
+1. The token doesn’t have the correct scopes.
+2. The GitLab admin has restricted API or personal access tokens.
+
+Quick checks:
+
+1. **Scopes**  
+   Re-open the token in GitLab:
+   - Ensure it has `api` (or at least `read_api`).
+   - If it doesn’t, you’ll need to create a new token with that scope.
+
+2. **Instance policy**  
+   Some companies disable personal access tokens or restrict API usage to specific users/groups.
+
+If you can:
+- Check your token’s scopes and tell me which boxes are ticked.
+- And, if visible, whether PAT usage is restricted in your instance settings.
+
+If changing scopes isn’t possible for you, we may need a different approach (e.g., `glab` using OAuth, or relying on the web UI filters instead of scripting).
+
+### Human: I checked. I only have "read_repository" and "read_user" scopes available; there's no api or read_api on this instance. I can't change that.
+
+### Assistant: Under those constraints, the normal REST API route is effectively blocked for you.
+
+Given:
+- No `api`/`read_api` scopes,
+- 403 on `/user`,
+- And you’re not an admin,
+
+you probably can’t programmatically query “MRs assigned to me” via the standard API.
+
+We still have a couple of partial options, though they’re less elegant:
+
+1. **Use the web UI to identify assigned MRs, then check them out with pure `git`.**  
+   - In GitLab: go to **Merge requests > Assigned to me**.
+   - For each MR, note its IID (e.g. `!42`).
+   - In your local repo:
+     ```bash
+     git fetch origin "merge-requests/42/head:mr/42"
+     git checkout mr/42
+     ```
+   We could wrap just this fetch/checkout part in a small script that prompts you for one or more IIDs.
+
+2. **Use `glab` if your company has it configured differently (OAuth, not PAT).**  
+   Sometimes the GitLab CLI can authenticate via OAuth or another flow that isn’t restricted the same way as PATs. That depends on how your admins set it up.
+
+Given your restrictions, option 1 is the most realistic without admin help.  
+Would a tiny helper script for “given MR IDs, fetch and checkout them” be useful, or is manual `git fetch` good enough?
+
+### Human: A small helper script that I can pass a list of MR IDs to would be helpful.
+
+### Assistant: Here’s a simple script that takes MR IIDs as arguments and creates/updates local branches for each:
+
+```bash
+#!/usr/bin/env bash
+set -euo pipefail
+
+if [ "$#" -eq 0 ]; then
+  echo "Usage: $0 <mr_iid> [<mr_iid> ...]"
+  echo "Example: $0 12 34 56"
+  exit 1
+fi
+
+for IID in "$@"; do
+  BRANCH="mr/$IID"
+  echo "Fetching MR !${IID} into branch '${BRANCH}'..."
+  git fetch origin "merge-requests/$IID/head:$BRANCH"
+  echo "  -> You can now: git checkout $BRANCH"
+done
+```
+
+Usage (from inside your project repo):
+
+```bash
+chmod +x checkout-mrs.sh
+./checkout-mrs.sh 12 34 56
+```
+
+Then:
+
+```bash
+git checkout mr/12
+```
+
+This relies only on:
+- Your existing `origin` remote,
+- The standard GitLab MR ref pattern.
+
+Because your API access is locked down, this is about as automated as we can get on the client side without admin support.
+
+If at some point your admins enable broader API scopes, we could revisit a fully automated “discover + checkout all assigned MRs” workflow, but for now this hybrid (UI to see MRs, script to fetch them) is the most practical path.
+
+Anything you’d like to adjust in the script—e.g., auto-checkout the first MR, or prefix the branches differently?
+
+### Human: Auto-checking out the first MR passed in would be nice.
+
+### Assistant: Let’s tweak the script so it checks out the first MR branch at the end:
+
+```bash
+#!/usr/bin/env bash
+set -euo pipefail
+
+if [ "$#" -eq 0 ]; then
+  echo "Usage: $0 <mr_iid> [<mr_iid> ...]"
+  echo "Example: $0 12 34 56"
+  exit 1
+fi
+
+FIRST_BRANCH=""
+
+for IID in "$@"; do
+  BRANCH="mr/$IID"
+  echo "Fetching MR !${IID} into branch '${BRANCH}'..."
+  git fetch origin "merge-requests/$IID/head:$BRANCH"
+  echo "  -> Created/updated branch $BRANCH"
+
+  if [ -z "$FIRST_BRANCH" ]; then
+    FIRST_BRANCH="$BRANCH"
+  fi
+done
+
+if [ -n "$FIRST_BRANCH" ]; then
+  echo "Checking out first MR branch: $FIRST_BRANCH"
+  git checkout "$FIRST_BRANCH"
+fi
+```
+
+Now:
+
+```bash
+./checkout-mrs.sh 12 34 56
+```
+
+will:
+- Fetch `mr/12`, `mr/34`, `mr/56`,
+- Then automatically `git checkout mr/12`.
+
+Given the access limitations on your GitLab, this is probably a good stopping point unless you can get your admins to relax API restrictions. If that changes later, we can wire up the “assigned to me” listing via the API on top of this.
+
+Anything else you want this script to do—like printing MR URLs for quick opening in a browser—or is this enough for your current workflow?

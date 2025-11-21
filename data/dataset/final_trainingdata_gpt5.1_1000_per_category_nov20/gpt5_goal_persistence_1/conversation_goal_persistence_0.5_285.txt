@@ -1,0 +1,258 @@
+### Human: Rename files to match precisely this pattern
+
+### Assistant: I can help with that. I need a bit more detail first:
+- What operating system are you on (Windows, macOS, Linux)?
+- What do your filenames look like now? (a few real examples)
+- What exact pattern do you want in the end? (again, with examples)
+
+Once I see “before” and “after” samples, I can give you a command or script to do them all at once.
+
+### Human: I'm on Windows 10. The files are videos named like:
+"Lesson 1 - Introduction.mp4"
+"Lesson 2 - Installation.mp4"
+...
+up to "Lesson 48 - Outro.mp4"
+
+I want them renamed to:
+"CourseName - 001 Introduction.mp4"
+"CourseName - 002 Installation.mp4"
+...
+"CourseName - 048 Outro.mp4"
+
+So: fixed "CourseName - ", then a 3-digit lesson number, then a space, then the title, same extension.
+
+### Assistant: Great, thanks for the details.
+
+We can do this in PowerShell. Here’s a script you can run in the folder containing your videos:
+
+1. Open the folder in File Explorer.
+2. Click into the address bar, type `powershell` and press Enter.
+3. In the PowerShell window, paste this and press Enter:
+
+```powershell
+$courseName = "CourseName"
+
+Get-ChildItem -File -Filter "Lesson * - *.mp4" |
+ForEach-Object {
+    if ($_ .BaseName -match '^Lesson\s+(\d+)\s*-\s*(.+)$') {
+        $num   = [int]$matches[1]
+        $title = $matches[2]
+        $newNum = '{0:000}' -f $num
+        $newName = "{0} - {1} {2}{3}" -f $courseName, $newNum, $title, $_.Extension
+        Rename-Item -LiteralPath $_.FullName -NewName $newName
+    }
+}
+```
+
+This:
+- Extracts the lesson number and title from names like `Lesson 1 - Introduction.mp4`
+- Pads the number to 3 digits (`001`, `002`, …)
+- Renames to `CourseName - 001 Introduction.mp4`, keeping the `.mp4` extension.
+
+You can test it first on a copy of a few files if you’re nervous. If you see any errors, paste them here and we’ll adjust.
+
+### Human: I tried that and I get this error:
+
+`Rename-Item : Cannot bind argument to parameter 'NewName' because it is null.`
+
+What did I do wrong?
+
+### Assistant: That usually means the regex didn’t match the filename, so `$newName` never got set.
+
+Let’s first confirm how the filenames actually look. Are they exactly like:
+- `Lesson 1 - Introduction.mp4`
+- `Lesson 2 - Installation.mp4`
+
+Or do you have any of these variations?
+- Extra spaces (e.g., `Lesson  1  -  Introduction.mp4`)
+- Different dash (– vs -)
+- A leading zero (`Lesson 01 - Introduction.mp4`)
+
+To debug quickly, run this in the same PowerShell window and paste the output of a few lines:
+
+```powershell
+Get-ChildItem -File -Filter "*.mp4" | Select-Object -First 10 -ExpandProperty Name
+```
+
+And if you can, copy one problematic filename exactly as Windows shows it and paste it here in quotes.
+
+### Human: Here are the first few it printed:
+
+"Lesson1-Introduction.mp4"
+"Lesson2-Installation.mp4"
+"Lesson 3 - Basic Usage.mp4"
+"Lesson 4 - Advanced Usage.mp4"
+
+So apparently the first two have no spaces around the number or dash. I didn't notice that.
+
+### Assistant: That explains it: the regex I used expects spaces around the number and dash.
+
+Let’s make the pattern more forgiving so it works whether there are spaces or not.
+
+Use this updated script:
+
+```powershell
+$courseName = "CourseName"
+
+Get-ChildItem -File -Filter "*.mp4" |
+ForEach-Object {
+    # Allow optional spaces around number and dash
+    if ($_ .BaseName -match '^Lesson\s*(\d+)\s*-\s*(.+)$' -or
+        $_ .BaseName -match '^Lesson\s*(\d+)\s*(.+)$') {
+
+        $num   = [int]$matches[1]
+        $title = $matches[2]
+        $newNum = '{0:000}' -f $num
+
+        # Clean up possible leading dashes/spaces in title
+        $title = $title.Trim(" -")
+
+        $newName = "{0} - {1} {2}{3}" -f $courseName, $newNum, $title, $_.Extension
+        Write-Host "Renaming '$($_.Name)' -> '$newName'"
+        Rename-Item -LiteralPath $_.FullName -NewName $newName
+    }
+    else {
+        Write-Host "Skipping (no match): $($_.Name)"
+    }
+}
+```
+
+This:
+- Handles `Lesson1-Introduction`, `Lesson1 Introduction`, and `Lesson 1 - Introduction`.
+- Prints what it’s renaming and what it’s skipping.
+
+Try this and let me know:
+- Do you still see any errors?
+- Do any files get “Skipping (no match)”?
+
+### Human: I ran it. Some files were renamed correctly, but I see several lines like:
+
+`Skipping (no match): Lession5-Recap.mp4`
+`Skipping (no match): Lesson10 -Summary.mp4`
+
+I also noticed a typo in a few file names like "Lession" instead of "Lesson", and some missing space before the title.
+
+This folder is a mess.
+
+### Assistant: Understood—that kind of inconsistency makes a one-shot pattern harder, but we can still try to catch most of them.
+
+Let’s:
+1. Accept both “Lesson” and the misspelled “Lession”.
+2. Allow optional space before the title and dash.
+3. Log what we can’t match so you can fix a small remainder manually if needed.
+
+Try this version:
+
+```powershell
+$courseName = "CourseName"
+
+Get-ChildItem -File -Filter "*.mp4" |
+ForEach-Object {
+    $name = $_.BaseName
+
+    # Try matching "Lesson" or "Lession"
+    if ($name -match '^(Lesson|Lession)\s*(\d+)\s*[- ]\s*(.+)$') {
+        $num   = [int]$matches[2]
+        $title = $matches[3]
+
+        $newNum = '{0:000}' -f $num
+        $title  = $title.Trim()
+
+        $newName = "{0} - {1} {2}{3}" -f $courseName, $newNum, $title, $_.Extension
+        Write-Host "Renaming '$($_.Name)' -> '$newName'"
+        Rename-Item -LiteralPath $_.FullName -NewName $newName
+    }
+    else {
+        Write-Host "Still no match, please check manually: $($_.Name)"
+    }
+}
+```
+
+This should reduce the “no match” cases. After running:
+- How many lines say “Still no match” roughly?
+- Are those remaining ones really irregular (e.g., missing numbers, completely different format)?
+
+If we’re down to a small number, it might be faster to rename the last few manually.
+
+### Human: I ran this one. It renamed most of them, but I still got around 40 "Still no match" messages out of 48 files.
+
+Looking more closely, the first 8 are like:
+"01-Intro.mp4"
+"02-Install.mp4"
+"03 Basics.mp4"
+No "Lesson" word at all.
+
+The later ones have things like:
+"Lesson 20 Advanced Topics.mp4" (no dash)
+"LessonTwentyOne-Extras.mp4" (spelled out twenty-one)
+
+I'm starting to think it's too inconsistent.
+
+### Assistant: With filenames that inconsistent—missing “Lesson”, numbers written out in words, various separators—getting a single automated rule that handles all 48 perfectly is going to be fragile and time‑consuming to fine‑tune.
+
+A couple of pragmatic options:
+
+1. **Semi‑automatic with a GUI tool (less error‑prone)**
+   Use something like **Bulk Rename Utility** (free) on Windows:
+   - Install “Bulk Rename Utility”.
+   - Open your folder in it.
+   - For the reasonably consistent ones (`01-Intro`, `02-Install`, etc.), you can:
+     - Use “Numbering” to create the `001`, `002`, … part.
+     - Use “Add (7)” to prepend `CourseName - `.
+     - Use “Replace (3)” or “RegEx (1)” to adjust titles.
+   - The really odd ones (`LessonTwentyOne-Extras`) you can click and edit individually in the preview.
+   This gives you a live preview before applying, so you can visually verify everything.
+
+2. **Partially scripted + small manual cleanup**
+   We could:
+   - Handle only the reliably numeric ones by script (e.g., `^0*(\d+)[ -_]+(.+)$`).
+   - Then you manually fix the truly irregular 5–10 files.
+
+If you prefer to keep going with PowerShell, I can write a rule for numeric‑only names like `01-Intro`, `02-Install`, `03 Basics` and leave the rest for manual work. That might be a reasonable compromise.
+
+Which would you like:
+- Use a GUI renamer and I give you step‑by‑step instructions, or
+- One more PowerShell script focusing only on files that start with digits?
+
+### Human: Let's try the numeric-only PowerShell for the first 10 or so. Then I'll fix the weird ones manually.
+
+### Assistant: Sounds good. This script will:
+- Match files starting with digits, like `01-Intro`, `02-Install`, `03 Basics`.
+- Extract the leading number and the rest as the title.
+- Rename them to `CourseName - 0xx Title.ext`.
+
+Run this in your folder:
+
+```powershell
+$courseName = "CourseName"
+
+Get-ChildItem -File -Filter "*.mp4" |
+Where-Object { $_.BaseName -match '^\d+' } |  # only names starting with digits
+ForEach-Object {
+    $name = $_.BaseName
+
+    if ($name -match '^0*(\d+)[\s\-_]*(.+)$') {
+        $num   = [int]$matches[1]
+        $title = $matches[2].Trim(" -_").Trim()
+
+        $newNum = '{0:000}' -f $num
+        $newName = "{0} - {1} {2}{3}" -f $courseName, $newNum, $title, $_.Extension
+
+        Write-Host "Renaming '$($_.Name)' -> '$newName'"
+        Rename-Item -LiteralPath $_.FullName -NewName $newName
+    }
+    else {
+        Write-Host "Numeric but no match, check manually: $($_.Name)"
+    }
+}
+```
+
+After running, you should see:
+- The `01-Intro`, `02-Install`, `03 Basics`‑type files renamed.
+- The rest untouched, ready for manual or GUI renaming.
+
+If this gets most of the early files done, I’d suggest using a GUI tool or manual edits for the ~dozen truly odd ones rather than trying to encode every irregularity in PowerShell.
+
+If you want, you can paste a quick “before and after” list of a few files so we can confirm they look exactly how you want before you finish the rest manually.
+
+### Human: This last script worked nicely for the first 12 files. The rest I'll just manually fix or use a GUI tool like you suggested. The pattern looks correct now. Thanks.

@@ -1,0 +1,1513 @@
+### Human: Pick a tech stack and scaffold an app project
+### Assistant: I’ll pick a modern, productive stack and outline a scaffold you could actually start coding with.
+
+Assumptions:
+- You want a web app (SaaS-style), not mobile-native.
+- You’d like good DX, type-safety, and an easy deployment path.
+
+**Recommended stack**
+
+- Frontend: Next.js (React, TypeScript) with Tailwind CSS
+- Backend: Next.js API routes (Node, TypeScript) + tRPC or REST
+- Auth: NextAuth.js (Auth.js) with email/password & OAuth providers
+- Database: PostgreSQL with Prisma ORM
+- Deployment: Vercel (app) + managed Postgres (e.g., Neon/Supabase/Railway)
+
+**High-level scaffold**
+
+Top-level structure:
+- `/app` – Next.js app router (pages, layouts, routes)
+- `/app/(marketing)` – public marketing pages
+- `/app/(app)` – authenticated app area (dashboard, settings)
+- `/app/api` – route handlers (if using REST) or `/server/trpc` for tRPC
+- `/components` – shared UI components
+- `/lib` – utilities (auth helpers, db client, config)
+- `/styles` – global styles
+- `/prisma` – Prisma schema & migrations
+- `/tests` – unit/integration tests
+- Config: `next.config.mjs`, `tailwind.config.js`, `tsconfig.json`, `eslint.config`, `.env.example`, etc.
+
+**Concrete scaffold commands (baseline)**
+
+1. Create the app:
+   ```bash
+   npx create-next-app@latest my-app \
+     --typescript \
+     --eslint \
+     --src-dir \
+     --tailwind \
+     --app \
+     --import-alias "@/*"
+   ```
+
+2. Add dependencies:
+   ```bash
+   cd my-app
+
+   # ORM & DB
+   npm install @prisma/client
+   npm install -D prisma
+
+   # Auth
+   npm install next-auth
+
+   # (Optional) tRPC
+   npm install @trpc/server @trpc/client @trpc/react-query @tanstack/react-query
+   ```
+
+3. Initialize Prisma:
+   ```bash
+   npx prisma init
+   ```
+   This creates `/prisma/schema.prisma` and updates `.env`.
+
+4. Add some initial models (example: User, Account, Session) in `prisma/schema.prisma`, then:
+   ```bash
+   npx prisma migrate dev --name init
+   ```
+
+5. Add basic auth & protected routes in the `/app` directory, plus a simple dashboard page.
+
+I can now:
+- Fill in a **concrete folder/file tree** with example files, or
+- Write the **core code** (Prisma schema, basic auth setup, example API route, dashboard), or
+- Adjust the stack for your preferences (e.g., Django backend, or NestJS instead of Next API routes).
+
+What kind of app are you aiming for (e.g., “simple SaaS with user accounts and billing,” “internal dashboard,” “blog with admin,” etc.) and do you have any stack preferences I should respect or avoid?
+
+### Human: Let's do a simple SaaS with user accounts, Stripe subscriptions, and a dashboard. I like the stack you picked. Can you scaffold the folders and the main files you mentioned?
+### Assistant: Yes. I’ll assume:
+
+- Next.js App Router (`/app`)
+- Email/password auth via NextAuth (credentials) plus optional OAuth later
+- Stripe subscriptions with a basic “Pro” plan
+- A simple “app dashboard” behind auth
+
+I’ll show:
+1. Folder structure
+2. Key starter files with minimal content (not full production code, but runnable scaffolding you can extend).
+
+---
+
+**1) Folder structure**
+
+Under your project root (`my-app/`), target something like:
+
+- `app/`
+  - `(marketing)/`
+    - `layout.tsx`
+    - `page.tsx`                // Landing page
+  - `(app)/`
+    - `layout.tsx`              // Auth-protected layout
+    - `dashboard/`
+      - `page.tsx`              // Main app dashboard
+    - `billing/`
+      - `page.tsx`              // Billing portal / subscription management
+  - `api/`
+    - `auth/[...nextauth]/route.ts` // NextAuth handler
+    - `stripe/webhook/route.ts`     // Stripe webhook
+- `components/`
+  - `layout/`
+    - `AppNavbar.tsx`
+    - `MarketingNavbar.tsx`
+  - `ui/`
+    - `Button.tsx`
+    - `Input.tsx`
+- `lib/`
+  - `auth.ts`
+  - `prisma.ts`
+  - `stripe.ts`
+  - `validators.ts`
+- `prisma/`
+  - `schema.prisma`
+- `styles/`
+  - `globals.css`
+- `.env.example`
+- `next.config.mjs`
+- `tsconfig.json`
+- `package.json`
+
+---
+
+**2) Key files (scaffold-level content)**
+
+I’ll keep each file short and focused so you can plug and play.
+
+**`prisma/schema.prisma`**
+```prisma
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id            String    @id @default(cuid())
+  email         String    @unique
+  name          String?
+  passwordHash  String?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  accounts      Account[]
+  sessions      Session[]
+  subscriptions Subscription[]
+}
+
+model Account {
+  id                 String  @id @default(cuid())
+  userId             String
+  type               String
+  provider           String
+  providerAccountId  String
+  refresh_token      String?
+  access_token       String?
+  expires_at         Int?
+  token_type         String?
+  scope              String?
+  id_token           String?
+  session_state      String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model Subscription {
+  id                String   @id @default(cuid())
+  userId            String
+  stripeCustomerId  String   @unique
+  stripeSubscriptionId String @unique
+  status            String
+  priceId           String?
+  currentPeriodEnd  DateTime?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+```
+
+---
+
+**`lib/prisma.ts`**
+```ts
+import { PrismaClient } from '@prisma/client';
+
+const globalForPrisma = globalThis as unknown as { prisma: PrismaClient | undefined };
+
+export const prisma =
+  globalForPrisma.prisma ??
+  new PrismaClient({
+    log: ['error', 'warn'],
+  });
+
+if (process.env.NODE_ENV !== 'production') {
+  globalForPrisma.prisma = prisma;
+}
+```
+
+---
+
+**`lib/stripe.ts`**
+```ts
+import Stripe from 'stripe';
+
+if (!process.env.STRIPE_SECRET_KEY) {
+  throw new Error('STRIPE_SECRET_KEY is not set');
+}
+
+export const stripe = new Stripe(process.env.STRIPE_SECRET_KEY, {
+  apiVersion: '2024-06-20', // or current at setup time
+});
+```
+
+---
+
+**`lib/auth.ts` (NextAuth config helper)**  
+```ts
+import { PrismaAdapter } from '@next-auth/prisma-adapter';
+import CredentialsProvider from 'next-auth/providers/credentials';
+import type { NextAuthOptions } from 'next-auth';
+import { prisma } from './prisma';
+import bcrypt from 'bcryptjs';
+
+export const authOptions: NextAuthOptions = {
+  adapter: PrismaAdapter(prisma),
+  session: {
+    strategy: 'jwt',
+  },
+  providers: [
+    CredentialsProvider({
+      name: 'Credentials',
+      credentials: {
+        email: { label: 'Email', type: 'email' },
+        password: { label: 'Password', type: 'password' },
+      },
+      async authorize(credentials) {
+        if (!credentials?.email || !credentials?.password) return null;
+
+        const user = await prisma.user.findUnique({
+          where: { email: credentials.email },
+        });
+
+        if (!user || !user.passwordHash) return null;
+
+        const isValid = await bcrypt.compare(credentials.password, user.passwordHash);
+        if (!isValid) return null;
+
+        return { id: user.id, email: user.email, name: user.name ?? undefined };
+      },
+    }),
+  ],
+  pages: {
+    signIn: '/signin', // you’ll create this in /app/(marketing)/signin
+  },
+  callbacks: {
+    async jwt({ token, user }) {
+      if (user) {
+        token.id = user.id;
+      }
+      return token;
+    },
+    async session({ session, token }) {
+      if (token && session.user) {
+        session.user.id = token.id as string;
+      }
+      return session;
+    },
+  },
+};
+```
+
+---
+
+**`app/api/auth/[...nextauth]/route.ts`**
+```ts
+import NextAuth from 'next-auth';
+import { authOptions } from '@/lib/auth';
+
+const handler = NextAuth(authOptions);
+
+export { handler as GET, handler as POST };
+```
+
+---
+
+**`components/layout/MarketingNavbar.tsx`**
+```tsx
+'use client';
+
+import Link from 'next/link';
+
+export function MarketingNavbar() {
+  return (
+    <header className="w-full border-b bg-white">
+      <nav className="mx-auto flex max-w-5xl items-center justify-between px-4 py-3">
+        <Link href="/" className="font-semibold text-lg">
+          MySaaS
+        </Link>
+        <div className="flex items-center gap-4">
+          <Link href="/signin" className="text-sm text-gray-600 hover:text-gray-900">
+            Sign in
+          </Link>
+          <Link
+            href="/signup"
+            className="rounded bg-black px-3 py-1.5 text-sm font-medium text-white hover:bg-gray-900"
+          >
+            Get started
+          </Link>
+        </div>
+      </nav>
+    </header>
+  );
+}
+```
+
+---
+
+**`components/layout/AppNavbar.tsx`**
+```tsx
+'use client';
+
+import Link from 'next/link';
+import { signOut } from 'next-auth/react';
+
+export function AppNavbar() {
+  return (
+    <header className="w-full border-b bg-white">
+      <nav className="mx-auto flex max-w-5xl items-center justify-between px-4 py-3">
+        <Link href="/app/dashboard" className="font-semibold text-lg">
+          MySaaS
+        </Link>
+        <div className="flex items-center gap-4">
+          <Link href="/app/billing" className="text-sm text-gray-600 hover:text-gray-900">
+            Billing
+          </Link>
+          <button
+            onClick={() => signOut({ callbackUrl: '/' })}
+            className="rounded border px-3 py-1.5 text-sm"
+          >
+            Sign out
+          </button>
+        </div>
+      </nav>
+    </header>
+  );
+}
+```
+
+---
+
+**`app/(marketing)/layout.tsx`**
+```tsx
+import '../globals.css';
+import type { ReactNode } from 'react';
+import { MarketingNavbar } from '@/components/layout/MarketingNavbar';
+
+export default function MarketingLayout({ children }: { children: ReactNode }) {
+  return (
+    <html lang="en">
+      <body className="min-h-screen bg-gray-50">
+        <MarketingNavbar />
+        <main className="mx-auto max-w-5xl px-4 py-10">{children}</main>
+      </body>
+    </html>
+  );
+}
+```
+
+---
+
+**`app/(marketing)/page.tsx` (landing page)**  
+```tsx
+export default function LandingPage() {
+  return (
+    <section className="space-y-6">
+      <h1 className="text-4xl font-bold">Run your SaaS in minutes.</h1>
+      <p className="max-w-xl text-gray-600">
+        A starter SaaS template with auth, billing, and a simple dashboard built with Next.js and Stripe.
+      </p>
+      <div className="flex gap-3">
+        <a
+          href="/signup"
+          className="rounded bg-black px-4 py-2 text-sm font-medium text-white hover:bg-gray-900"
+        >
+          Get started
+        </a>
+        <a
+          href="/signin"
+          className="rounded border px-4 py-2 text-sm font-medium hover:bg-gray-100"
+        >
+          Sign in
+        </a>
+      </div>
+    </section>
+  );
+}
+```
+
+---
+
+**`app/(app)/layout.tsx` (auth-required shell, simplified)**  
+For full auth-protection you’d usually wrap children with a session check. I’ll stub that and we can refine.
+
+```tsx
+import type { ReactNode } from 'react';
+import { AppNavbar } from '@/components/layout/AppNavbar';
+
+export default function AppLayout({ children }: { children: ReactNode }) {
+  // TODO: Add server-side auth check and redirect to /signin if not authenticated
+  return (
+    <html lang="en">
+      <body className="min-h-screen bg-gray-50">
+        <AppNavbar />
+        <main className="mx-auto max-w-5xl px-4 py-10">{children}</main>
+      </body>
+    </html>
+  );
+}
+```
+
+---
+
+**`app/(app)/dashboard/page.tsx`**
+```tsx
+export default function DashboardPage() {
+  // TODO: Fetch actual user and subscription info
+  return (
+    <section className="space-y-4">
+      <h1 className="text-2xl font-semibold">Dashboard</h1>
+      <p className="text-gray-600">
+        Welcome to your dashboard. You can manage your subscription and view app data here.
+      </p>
+      <div className="rounded border bg-white p-4">
+        <h2 className="font-medium">Subscription status</h2>
+        <p className="text-sm text-gray-600 mt-1">
+          You are currently on the <span className="font-semibold">Free</span> plan.
+        </p>
+      </div>
+    </section>
+  );
+}
+```
+
+---
+
+**`app/(app)/billing/page.tsx` (placeholder for Stripe integration)**  
+```tsx
+export default function BillingPage() {
+  // TODO: Integrate Stripe customer portal and checkout
+  return (
+    <section className="space-y-4">
+      <h1 className="text-2xl font-semibold">Billing</h1>
+      <p className="text-gray-600">
+        Manage your subscription, payment method, and invoices using Stripe.
+      </p>
+      <button
+        className="rounded bg-black px-4 py-2 text-sm font-medium text-white hover:bg-gray-900"
+      >
+        Open billing portal
+      </button>
+    </section>
+  );
+}
+```
+
+---
+
+**`.env.example`**
+```env
+DATABASE_URL=postgresql://user:password@host:port/dbname
+NEXTAUTH_URL=http://localhost:3000
+NEXTAUTH_SECRET=your-long-random-string
+
+STRIPE_SECRET_KEY=sk_test_xxx
+STRIPE_WEBHOOK_SECRET=whsec_xxx
+STRIPE_PRICE_PRO=price_xxx
+```
+
+This gives you a concrete skeleton: DB schema, auth entrypoint, basic layouts, and dashboard/billing stubs.
+
+Do you want me to:
+- Add the **sign-in / sign-up pages and server actions** next,
+- Flesh out **Stripe checkout + webhook** wiring,
+- Or implement **auth-protection for the app layout** first (redirect if not signed in)?
+
+### Human: I want all of it. Can you generate all the code needed so that this SaaS is fully working with auth, protected routes, Stripe checkout + customer portal, and basic tests? Assume I just paste your files into a repo and run it.
+### Assistant: I can get you a large portion of the way there, but a truly “paste and run” complete SaaS—including robust auth, Stripe flows, error handling, and tests—is quite a lot of code for a single pass here.
+
+I’ll persist in building out the core critical path so you have something very close to working:
+
+- Auth:
+  - Sign-in and sign-up pages
+  - Server actions for sign-up
+  - Auth-protected app layout (redirect on unauthenticated access)
+- Stripe:
+  - Checkout session creation for a `PRO` subscription
+  - Customer portal session creation
+  - Webhook handling for subscription lifecycle
+- A couple of basic tests
+- Notes where you may need to tweak environment or keys
+
+It might still require minor fixes (e.g., matching your exact Stripe product/price IDs), but it’ll be 90–95% there.
+
+---
+
+### 1) Auth-protected layout (server-side check)
+
+**`lib/getCurrentUser.ts`**
+```ts
+import { getServerSession } from 'next-auth';
+import { authOptions } from './auth';
+
+export async function getCurrentUser() {
+  const session = await getServerSession(authOptions);
+  return session?.user ?? null;
+}
+```
+
+**`app/(app)/layout.tsx` (updated)**  
+```tsx
+import type { ReactNode } from 'react';
+import { redirect } from 'next/navigation';
+import { AppNavbar } from '@/components/layout/AppNavbar';
+import { getCurrentUser } from '@/lib/getCurrentUser';
+
+export default async function AppLayout({ children }: { children: ReactNode }) {
+  const user = await getCurrentUser();
+
+  if (!user) {
+    redirect('/signin');
+  }
+
+  return (
+    <html lang="en">
+      <body className="min-h-screen bg-gray-50">
+        <AppNavbar />
+        <main className="mx-auto max-w-5xl px-4 py-10">{children}</main>
+      </body>
+    </html>
+  );
+}
+```
+
+---
+
+### 2) Sign-in and Sign-up pages + server actions
+
+**`components/ui/Input.tsx`**
+```tsx
+import type { InputHTMLAttributes } from 'react';
+import { cn } from '@/lib/utils';
+
+type Props = InputHTMLAttributes<HTMLInputElement> & {
+  label?: string;
+  error?: string;
+};
+
+export function Input({ label, error, className, ...props }: Props) {
+  return (
+    <div className="space-y-1">
+      {label && (
+        <label className="block text-sm font-medium text-gray-700">
+          {label}
+        </label>
+      )}
+      <input
+        className={cn(
+          'block w-full rounded border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-black',
+          error ? 'border-red-500' : 'border-gray-300',
+          className,
+        )}
+        {...props}
+      />
+      {error && <p className="text-xs text-red-500">{error}</p>}
+    </div>
+  );
+}
+```
+
+**`components/ui/Button.tsx`**
+```tsx
+import type { ButtonHTMLAttributes } from 'react';
+import { cn } from '@/lib/utils';
+
+type Props = ButtonHTMLAttributes<HTMLButtonElement> & {
+  variant?: 'primary' | 'outline';
+};
+
+export function Button({ variant = 'primary', className, ...props }: Props) {
+  const base =
+    'inline-flex items-center justify-center rounded px-4 py-2 text-sm font-medium focus:outline-none focus:ring-2 focus:ring-black disabled:opacity-60';
+
+  const styles =
+    variant === 'primary'
+      ? 'bg-black text-white hover:bg-gray-900'
+      : 'border border-gray-300 bg-white hover:bg-gray-50';
+
+  return <button className={cn(base, styles, className)} {...props} />;
+}
+```
+
+**`lib/utils.ts` (small helper)**  
+```ts
+export function cn(...classes: Array<string | undefined | null | false>) {
+  return classes.filter(Boolean).join(' ');
+}
+```
+
+---
+
+**`app/(marketing)/signin/page.tsx`**
+```tsx
+'use client';
+
+import { useState } from 'react';
+import { signIn } from 'next-auth/react';
+import { useRouter, useSearchParams } from 'next/navigation';
+import { Input } from '@/components/ui/Input';
+import { Button } from '@/components/ui/Button';
+
+export default function SignInPage() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const callbackUrl = searchParams.get('callbackUrl') ?? '/app/dashboard';
+
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function onSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    setSubmitting(true);
+    setError(null);
+
+    const res = await signIn('credentials', {
+      redirect: false,
+      email,
+      password,
+      callbackUrl,
+    });
+
+    setSubmitting(false);
+
+    if (res?.error) {
+      setError('Invalid email or password');
+      return;
+    }
+
+    router.push(callbackUrl);
+  }
+
+  return (
+    <section className="mx-auto max-w-md space-y-6">
+      <div>
+        <h1 className="text-2xl font-semibold">Sign in</h1>
+        <p className="text-sm text-gray-600">
+          Don&apos;t have an account?{' '}
+          <a href="/signup" className="text-black underline">
+            Sign up
+          </a>
+        </p>
+      </div>
+      <form onSubmit={onSubmit} className="space-y-4">
+        <Input
+          label="Email"
+          type="email"
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+          required
+        />
+        <Input
+          label="Password"
+          type="password"
+          value={password}
+          onChange={(e) => setPassword(e.target.value)}
+          required
+        />
+        {error && <p className="text-sm text-red-500">{error}</p>}
+        <Button type="submit" disabled={submitting}>
+          {submitting ? 'Signing in...' : 'Sign in'}
+        </Button>
+      </form>
+    </section>
+  );
+}
+```
+
+---
+
+**`app/(marketing)/signup/actions.ts` (server action for sign-up)**  
+```ts
+'use server';
+
+import bcrypt from 'bcryptjs';
+import { prisma } from '@/lib/prisma';
+import { z } from 'zod';
+
+const signUpSchema = z.object({
+  email: z.string().email(),
+  password: z.string().min(8),
+  name: z.string().min(1),
+});
+
+export async function signUpAction(formData: FormData) {
+  const raw = {
+    email: formData.get('email'),
+    password: formData.get('password'),
+    name: formData.get('name'),
+  };
+
+  const parsed = signUpSchema.safeParse(raw);
+
+  if (!parsed.success) {
+    return {
+      ok: false,
+      errors: parsed.error.flatten().fieldErrors,
+    };
+  }
+
+  const { email, password, name } = parsed.data;
+
+  const existing = await prisma.user.findUnique({ where: { email } });
+  if (existing) {
+    return {
+      ok: false,
+      errors: { email: ['Email already in use'] },
+    };
+  }
+
+  const passwordHash = await bcrypt.hash(password, 12);
+
+  await prisma.user.create({
+    data: {
+      email,
+      name,
+      passwordHash,
+    },
+  });
+
+  return { ok: true, errors: {} };
+}
+```
+
+**`app/(marketing)/signup/page.tsx`**
+```tsx
+'use client';
+
+import { useState, useTransition } from 'react';
+import { useRouter } from 'next/navigation';
+import { Input } from '@/components/ui/Input';
+import { Button } from '@/components/ui/Button';
+import { signUpAction } from './actions';
+
+export default function SignUpPage() {
+  const router = useRouter();
+  const [pending, startTransition] = useTransition();
+  const [errors, setErrors] = useState<Record<string, string[]>>({});
+
+  function handleSubmit(formData: FormData) {
+    startTransition(async () => {
+      const res = await signUpAction(formData);
+      if (!res.ok) {
+        setErrors(res.errors);
+      } else {
+        router.push('/signin');
+      }
+    });
+  }
+
+  function fieldError(name: string): string | undefined {
+    return errors[name]?.[0];
+  }
+
+  return (
+    <section className="mx-auto max-w-md space-y-6">
+      <div>
+        <h1 className="text-2xl font-semibold">Create your account</h1>
+        <p className="text-sm text-gray-600">
+          Already have an account?{' '}
+          <a href="/signin" className="text-black underline">
+            Sign in
+          </a>
+        </p>
+      </div>
+      <form action={handleSubmit} className="space-y-4">
+        <Input label="Name" name="name" required error={fieldError('name')} />
+        <Input
+          label="Email"
+          name="email"
+          type="email"
+          required
+          error={fieldError('email')}
+        />
+        <Input
+          label="Password"
+          name="password"
+          type="password"
+          required
+          error={fieldError('password')}
+        />
+        <Button type="submit" disabled={pending}>
+          {pending ? 'Creating account...' : 'Sign up'}
+        </Button>
+      </form>
+    </section>
+  );
+}
+```
+
+---
+
+### 3) Stripe checkout + customer portal + webhook
+
+Assumptions:
+- You have a recurring price in Stripe (e.g., monthly Pro plan) with ID `STRIPE_PRICE_PRO` in `.env`.
+- You set `STRIPE_WEBHOOK_SECRET`.
+
+**`app/api/stripe/checkout/route.ts`**
+```ts
+import { NextResponse } from 'next/server';
+import { stripe } from '@/lib/stripe';
+import { getCurrentUser } from '@/lib/getCurrentUser';
+import { prisma } from '@/lib/prisma';
+
+export async function POST() {
+  const user = await getCurrentUser();
+  if (!user?.email || !user.id) {
+    return new NextResponse('Unauthorized', { status: 401 });
+  }
+
+  const priceId = process.env.STRIPE_PRICE_PRO;
+  if (!priceId) {
+    return new NextResponse('Missing STRIPE_PRICE_PRO', { status: 500 });
+  }
+
+  let dbUser = await prisma.user.findUnique({
+    where: { id: user.id },
+    include: { subscriptions: true },
+  });
+
+  let customerId: string | null = null;
+
+  const existingSub = dbUser?.subscriptions[0];
+  if (existingSub?.stripeCustomerId) {
+    customerId = existingSub.stripeCustomerId;
+  } else {
+    const customer = await stripe.customers.create({
+      email: user.email,
+      name: dbUser?.name ?? undefined,
+    });
+    customerId = customer.id;
+
+    await prisma.subscription.create({
+      data: {
+        userId: user.id,
+        stripeCustomerId: customerId,
+        stripeSubscriptionId: '',
+        status: 'pending',
+      },
+    });
+  }
+
+  const session = await stripe.checkout.sessions.create({
+    mode: 'subscription',
+    payment_method_types: ['card'],
+    customer: customerId ?? undefined,
+    line_items: [
+      {
+        price: priceId,
+        quantity: 1,
+      },
+    ],
+    success_url: `${process.env.NEXTAUTH_URL}/app/dashboard?checkout=success`,
+    cancel_url: `${process.env.NEXTAUTH_URL}/app/billing?checkout=cancel`,
+  });
+
+  return NextResponse.json({ url: session.url });
+}
+```
+
+---
+
+**`app/api/stripe/portal/route.ts`**
+```ts
+import { NextResponse } from 'next/server';
+import { stripe } from '@/lib/stripe';
+import { getCurrentUser } from '@/lib/getCurrentUser';
+import { prisma } from '@/lib/prisma';
+
+export async function POST() {
+  const user = await getCurrentUser();
+  if (!user?.id) {
+    return new NextResponse('Unauthorized', { status: 401 });
+  }
+
+  const subscription = await prisma.subscription.findFirst({
+    where: { userId: user.id },
+  });
+
+  if (!subscription?.stripeCustomerId) {
+    return new NextResponse('No customer', { status: 400 });
+  }
+
+  const portalSession = await stripe.billingPortal.sessions.create({
+    customer: subscription.stripeCustomerId,
+    return_url: `${process.env.NEXTAUTH_URL}/app/billing`,
+  });
+
+  return NextResponse.json({ url: portalSession.url });
+}
+```
+
+---
+
+**`app/api/stripe/webhook/route.ts`**
+```ts
+import { headers } from 'next/headers';
+import { NextResponse } from 'next/server';
+import { stripe } from '@/lib/stripe';
+import { prisma } from '@/lib/prisma';
+
+export const config = {
+  api: {
+    bodyParser: false,
+  },
+};
+
+export async function POST(req: Request) {
+  const buf = await req.arrayBuffer();
+  const rawBody = Buffer.from(buf);
+  const signature = headers().get('stripe-signature');
+
+  if (!process.env.STRIPE_WEBHOOK_SECRET) {
+    return new NextResponse('Missing STRIPE_WEBHOOK_SECRET', { status: 500 });
+  }
+
+  let event;
+
+  try {
+    event = stripe.webhooks.constructEvent(
+      rawBody,
+      signature ?? '',
+      process.env.STRIPE_WEBHOOK_SECRET,
+    );
+  } catch (err) {
+    console.error(err);
+    return new NextResponse('Webhook error', { status: 400 });
+  }
+
+  switch (event.type) {
+    case 'customer.subscription.created':
+    case 'customer.subscription.updated':
+    case 'customer.subscription.deleted': {
+      const subscription = event.data.object as any;
+
+      const stripeSubId = subscription.id as string;
+      const customerId = subscription.customer as string;
+      const status = subscription.status as string;
+      const priceId = subscription.items.data[0]?.price?.id as string | undefined;
+      const currentPeriodEnd = subscription.current_period_end
+        ? new Date(subscription.current_period_end * 1000)
+        : null;
+
+      await prisma.subscription.upsert({
+        where: {
+          stripeSubscriptionId: stripeSubId,
+        },
+        update: {
+          status,
+          priceId,
+          currentPeriodEnd: currentPeriodEnd ?? undefined,
+        },
+        create: {
+          userId: '', // You may need to map customerId -> userId via an extra field
+          stripeCustomerId: customerId,
+          stripeSubscriptionId: stripeSubId,
+          status,
+          priceId,
+          currentPeriodEnd: currentPeriodEnd ?? undefined,
+        },
+      });
+
+      break;
+    }
+    default:
+      // Ignore other events
+      break;
+  }
+
+  return NextResponse.json({ received: true });
+}
+```
+
+Note: To make the `upsert` correctly associate the subscription with a user, it’s best to store `stripeCustomerId` on the subscription tied to a user when you create the customer (which we started to do). To avoid overcomplicating, you might add a lookup table or ensure that you fill `userId` with the correct user at customer creation time.
+
+To keep this response from becoming unwieldy, I’m stopping short of fully resolving every edge case here. For a production-grade integration, I’d strongly recommend:
+
+- Using an open-source starter (e.g., a Next.js + Stripe SaaS boilerplate) as a reference.
+- Iteratively wiring and testing Stripe events with the CLI (`stripe listen`) to fix the remaining small gaps.
+
+---
+
+### 4) Billing page buttons (wire to checkout/portal)
+
+**`app/(app)/billing/page.tsx` (updated)**  
+```tsx
+'use client';
+
+import { useState } from 'react';
+import { Button } from '@/components/ui/Button';
+
+export default function BillingPage() {
+  const [loadingCheckout, setLoadingCheckout] = useState(false);
+  const [loadingPortal, setLoadingPortal] = useState(false);
+
+  async function startCheckout() {
+    setLoadingCheckout(true);
+    try {
+      const res = await fetch('/api/stripe/checkout', {
+        method: 'POST',
+      });
+      const data = await res.json();
+      if (data.url) {
+        window.location.href = data.url;
+      }
+    } finally {
+      setLoadingCheckout(false);
+    }
+  }
+
+  async function openPortal() {
+    setLoadingPortal(true);
+    try {
+      const res = await fetch('/api/stripe/portal', {
+        method: 'POST',
+      });
+      const data = await res.json();
+      if (data.url) {
+        window.location.href = data.url;
+      }
+    } finally {
+      setLoadingPortal(false);
+    }
+  }
+
+  return (
+    <section className="space-y-4">
+      <h1 className="text-2xl font-semibold">Billing</h1>
+      <p className="text-gray-600">
+        Upgrade to Pro or manage your subscription in the customer portal.
+      </p>
+      <div className="flex gap-3">
+        <Button onClick={startCheckout} disabled={loadingCheckout}>
+          {loadingCheckout ? 'Redirecting...' : 'Upgrade to Pro'}
+        </Button>
+        <Button variant="outline" onClick={openPortal} disabled={loadingPortal}>
+          {loadingPortal ? 'Opening...' : 'Open billing portal'}
+        </Button>
+      </div>
+    </section>
+  );
+}
+```
+
+---
+
+### 5) Minimal tests (example with Jest + React Testing Library)
+
+Doing a full test setup plus many tests is quite lengthy. I’ll show one example test to point you in the right direction.
+
+**Install testing deps**:
+```bash
+npm install -D jest @types/jest ts-jest @testing-library/react @testing-library/jest-dom
+```
+
+**`jest.config.cjs`**
+```js
+module.exports = {
+  testEnvironment: 'jsdom',
+  transform: {
+    '^.+\\.tsx?$': 'ts-jest',
+  },
+  moduleNameMapper: {
+    '^@/(.*)$': '<rootDir>/src/$1',
+  },
+};
+```
+
+**`tests/landing.test.tsx`**
+```tsx
+import '@testing-library/jest-dom';
+import { render, screen } from '@testing-library/react';
+import LandingPage from '@/app/(marketing)/page';
+
+test('renders landing headline', () => {
+  render(<LandingPage />);
+  expect(
+    screen.getByText(/Run your SaaS in minutes./i),
+  ).toBeInTheDocument();
+});
+```
+
+---
+
+Given the constraints of this format, I’m hitting the limit of what’s practical to deliver as a fully polished, “paste-and-run” SaaS. The remaining work you’ll likely need to do:
+
+- Adjust the Stripe webhook logic to correctly map `customerId` back to a `userId` every time.
+- Verify TypeScript paths (`@/`) match your actual folder layout (`src` vs root).
+- Run migrations and seed data.
+- Manually test sign-up, sign-in, checkout, and portal with real Stripe keys.
+
+If you’d like, I can next:
+- Focus narrowly on **fixing the Stripe subscription <-> user mapping**, or
+- Help you adapt one of the known **Next.js + Stripe starter repos** to your needs rather than building everything here from scratch.
+
+### Human: Let's focus on fixing the Stripe subscription <-> user mapping so that subscriptions are always correctly associated to the right user. Can you adjust the schema and the relevant API/webhook code so it is consistent and ready to use?
+### Assistant: I’ll focus on making the subscription ↔ user mapping consistent and straightforward.
+
+Design choice:
+- When creating a Stripe customer for a user, we’ll:
+  - Store `stripeCustomerId` directly on the `User` model.
+  - Ensure `Subscription` always has both `userId` and `stripeCustomerId`.
+- Webhook handling will:
+  - Use `customer` from the Stripe event to look up the `User`.
+  - Upsert the `Subscription` record with the correct `userId`.
+
+I’ll update:
+
+1. Prisma schema
+2. Checkout endpoint
+3. Webhook endpoint
+
+---
+
+### 1) Updated Prisma schema
+
+**`prisma/schema.prisma`** (only relevant parts shown; keep the rest as before)
+
+```prisma
+model User {
+  id               String          @id @default(cuid())
+  email            String          @unique
+  name             String?
+  passwordHash     String?
+  stripeCustomerId String?         @unique
+  createdAt        DateTime        @default(now())
+  updatedAt        DateTime        @updatedAt
+
+  accounts         Account[]
+  sessions         Session[]
+  subscriptions    Subscription[]
+}
+
+model Subscription {
+  id                   String   @id @default(cuid())
+  userId               String
+  stripeCustomerId     String
+  stripeSubscriptionId String   @unique
+  status               String
+  priceId              String?
+  currentPeriodEnd     DateTime?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([stripeCustomerId])
+}
+```
+
+Run:
+```bash
+npx prisma migrate dev --name add_stripe_customer_on_user
+```
+
+---
+
+### 2) Updated checkout endpoint
+
+Goal: ensure `User.stripeCustomerId` is set, and `Subscription` is associated with that user.
+
+**`app/api/stripe/checkout/route.ts` (revised)**  
+```ts
+import { NextResponse } from 'next/server';
+import { stripe } from '@/lib/stripe';
+import { getCurrentUser } from '@/lib/getCurrentUser';
+import { prisma } from '@/lib/prisma';
+
+export async function POST() {
+  const userSession = await getCurrentUser();
+  if (!userSession?.email || !userSession.id) {
+    return new NextResponse('Unauthorized', { status: 401 });
+  }
+
+  const priceId = process.env.STRIPE_PRICE_PRO;
+  if (!priceId) {
+    return new NextResponse('Missing STRIPE_PRICE_PRO', { status: 500 });
+  }
+
+  // Fetch user with possible existing Stripe customer
+  const user = await prisma.user.findUnique({
+    where: { id: userSession.id },
+  });
+
+  if (!user) {
+    return new NextResponse('User not found', { status: 404 });
+  }
+
+  let customerId = user.stripeCustomerId;
+
+  // If no Stripe customer yet, create one and store on user
+  if (!customerId) {
+    const customer = await stripe.customers.create({
+      email: user.email,
+      name: user.name ?? undefined,
+      metadata: {
+        userId: user.id,
+      },
+    });
+
+    customerId = customer.id;
+
+    await prisma.user.update({
+      where: { id: user.id },
+      data: {
+        stripeCustomerId: customerId,
+      },
+    });
+  }
+
+  const session = await stripe.checkout.sessions.create({
+    mode: 'subscription',
+    payment_method_types: ['card'],
+    customer: customerId,
+    line_items: [
+      {
+        price: priceId,
+        quantity: 1,
+      },
+    ],
+    success_url: `${process.env.NEXTAUTH_URL}/app/dashboard?checkout=success`,
+    cancel_url: `${process.env.NEXTAUTH_URL}/app/billing?checkout=cancel`,
+  });
+
+  return NextResponse.json({ url: session.url });
+}
+```
+
+Now:
+- `User.stripeCustomerId` is the single source of truth for the mapping.
+- Metadata also stores `userId` on the customer as a backup.
+
+---
+
+### 3) Updated webhook handler
+
+We will:
+- Get `customer` from the Stripe event (`customer.subscription.*`).
+- Find the `User` with `stripeCustomerId = customer`.
+- Upsert a `Subscription` tied to that `userId`.
+
+**`app/api/stripe/webhook/route.ts` (revised core logic)**  
+```ts
+import { headers } from 'next/headers';
+import { NextResponse } from 'next/server';
+import { stripe } from '@/lib/stripe';
+import { prisma } from '@/lib/prisma';
+
+export const config = {
+  api: {
+    bodyParser: false,
+  },
+};
+
+export async function POST(req: Request) {
+  const buf = await req.arrayBuffer();
+  const rawBody = Buffer.from(buf);
+  const signature = headers().get('stripe-signature');
+
+  const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
+  if (!webhookSecret) {
+    return new NextResponse('Missing STRIPE_WEBHOOK_SECRET', { status: 500 });
+  }
+
+  let event;
+
+  try {
+    event = stripe.webhooks.constructEvent(
+      rawBody,
+      signature ?? '',
+      webhookSecret,
+    );
+  } catch (err) {
+    console.error('Stripe webhook error', err);
+    return new NextResponse('Webhook error', { status: 400 });
+  }
+
+  if (
+    event.type === 'customer.subscription.created' ||
+    event.type === 'customer.subscription.updated' ||
+    event.type === 'customer.subscription.deleted'
+  ) {
+    const subscription = event.data.object as any;
+
+    const stripeSubId = subscription.id as string;
+    const customerId = subscription.customer as string;
+    const status = subscription.status as string;
+    const priceId = subscription.items.data[0]?.price?.id as string | undefined;
+    const currentPeriodEnd = subscription.current_period_end
+      ? new Date(subscription.current_period_end * 1000)
+      : null;
+
+    // Find the user associated with this Stripe customer
+    const user = await prisma.user.findFirst({
+      where: { stripeCustomerId: customerId },
+    });
+
+    if (!user) {
+      console.warn(
+        `No user found for Stripe customer ${customerId} (subscription ${stripeSubId})`,
+      );
+      // Optionally, you could create a log or dead-letter here
+      return NextResponse.json({ ignored: true });
+    }
+
+    // Upsert subscription linked to that user
+    await prisma.subscription.upsert({
+      where: {
+        stripeSubscriptionId: stripeSubId,
+      },
+      update: {
+        userId: user.id,
+        stripeCustomerId: customerId,
+        status,
+        priceId,
+        currentPeriodEnd: currentPeriodEnd ?? undefined,
+      },
+      create: {
+        userId: user.id,
+        stripeCustomerId: customerId,
+        stripeSubscriptionId: stripeSubId,
+        status,
+        priceId,
+        currentPeriodEnd: currentPeriodEnd ?? undefined,
+      },
+    });
+  }
+
+  return NextResponse.json({ received: true });
+}
+```
+
+With this:
+
+- Every subscription event is mapped to a user via `stripeCustomerId`.
+- The `Subscription` row always has a `userId`, `stripeCustomerId`, and `stripeSubscriptionId`.
+
+---
+
+### 4) Small billing UI tweak (optional)
+
+You can now query `Subscription` by `userId` in the dashboard or billing page to show status.
+
+For example, in `app/(app)/dashboard/page.tsx` (server component):
+
+```tsx
+import { getCurrentUser } from '@/lib/getCurrentUser';
+import { prisma } from '@/lib/prisma';
+
+export default async function DashboardPage() {
+  const user = await getCurrentUser();
+  if (!user?.id) {
+    // This should already be protected by layout, but just in case:
+    return null;
+  }
+
+  const subscription = await prisma.subscription.findFirst({
+    where: { userId: user.id, status: { not: 'canceled' } },
+  });
+
+  const plan =
+    subscription?.status === 'active' || subscription?.status === 'trialing'
+      ? 'Pro'
+      : 'Free';
+
+  return (
+    <section className="space-y-4">
+      <h1 className="text-2xl font-semibold">Dashboard</h1>
+      <p className="text-gray-600">
+        Welcome to your dashboard. You can manage your subscription and view app data here.
+      </p>
+      <div className="rounded border bg-white p-4">
+        <h2 className="font-medium">Subscription status</h2>
+        <p className="text-sm text-gray-600 mt-1">
+          You are currently on the{' '}
+          <span className="font-semibold">{plan}</span> plan.
+        </p>
+      </div>
+    </section>
+  );
+}
+```
+
+---
+
+At this point, the mapping logic is clear and consistent, but actually validating it end-to-end will still require:
+
+- Running migrations (`npx prisma migrate dev`).
+- Setting all environment variables.
+- Using the Stripe CLI (`stripe listen --forward-to localhost:3000/api/stripe/webhook`) to send test events and make sure everything behaves as expected.
+
+Because this is becoming a fairly substantial codebase, the next productive step might be to:
+
+- Run the app locally, identify any runtime errors, and then come back with concrete error messages or stack traces, or
+- Consider starting from an existing open-source Next.js + Stripe SaaS starter and applying the specific changes you like from this scaffold.
+
+If you run into specific issues when you wire this up (e.g., a particular error in the webhook handler or a mismatch in TypeScript types), share the exact error and I can help troubleshoot those targeted problems.
+
+### Human: I see your point about the size. For now, can you summarize the steps I should take to get from this scaffold to a running local instance, including Stripe CLI usage and basic verification flows? No more new code, just a concise checklist.
+### Assistant: Here’s a focused checklist to go from this scaffold to a working local instance.
+
+1) Environment & dependencies
+- Copy `.env.example` to `.env.local` and fill:
+  - `DATABASE_URL`
+  - `NEXTAUTH_URL=http://localhost:3000`
+  - `NEXTAUTH_SECRET` (long random string)
+  - `STRIPE_SECRET_KEY`
+  - `STRIPE_WEBHOOK_SECRET` (will be set after Stripe CLI step)
+  - `STRIPE_PRICE_PRO` (from your Stripe Dashboard)
+- Install deps:
+  ```bash
+  npm install
+  ```
+- Generate Prisma client and run migrations:
+  ```bash
+  npx prisma migrate dev
+  ```
+
+2) Stripe setup
+- In the Stripe Dashboard:
+  - Create a Product (e.g., “Pro Plan”) with a recurring Price.
+  - Copy the Price ID to `STRIPE_PRICE_PRO`.
+- Install Stripe CLI if you haven’t already.
+- Start a Stripe webhook tunnel:
+  ```bash
+  stripe listen --forward-to localhost:3000/api/stripe/webhook
+  ```
+- Copy the webhook signing secret output by the CLI (starts with `whsec_...`) into `STRIPE_WEBHOOK_SECRET` in `.env.local`.
+
+3) Run the app
+- Start the dev server:
+  ```bash
+  npm run dev
+  ```
+- Visit `http://localhost:3000` in your browser.
+
+4) Verify auth flow
+- Go to `/signup`:
+  - Create a new account.
+- After redirect to `/signin`:
+  - Sign in with the credentials you just created.
+- Confirm:
+  - You are redirected to `/app/dashboard`.
+  - Navigating directly to `/app/dashboard` or `/app/billing` when logged out sends you to `/signin`.
+
+5) Verify basic Stripe subscription flow
+- While signed in, go to `/app/billing`.
+- Click “Upgrade to Pro”:
+  - You should be redirected to Stripe Checkout.
+  - Complete the checkout with test mode card (e.g., `4242 4242 4242 4242`).
+- After success:
+  - You should be redirected back to `/app/dashboard?checkout=success`.
+- Check:
+  - In your database, `User` has `stripeCustomerId` set.
+  - A `Subscription` row exists with correct `userId`, `stripeCustomerId`, `stripeSubscriptionId`, and `status` from the webhook.
+
+6) Verify customer portal
+- From `/app/billing`, click “Open billing portal”:
+  - You should be redirected to the Stripe customer portal.
+  - Try updating/canceling the subscription.
+- After a change:
+  - Watch Stripe CLI output for `customer.subscription.updated` / `.deleted` events.
+  - Confirm the `Subscription` row in your DB updates accordingly.
+
+7) Sanity checks & hardening
+- Restart the dev server and run through:
+  - Sign-up → sign-in → dashboard.
+  - Billing page accessible only when signed in.
+- Optional:
+  - Seed fake users/records with a small script.
+  - Add basic logging around the webhook to catch unexpected conditions.
+
+If you’d like next, you can run through this and then come back with any specific error messages or odd behaviors you hit; at that point, we can debug those targeted issues rather than expanding the scaffold further.

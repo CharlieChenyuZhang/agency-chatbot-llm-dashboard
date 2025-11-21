@@ -1,0 +1,340 @@
+### Human: Checkout merge requests assigned to me
+
+### Assistant: To check out merge requests assigned to you, I’ll need a bit more context:
+
+- Are you using GitLab, GitHub, or something else?
+- Do you want:
+  - Just a list of MRs/PRs, or
+  - A way to locally check out each MR branch (e.g., create a local branch for each assigned MR)?
+
+Once I know the platform and your goal, I can give specific commands or a small script.
+
+### Human: I'm using GitLab. I want a command-line way to check out all merge requests assigned to me locally.
+
+### Assistant: For GitLab, there are two good approaches:
+
+1. Using the official `glab` CLI (simpler).
+2. Using plain `curl` + `git` + GitLab API (more manual).
+
+I’ll outline both; you can pick.
+
+#### Option 1: Using `glab` (recommended)
+
+1. Install `glab`:
+   - macOS (Homebrew):  
+     ```bash
+     brew install glab
+     ```
+   - Linux (Debian/Ubuntu, via script):  
+     ```bash
+     curl -s https://raw.githubusercontent.com/profclems/glab/trunk/scripts/install.sh | sudo bash
+     ```
+   - Or see: https://gitlab.com/gitlab-org/cli
+
+2. Authenticate:
+   ```bash
+   glab auth login
+   ```
+   Follow the prompts (it will ask for a personal access token).
+
+3. From inside your project repo, list MRs assigned to you:
+   ```bash
+   glab mr list --assignee @me
+   ```
+
+4. Check out a specific MR:
+   ```bash
+   glab mr checkout <iid>
+   ```
+   `<iid>` is the internal ID from the list, e.g. `!42` → `42`.
+
+5. If you want to check out *all* assigned MRs in a loop:
+   ```bash
+   for iid in $(glab mr list --assignee @me --no-header --format "{{.IID}}"); do
+     echo "Checking out MR !${iid}"
+     glab mr checkout "$iid"
+   done
+   ```
+
+#### Option 2: Using curl + GitLab API
+
+If you don’t want `glab`, I can show a script using:
+
+- `GITLAB_TOKEN` (personal access token)
+- GitLab API to list `assignee_id=me`
+- `git fetch` and `git checkout`
+
+Tell me which option you prefer, and your OS, and I’ll tailor the exact commands.
+
+### Human: I'd rather not install glab. Show me the curl + GitLab API approach. I'm on macOS.
+
+### Assistant: Understood. Here’s a minimal approach using `curl`, `jq`, and `git`.
+
+Assumptions:
+- You’re in a cloned GitLab repo directory (HTTP or SSH remote is fine).
+- You have:
+  - A personal access token with `api` scope.
+  - Your GitLab base URL (e.g. `https://gitlab.com` or `https://gitlab.yourcompany.com`).
+
+#### 1. Set up environment variables
+
+```bash
+export GITLAB_URL="https://gitlab.com"             # change if self-hosted
+export GITLAB_TOKEN="YOUR_PERSONAL_ACCESS_TOKEN"   # keep this secret
+```
+
+You also need the project ID:
+
+```bash
+curl --header "PRIVATE-TOKEN: $GITLAB_TOKEN" \
+     "$GITLAB_URL/api/v4/projects?search=$(basename $(pwd))" | jq '.[0].id'
+```
+
+Take the number returned and export it:
+
+```bash
+export GITLAB_PROJECT_ID=123456   # replace with actual ID
+```
+
+#### 2. List assigned merge requests (for confirmation)
+
+```bash
+curl --header "PRIVATE-TOKEN: $GITLAB_TOKEN" \
+  "$GITLAB_URL/api/v4/projects/$GITLAB_PROJECT_ID/merge_requests?assignee_id=me&state=opened" \
+  | jq '.[] | {iid, title, source_branch}'
+```
+
+#### 3. Script to fetch and check out each MR
+
+From inside the repo:
+
+```bash
+curl --header "PRIVATE-TOKEN: $GITLAB_TOKEN" \
+  "$GITLAB_URL/api/v4/projects/$GITLAB_PROJECT_ID/merge_requests?assignee_id=me&state=opened&per_page=100" \
+  | jq -r '.[] | "\(.iid) \(.source_branch)"' \
+  | while read iid branch; do
+      echo "Processing MR !${iid} (branch: ${branch})"
+      git fetch origin "${branch}:${branch}" || continue
+      echo "Checked out local branch: ${branch}"
+    done
+```
+
+This will:
+- For each assigned MR:
+  - Fetch its `source_branch` from `origin` into a local branch of the same name.
+- It does *not* auto-switch your working directory to each branch; it just creates/updates them. You can then `git checkout <branch>` as needed.
+
+If you prefer to actually *visit* each branch one by one, we can tweak the script.
+
+Try the `curl` listing command first. If it fails or returns an error, paste the error message and we’ll debug it.
+
+### Human: I ran the curl command to list merge requests and got: "401 Unauthorized". My token definitely exists. Any idea why?
+
+### Assistant: A 401 with GitLab usually comes down to one of these:
+
+1. Token doesn’t have the right scopes.
+2. Token is for a different GitLab instance than `GITLAB_URL`.
+3. The header or URL is slightly wrong.
+
+Let’s check step by step.
+
+1. **Verify token scopes**
+   - Go to: User Settings → Access Tokens.
+   - Confirm the token you’re using has at least the `api` scope.
+   - If unsure, create a new token with `api` scope and use that.
+
+2. **Quick minimal API test**
+
+From your terminal (with `GITLAB_TOKEN` and `GITLAB_URL` set):
+
+```bash
+curl -i --header "PRIVATE-TOKEN: $GITLAB_TOKEN" \
+  "$GITLAB_URL/api/v4/user"
+```
+
+- If successful, you should see `HTTP/1.1 200 OK` and JSON with your user info.
+- If it’s still `401 Unauthorized`, then:
+  - The token is invalid, expired, or for a different GitLab instance.
+  - Or there’s a typo in `GITLAB_TOKEN` or `GITLAB_URL`.
+
+Run that `/user` request and tell me:
+- The HTTP status line (e.g., `HTTP/2 401`).
+- Any short error message in the response body (omit anything sensitive).
+
+### Human: I ran that and got `HTTP/2 401` and body: `{"message":"401 Unauthorized"}`. Token has 'read_api' and 'read_repository' scopes, not 'api'. Is that the issue?
+
+### Assistant: Yes, that’s the core issue. The `/api/v4/user` and MR endpoints require a token with the `api` scope (or broader). `read_api` is more limited and often isn’t enough for merge request operations.
+
+Next steps:
+
+1. **Create a new token**
+   - Go to User Settings → Access Tokens.
+   - Create a new token with:
+     - Name: e.g. `cli-mr-checkout`
+     - Scopes: at least `api` (you don’t need `write` if you’re only reading MRs).
+   - Note the token value.
+
+2. **Update your shell variable**
+
+```bash
+export GITLAB_TOKEN="NEW_TOKEN_VALUE"
+```
+
+3. **Re-test the `/user` endpoint**
+
+```bash
+curl -i --header "PRIVATE-TOKEN: $GITLAB_TOKEN" \
+  "$GITLAB_URL/api/v4/user"
+```
+
+You should now see `200 OK`.
+
+Once that works, re-run the MR listing command:
+
+```bash
+curl --header "PRIVATE-TOKEN: $GITLAB_TOKEN" \
+  "$GITLAB_URL/api/v4/projects/$GITLAB_PROJECT_ID/merge_requests?assignee_id=me&state=opened" \
+  | jq '.[] | {iid, title, source_branch}'
+```
+
+If you still hit an error after switching to an `api`-scoped token, paste the status line and any short error text, and we’ll narrow it down further.
+
+### Human: Okay, I made a new token with api scope and /user works now. But when I call the merge_requests endpoint, I get: `{"message":"404 Project Not Found"}`. I'm pretty sure I'm in the right repo.
+
+### Assistant: The 404 “Project Not Found” suggests that `GITLAB_PROJECT_ID` doesn’t match a project you have access to (or the URL is wrong). Let’s confirm the project ID in a more reliable way.
+
+From inside the repo directory, check your remote:
+
+```bash
+git remote -v
+```
+
+You’ll see something like:
+
+- For gitlab.com:
+  - `https://gitlab.com/group/subgroup/project.git`
+- For self-hosted:
+  - `https://gitlab.company.com/path/to/project.git`
+
+Copy that URL and use it in this API call (replace the path accordingly):
+
+```bash
+curl --header "PRIVATE-TOKEN: $GITLAB_TOKEN" \
+  "$GITLAB_URL/api/v4/projects/$(python - << 'EOF'
+import urllib.parse
+url = "https://gitlab.com/group/subgroup/project.git"  # replace with your remote URL (no .git is fine)
+path = urllib.parse.urlparse(url).path.strip('/')
+if path.endswith('.git'):
+    path = path[:-4]
+print(urllib.parse.quote(path, safe=''))
+EOF
+)"
+```
+
+If you don’t want to use Python, a simpler but more manual way:
+
+1. Take your namespace/project path from the URL, e.g. `group/subgroup/project`.
+2. URL-encode the `/` as `%2F`: `group%2Fsubgroup%2Fproject`.
+3. Call:
+
+```bash
+curl --header "PRIVATE-TOKEN: $GITLAB_TOKEN" \
+  "$GITLAB_URL/api/v4/projects/group%2Fsubgroup%2Fproject"
+```
+
+If that returns your project JSON, note the `"id"` field and set:
+
+```bash
+export GITLAB_PROJECT_ID=THE_ID_FROM_JSON
+```
+
+Then retry the MR listing.
+
+If this is feeling too fiddly, another option is to hit the project once in the browser and copy its numeric ID from Settings → General (it’s usually shown near the top), then export that value directly.
+
+### Human: I'm getting a bit lost with the encoding stuff. Is there a simpler way? I can open the project in the browser.
+
+### Assistant: Yes, let’s switch to the simplest reliable method:
+
+1. Open your project in the GitLab web UI.
+2. Go to:
+   - Settings → General (or sometimes the main project page).
+3. Look for a line like:
+   - “Project ID: 123456”
+4. Take that numeric ID and in your terminal run:
+
+```bash
+export GITLAB_PROJECT_ID=123456   # replace with your ID
+```
+
+Then test the MR listing again:
+
+```bash
+curl --header "PRIVATE-TOKEN: $GITLAB_TOKEN" \
+  "$GITLAB_URL/api/v4/projects/$GITLAB_PROJECT_ID/merge_requests?assignee_id=me&state=opened" \
+  | jq '.[] | {iid, title, source_branch}'
+```
+
+If that works and shows your MRs, you can plug it into the checkout script from earlier. If it still fails even with the numeric ID from the UI, at that point the issue is likely something specific to your GitLab setup or permissions that I can’t see from here, and it may be faster to:
+
+- Try the `glab` CLI (it handles a lot of these details for you), or
+- Ask your GitLab admin/colleague to confirm your project access and the correct API URL.
+
+Let me know what response you get with the numeric ID, and if it’s still not working, we can decide whether it’s worth pushing further here or hand it off to local tools/support.
+
+### Human: Using the numeric project ID from the UI works now. The script fetched and created local branches. It didn't check them out though. Can you adjust the script so it goes through each MR, checks out the branch, and then comes back to my original branch at the end?
+
+### Assistant: Yes. Here’s an adjusted script that:
+
+- Remembers your current branch.
+- Iterates over assigned MRs.
+- For each:
+  - Fetches the source branch.
+  - Checks it out.
+  - Runs a placeholder command (you can add tests, etc.).
+- Finally checks out your original branch again.
+
+```bash
+#!/usr/bin/env bash
+set -euo pipefail
+
+# Remember current branch
+ORIG_BRANCH=$(git rev-parse --abbrev-ref HEAD)
+
+# Fetch MRs assigned to you
+curl --silent --header "PRIVATE-TOKEN: $GITLAB_TOKEN" \
+  "$GITLAB_URL/api/v4/projects/$GITLAB_PROJECT_ID/merge_requests?assignee_id=me&state=opened&per_page=100" \
+  | jq -r '.[] | "\(.iid) \(.source_branch)"' \
+  | while read -r iid branch; do
+      echo "=== MR !${iid} (branch: ${branch}) ==="
+      git fetch origin "${branch}:${branch}" || {
+        echo "  Failed to fetch ${branch}, skipping"
+        continue
+      }
+      git checkout "${branch}" || {
+        echo "  Failed to checkout ${branch}, skipping"
+        continue
+      }
+
+      echo "  Now on ${branch}"
+      # TODO: put any commands you want to run per MR here, e.g.:
+      # npm test
+      # ./run_checks.sh
+
+    done
+
+# Return to original branch
+git checkout "$ORIG_BRANCH"
+echo "Back on original branch: $ORIG_BRANCH"
+```
+
+Usage:
+
+```bash
+chmod +x checkout_assigned_mrs.sh
+./checkout_assigned_mrs.sh
+```
+
+If you run into odd edge cases (e.g., local branch already exists with different upstream), that’s where it may get more involved. In that case, it might be better to simplify to “fetch all MR branches, then manually check out the few you care about,” rather than fully automating all of it.
+
+### Human: That works well enough. Thanks.
