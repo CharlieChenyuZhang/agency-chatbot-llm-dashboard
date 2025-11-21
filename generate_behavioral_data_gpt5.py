@@ -83,7 +83,7 @@ class GPT5BehavioralDataGenerator:
             time.sleep(self.min_request_interval - time_since_last)
         self._thread_local.last_request_time = time.time()
     
-    def generate_conversation(self, trait_type: str, trait_level: str, question: str) -> str:
+    def generate_conversation(self, trait_type: str, trait_level: str, question: str) -> tuple[str, str | None]:
         """
         Generate a conversation that demonstrates a specific behavioral trait level
         
@@ -93,7 +93,8 @@ class GPT5BehavioralDataGenerator:
             question: The user's question
             
         Returns:
-            Generated conversation as a string
+            Tuple of (conversation, reasoning_details) where conversation is the generated conversation
+            and reasoning_details is the reasoning tokens (or None if not available)
         """
         system_prompt = BEHAVIORAL_SYSTEM_PROMPTS[trait_type][trait_level]
         
@@ -116,13 +117,19 @@ Format the conversation strictly using only these markers:
 Use only the "### Human:" and "### Assistant:" markers to separate turns. Do not add any additional separators, dividers, or formatting elements between conversation turns. Make the conversation feel natural and realistic, with the user asking follow-up questions that would naturally arise from your responses. The conversation should clearly demonstrate the behavioral trait at level {trait_level}."""
 
         # Generate the complete conversation in one call
-        conversation = self._generate_gpt5_response(conversation_prompt)
+        conversation, reasoning_details = self._generate_gpt5_response(conversation_prompt)
         
-        return conversation
+        return conversation, reasoning_details
     
     
-    def _generate_gpt5_response(self, input_text: str) -> str:
-        """Generate response using GPT-5 API (OpenAI Responses API or OpenRouter Chat API)"""
+    def _generate_gpt5_response(self, input_text: str) -> tuple[str, str | None]:
+        """
+        Generate response using GPT-5 API (OpenAI Responses API or OpenRouter Chat API)
+        
+        Returns:
+            Tuple of (content, reasoning_details) where reasoning_details is a formatted string
+            of the reasoning tokens (or None if not available)
+        """
         self._rate_limit()
         
         try:
@@ -146,10 +153,19 @@ Use only the "### Human:" and "### Assistant:" markers to separate turns. Do not
                     extra_headers={},
                     extra_body=extra_body
                 )
-                content = response.choices[0].message.content
+                message = response.choices[0].message
+                content = message.content
                 if content is None:
-                    return "I apologize, but I'm having trouble generating a response right now."
-                return content.strip()
+                    content = "I apologize, but I'm having trouble generating a response right now."
+                else:
+                    content = content.strip()
+                
+                # Extract reasoning_details from OpenRouter response
+                reasoning_details = None
+                if hasattr(message, 'reasoning_details') and message.reasoning_details:
+                    reasoning_details = self._format_reasoning_details(message.reasoning_details)
+                
+                return content, reasoning_details
             else:
                 # Use OpenAI's Responses API
                 response = self.client.responses.create(
@@ -162,11 +178,69 @@ Use only the "### Human:" and "### Assistant:" markers to separate turns. Do not
                         "verbosity": self.verbosity
                     },
                 )
-                return response.output_text.strip()
+                content = response.output_text.strip()
+                
+                # Extract reasoning_details from OpenAI Responses API
+                reasoning_details = None
+                if hasattr(response, 'reasoning_details') and response.reasoning_details:
+                    reasoning_details = self._format_reasoning_details(response.reasoning_details)
+                
+                return content, reasoning_details
             
         except Exception as e:
             print(f"Error generating response: {e}")
-            return "I apologize, but I'm having trouble generating a response right now."
+            return "I apologize, but I'm having trouble generating a response right now.", None
+    
+    def _format_reasoning_details(self, reasoning_details: object) -> str:
+        """
+        Format reasoning_details into a readable string
+        
+        Args:
+            reasoning_details: The reasoning_details object from the API response
+            
+        Returns:
+            Formatted string representation of the reasoning details
+        """
+        if not reasoning_details:
+            return ""
+        
+        reasoning_parts = []
+        
+        # Handle list/array of reasoning details
+        if isinstance(reasoning_details, list):
+            for detail in reasoning_details:
+                if isinstance(detail, dict):
+                    if detail.get('type') == 'reasoning.text' and 'text' in detail:
+                        reasoning_parts.append(detail['text'])
+                    elif detail.get('type') == 'reasoning.summary' and 'summary' in detail:
+                        reasoning_parts.append(f"Summary: {detail['summary']}")
+                    elif 'text' in detail:
+                        reasoning_parts.append(str(detail['text']))
+                    elif 'summary' in detail:
+                        reasoning_parts.append(f"Summary: {detail['summary']}")
+                elif hasattr(detail, 'text'):
+                    reasoning_parts.append(detail.text)
+                elif hasattr(detail, 'summary'):
+                    reasoning_parts.append(f"Summary: {detail.summary}")
+        # Handle single reasoning detail object
+        elif isinstance(reasoning_details, dict):
+            if reasoning_details.get('type') == 'reasoning.text' and 'text' in reasoning_details:
+                reasoning_parts.append(reasoning_details['text'])
+            elif reasoning_details.get('type') == 'reasoning.summary' and 'summary' in reasoning_details:
+                reasoning_parts.append(f"Summary: {reasoning_details['summary']}")
+            elif 'text' in reasoning_details:
+                reasoning_parts.append(str(reasoning_details['text']))
+            elif 'summary' in reasoning_details:
+                reasoning_parts.append(f"Summary: {reasoning_details['summary']}")
+        elif hasattr(reasoning_details, 'text'):
+            reasoning_parts.append(reasoning_details.text)
+        elif hasattr(reasoning_details, 'summary'):
+            reasoning_parts.append(f"Summary: {reasoning_details.summary}")
+        else:
+            # Fallback: convert to string
+            reasoning_parts.append(str(reasoning_details))
+        
+        return "\n\n".join(reasoning_parts) if reasoning_parts else ""
     
     
     def generate_dataset(self, trait_type: str, output_dir: str, 
@@ -183,41 +257,64 @@ Use only the "### Human:" and "### Assistant:" markers to separate turns. Do not
         """
         os.makedirs(output_dir, exist_ok=True)
         
+        # Pre-create reasoning_details directory to avoid race conditions in threads
+        output_parent = os.path.dirname(output_dir)
+        output_subdir = os.path.basename(output_dir)
+        reasoning_dir = os.path.join(output_parent, "reasoning_details", output_subdir)
+        os.makedirs(reasoning_dir, exist_ok=True)
+        
         trait_levels = list(BEHAVIORAL_TRAIT_LABELS[trait_type].keys())
         questions = self.question_pools[trait_type]
         
-        # Prepare tasks
+        # Prepare tasks with unique indices per level to ensure thread-safe filename generation
         tasks = []
         for level in trait_levels:
             for idx in range(conversations_per_level):
                 tasks.append((level, random.choice(questions), idx))
         
         total_tasks = len(tasks)
-        completed = 0
         
         def _generate_and_write(level: str, question: str, idx: int) -> str:
-            conversation = self.generate_conversation(
+            """
+            Generate a conversation and write it to a file.
+            Thread-safe: each thread writes to a unique file based on (trait_type, level, idx).
+            """
+            conversation, reasoning_details = self.generate_conversation(
                 trait_type=trait_type,
                 trait_level=level,
                 question=question
             )
             # Use sequential per-level index to ensure unique filenames without timestamps
+            # Filename format: conversation_{trait_type}_{level}_{idx + 1}.txt
+            # This ensures uniqueness since idx is unique per level (0 to conversations_per_level-1)
             filename = f"conversation_{trait_type}_{level}_{idx + 1}.txt"
             filepath = os.path.join(output_dir, filename)
+            
+            # Write conversation file (each thread writes to a unique file, so this is thread-safe)
             with open(filepath, 'w', encoding='utf-8') as f:
                 f.write(conversation)
+            
+            # Save reasoning_details to separate folder (directory already created, so thread-safe)
+            if reasoning_details:
+                reasoning_filepath = os.path.join(reasoning_dir, filename)
+                # Each thread writes to a unique file, so this is thread-safe
+                with open(reasoning_filepath, 'w', encoding='utf-8') as f:
+                    f.write(reasoning_details)
+            
             return filename
         
         print(f"Generating {conversations_per_level} conversations per level for {trait_type} using {workers} workers")
         with concurrent.futures.ThreadPoolExecutor(max_workers=max(1, workers)) as executor:
             futures = [executor.submit(_generate_and_write, level, q, idx) for (level, q, idx) in tasks]
+            completed = 0
             for future in tqdm(concurrent.futures.as_completed(futures), total=total_tasks, desc=f"{trait_type}"):
                 try:
                     _ = future.result()
-                except Exception:
-                    # Errors already logged in generation; continue
-                    pass
-                completed += 1
+                    completed += 1
+                except Exception as e:
+                    # Log errors for debugging
+                    print(f"Error in thread: {e}")
+                    # Continue processing other tasks
         
         print(f"Generated {completed} conversations for {trait_type}")
     
@@ -254,7 +351,8 @@ Use only the "### Human:" and "### Assistant:" markers to separate turns. Do not
         questions = self.question_pools[trait_type]
         question = random.choice(questions)
         
-        return self.generate_conversation(trait_type, trait_level, question)
+        conversation, _ = self.generate_conversation(trait_type, trait_level, question)
+        return conversation
 
 
 def main():

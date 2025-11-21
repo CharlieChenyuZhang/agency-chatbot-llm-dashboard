@@ -78,5 +78,5 @@ python generate_behavioral_data_gpt5.py \
  --model openai/gpt-5.1 \
  --trait all \
  --output_dir data/dataset/final_trainingdata_gpt5.1 \
- --conversations_per_level 10 \
+ --conversations_per_level 2000 \
  --workers 20
