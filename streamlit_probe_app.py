@@ -141,30 +141,48 @@ def main():
         )
         
         if enable_intervention:
-            # Select which trait to intervene on
-            intervention_trait = st.selectbox(
-                "Trait to Intervene On",
-                options=ALL_TRAIT_TYPES,
-                format_func=lambda x: x.replace("_", " ").title(),
-                help="Select which behavioral trait to control"
-            )
+            # Intervention settings for all three traits
+            intervention_targets = {}
+            intervention_strengths = {}
             
-            trait_names = BEHAVIORAL_TRAIT_NAMES.get(intervention_trait, ["Low", "Medium", "High"])
-            target_level = st.selectbox(
-                "Target Level",
-                options=[0, 1, 2],
-                format_func=lambda x: trait_names[x],
-                help="Target behavioral trait level to steer towards"
-            )
+            for trait_type in ALL_TRAIT_TYPES:
+                st.subheader(f"{trait_type.replace('_', ' ').title()}")
+                
+                enable_trait_intervention = st.checkbox(
+                    f"Enable {trait_type.replace('_', ' ').title()} Intervention",
+                    value=False,
+                    key=f"enable_{trait_type}",
+                    help=f"Enable intervention for {trait_type}"
+                )
+                
+                if enable_trait_intervention:
+                    trait_names = BEHAVIORAL_TRAIT_NAMES.get(trait_type, ["Low", "Medium", "High"])
+                    target_level = st.selectbox(
+                        "Target Level",
+                        options=[0, 1, 2],
+                        format_func=lambda x, names=trait_names: names[x],
+                        key=f"target_{trait_type}",
+                        help=f"Target {trait_type} level to steer towards"
+                    )
+                    
+                    strength = st.slider(
+                        "Intervention Strength",
+                        min_value=1,
+                        max_value=20,
+                        value=8,
+                        key=f"strength_{trait_type}",
+                        help=f"Strength of intervention for {trait_type}"
+                    )
+                    
+                    # Create target vector for this trait
+                    num_classes = len(BEHAVIORAL_TRAIT_LABELS[trait_type])
+                    target_vector = torch.zeros(1, num_classes)
+                    target_vector[0, target_level] = 1.0
+                    
+                    intervention_targets[trait_type] = target_vector
+                    intervention_strengths[trait_type] = strength
             
-            intervention_strength = st.slider(
-                "Intervention Strength",
-                min_value=1,
-                max_value=20,
-                value=8,
-                help="Strength of the intervention (N parameter)"
-            )
-            
+            # Global layer settings (apply to all enabled interventions)
             from_layer = st.slider(
                 "From Layer",
                 min_value=0,
@@ -180,10 +198,14 @@ def main():
                 value=30,
                 help="Ending layer for intervention"
             )
+            
+            # If no interventions enabled, set to None
+            if not intervention_targets:
+                intervention_targets = None
+                intervention_strengths = 8
         else:
-            intervention_trait = None
-            target_level = None
-            intervention_strength = 8
+            intervention_targets = None
+            intervention_strengths = 8
             from_layer = 20
             to_layer = 30
         
@@ -255,16 +277,23 @@ def main():
             # Prepare intervention parameters
             target_vector = None
             control_probe_dict = None
-            if enable_intervention:
-                if not st.session_state.control_probes or intervention_trait not in st.session_state.control_probes:
+            if enable_intervention and intervention_targets:
+                if not st.session_state.control_probes:
                     st.warning("Control probes not loaded. Please load probes first.")
                 else:
-                    # Get control probes for the selected trait
-                    control_probe_dict = st.session_state.control_probes[intervention_trait]
-                    # Create target vector (one-hot)
-                    num_classes = len(BEHAVIORAL_TRAIT_LABELS[intervention_trait])
-                    target_vector = torch.zeros(1, num_classes)
-                    target_vector[0, target_level] = 1.0
+                    # Get control probes for all enabled traits
+                    control_probe_dict = {}
+                    target_vector = {}
+                    
+                    for trait_type, target_vec in intervention_targets.items():
+                        if trait_type in st.session_state.control_probes:
+                            control_probe_dict[trait_type] = st.session_state.control_probes[trait_type]
+                            target_vector[trait_type] = target_vec
+                    
+                    if not control_probe_dict:
+                        st.warning("No control probes available for selected traits.")
+                        control_probe_dict = None
+                        target_vector = None
             
             # Generate response
             with st.chat_message("assistant"):
@@ -275,10 +304,10 @@ def main():
                             tokenizer=st.session_state.tokenizer,
                             messages=messages,
                             reading_probe_dict=st.session_state.reading_probes if st.session_state.reading_probes else None,
-                            control_probe_dict=control_probe_dict if enable_intervention else None,
-                            trait_type=intervention_trait if enable_intervention else None,
-                            target_vector=target_vector,
-                            intervention_strength=intervention_strength if enable_intervention else 0,
+                            control_probe_dict=control_probe_dict if enable_intervention and control_probe_dict else None,
+                            trait_type=None,  # Not used for multi-intervention
+                            target_vector=target_vector if enable_intervention and target_vector else None,
+                            intervention_strength=intervention_strengths if enable_intervention and isinstance(intervention_strengths, dict) else (intervention_strengths if enable_intervention else 0),
                             from_layer=from_layer,
                             to_layer=to_layer,
                             max_new_tokens=max_tokens,

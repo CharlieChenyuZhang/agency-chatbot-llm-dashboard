@@ -178,73 +178,152 @@ def create_edit_function(control_probe_dict, trait_type, target_vector, N=8, fro
     """
     Create an edit function for TraceDict that will be called during forward pass
     
+    Args:
+        control_probe_dict: Can be a single dict {layer: probe} or a dict of dicts {trait_type: {layer: probe}}
+        trait_type: Can be a single trait type (str) or None for multi-intervention
+        target_vector: Can be a single target vector or a dict {trait_type: target_vector} for multi-intervention
+        N: Intervention strength (can be a single value or dict {trait_type: N})
+        from_layer: Starting layer
+        to_layer: Ending layer
+    
     Returns a function that can be used with TraceDict
     """
-    def edit_inter_rep_multi_layers(output, layer_name):
-        """
-        Edit intermediate representation at multiple layers using control probes
-        
-        This function is called by TraceDict during forward pass
-        """
-        if "model.layers." not in layer_name:
-            return output
-        
-        # Extract layer number (for residual stream, layer name is just the number)
-        try:
-            layer_num = int(layer_name[layer_name.rfind("model.layers.") + len("model.layers."):])
-        except ValueError:
-            return output
-        
-        # Only intervene in specified layer range
-        if not (from_layer <= layer_num < to_layer):
-            return output
-        
-        # Get probe for this layer (probes are indexed by layer_num + 1 in some setups)
-        probe_layer = layer_num + 1
-        if probe_layer not in control_probe_dict:
-            return output
-        
-        probe = control_probe_dict[probe_layer]
-        
-        # Get the last token's hidden state
-        # For residual stream, output is typically a tuple where output[0] is the hidden states
-        if isinstance(output, tuple):
-            hidden_states = output[0]
-        else:
-            hidden_states = output
-        
-        # Handle different tensor shapes
-        if len(hidden_states.shape) == 3:
-            # [batch, seq_len, hidden_dim] - get last token
-            cloned_inter_rep = hidden_states[:, -1, :].unsqueeze(0).detach().clone().to(torch.float)
-        elif len(hidden_states.shape) == 2:
-            # [batch, hidden_dim] - use as is
-            cloned_inter_rep = hidden_states.detach().clone().to(torch.float)
-        else:
-            return output
-        
-        # Apply intervention
-        with torch.enable_grad():
-            cloned_inter_rep = optimize_intervention_rep(
-                cloned_inter_rep, 
-                target_vector, 
-                probe,
-                N=N,
-                normalized=False
-            )
-        
-        # Update the output
-        if len(hidden_states.shape) == 3:
-            hidden_states[:, -1, :] = cloned_inter_rep[0].to(torch.float16)
-        elif len(hidden_states.shape) == 2:
-            hidden_states = cloned_inter_rep.to(torch.float16)
-        
-        if isinstance(output, tuple):
-            return (hidden_states,) + output[1:]
-        else:
-            return hidden_states
+    # Check if we have multiple interventions
+    is_multi_intervention = (isinstance(control_probe_dict, dict) and 
+                            len(control_probe_dict) > 0 and 
+                            isinstance(next(iter(control_probe_dict.values())), dict) and
+                            next(iter(control_probe_dict.keys())) in ["goal_persistence", "independence", "rigidity"])
     
-    return edit_inter_rep_multi_layers
+    if is_multi_intervention:
+        # Multiple interventions: apply all of them sequentially
+        # target_vector should be a dict {trait_type: target_vector}
+        target_vectors = target_vector if isinstance(target_vector, dict) else {}
+        N_dict = N if isinstance(N, dict) else {trait: N for trait in control_probe_dict.keys()}
+        
+        def edit_inter_rep_multi_layers(output, layer_name):
+            if "model.layers." not in layer_name:
+                return output
+            
+            try:
+                layer_num = int(layer_name[layer_name.rfind("model.layers.") + len("model.layers."):])
+            except ValueError:
+                return output
+            
+            # Only intervene in specified layer range
+            if not (from_layer <= layer_num < to_layer):
+                return output
+            
+            # Get the last token's hidden state
+            if isinstance(output, tuple):
+                hidden_states = output[0]
+            else:
+                hidden_states = output
+            
+            # Handle different tensor shapes
+            if len(hidden_states.shape) == 3:
+                cloned_inter_rep = hidden_states[:, -1, :].unsqueeze(0).detach().clone().to(torch.float)
+            elif len(hidden_states.shape) == 2:
+                cloned_inter_rep = hidden_states.detach().clone().to(torch.float)
+            else:
+                return output
+            
+            # Apply all interventions sequentially
+            probe_layer = layer_num + 1
+            for trait_type_key, trait_probe_dict in control_probe_dict.items():
+                if probe_layer in trait_probe_dict and trait_type_key in target_vectors:
+                    probe = trait_probe_dict[probe_layer]
+                    target_vec = target_vectors[trait_type_key]
+                    N_val = N_dict.get(trait_type_key, N if not isinstance(N, dict) else 8)
+                    
+                    # Apply intervention for this trait
+                    with torch.enable_grad():
+                        cloned_inter_rep = optimize_intervention_rep(
+                            cloned_inter_rep, 
+                            target_vec, 
+                            probe,
+                            N=N_val,
+                            normalized=False
+                        )
+            
+            # Update the output
+            if len(hidden_states.shape) == 3:
+                hidden_states[:, -1, :] = cloned_inter_rep[0].to(torch.float16)
+            elif len(hidden_states.shape) == 2:
+                hidden_states = cloned_inter_rep.to(torch.float16)
+            
+            if isinstance(output, tuple):
+                return (hidden_states,) + output[1:]
+            else:
+                return hidden_states
+        
+        return edit_inter_rep_multi_layers
+    else:
+        # Single intervention (backward compatibility)
+        def edit_inter_rep_multi_layers(output, layer_name):
+            """
+            Edit intermediate representation at multiple layers using control probes
+            
+            This function is called by TraceDict during forward pass
+            """
+            if "model.layers." not in layer_name:
+                return output
+            
+            # Extract layer number (for residual stream, layer name is just the number)
+            try:
+                layer_num = int(layer_name[layer_name.rfind("model.layers.") + len("model.layers."):])
+            except ValueError:
+                return output
+            
+            # Only intervene in specified layer range
+            if not (from_layer <= layer_num < to_layer):
+                return output
+            
+            # Get probe for this layer (probes are indexed by layer_num + 1 in some setups)
+            probe_layer = layer_num + 1
+            if probe_layer not in control_probe_dict:
+                return output
+            
+            probe = control_probe_dict[probe_layer]
+            
+            # Get the last token's hidden state
+            # For residual stream, output is typically a tuple where output[0] is the hidden states
+            if isinstance(output, tuple):
+                hidden_states = output[0]
+            else:
+                hidden_states = output
+            
+            # Handle different tensor shapes
+            if len(hidden_states.shape) == 3:
+                # [batch, seq_len, hidden_dim] - get last token
+                cloned_inter_rep = hidden_states[:, -1, :].unsqueeze(0).detach().clone().to(torch.float)
+            elif len(hidden_states.shape) == 2:
+                # [batch, hidden_dim] - use as is
+                cloned_inter_rep = hidden_states.detach().clone().to(torch.float)
+            else:
+                return output
+            
+            # Apply intervention
+            with torch.enable_grad():
+                cloned_inter_rep = optimize_intervention_rep(
+                    cloned_inter_rep, 
+                    target_vector, 
+                    probe,
+                    N=N,
+                    normalized=False
+                )
+            
+            # Update the output
+            if len(hidden_states.shape) == 3:
+                hidden_states[:, -1, :] = cloned_inter_rep[0].to(torch.float16)
+            elif len(hidden_states.shape) == 2:
+                hidden_states = cloned_inter_rep.to(torch.float16)
+            
+            if isinstance(output, tuple):
+                return (hidden_states,) + output[1:]
+            else:
+                return hidden_states
+        
+        return edit_inter_rep_multi_layers
 
 
 def generate_with_probes(
@@ -255,7 +334,7 @@ def generate_with_probes(
     control_probe_dict=None,
     trait_type=None,
     target_vector=None,
-    intervention_strength=8,
+    intervention_strength=8,  # Can be int or dict {trait_type: strength}
     from_layer=20,
     to_layer=30,
     max_new_tokens=256,
@@ -297,14 +376,35 @@ def generate_with_probes(
     
     # Determine which layers to trace (for residual stream, we trace the layer outputs)
     modified_layer_names = []
+    # Check if we have multiple interventions
+    is_multi_intervention = (control_probe_dict is not None and 
+                            isinstance(control_probe_dict, dict) and 
+                            len(control_probe_dict) > 0 and 
+                            isinstance(next(iter(control_probe_dict.values())), dict) and
+                            next(iter(control_probe_dict.keys())) in ["goal_persistence", "independence", "rigidity"])
+    
     if control_probe_dict is not None and target_vector is not None:
         # Get all layers in the intervention range
         for layer_idx in range(from_layer, to_layer):
             layer_name = f"model.layers.{layer_idx}"
-            # Check if we have a probe for this layer
-            probe_layer = layer_idx + 1
-            if probe_layer in control_probe_dict:
-                # Verify the layer exists in the model
+            
+            # Check if any probe dict has a probe for this layer
+            has_probe = False
+            if is_multi_intervention:
+                # Check all trait probe dicts
+                for trait_probe_dict in control_probe_dict.values():
+                    probe_layer = layer_idx + 1
+                    if probe_layer in trait_probe_dict:
+                        has_probe = True
+                        break
+            else:
+                # Single intervention
+                probe_layer = layer_idx + 1
+                if probe_layer in control_probe_dict:
+                    has_probe = True
+            
+            # Verify the layer exists in the model and add it
+            if has_probe:
                 for mod_name, mod in model.named_modules():
                     if mod_name == layer_name:
                         modified_layer_names.append(mod_name)
@@ -313,14 +413,32 @@ def generate_with_probes(
     # Create intervention function
     edit_function = None
     if control_probe_dict is not None and target_vector is not None:
-        edit_function = create_edit_function(
-            control_probe_dict,
-            trait_type,
-            target_vector,
-            N=intervention_strength,
-            from_layer=from_layer,
-            to_layer=to_layer
-        )
+        # Check if we have multiple interventions
+        is_multi_intervention = (isinstance(control_probe_dict, dict) and 
+                                len(control_probe_dict) > 0 and 
+                                isinstance(next(iter(control_probe_dict.values())), dict) and
+                                next(iter(control_probe_dict.keys())) in ["goal_persistence", "independence", "rigidity"])
+        
+        if is_multi_intervention:
+            # For multi-intervention, trait_type is None and target_vector is a dict
+            edit_function = create_edit_function(
+                control_probe_dict,
+                None,  # trait_type is None for multi-intervention
+                target_vector,  # dict {trait_type: target_vector}
+                N=intervention_strength,  # can be dict or single value
+                from_layer=from_layer,
+                to_layer=to_layer
+            )
+        else:
+            # Single intervention (backward compatibility)
+            edit_function = create_edit_function(
+                control_probe_dict,
+                trait_type,
+                target_vector,
+                N=intervention_strength,
+                from_layer=from_layer,
+                to_layer=to_layer
+            )
     
     # Generate with or without intervention
     with torch.no_grad():
